@@ -30,7 +30,11 @@ import Ska.engarchive.fetch as fetch
 import Ska.engarchive.converters as converters
 import Ska.engarchive.file_defs as file_defs
 import Ska.engarchive.derived as derived
-import Ska.arc5gl
+#import Ska.arc5gl
+
+from jSka.ingest import process
+
+ingest = process.Ingest('fof1eng.CSV')
 
 
 def get_options(args=None):
@@ -95,6 +99,7 @@ def get_options(args=None):
                         help="Content type to process [match regex] (default = all)")
     parser.add_argument("--log-level",
                         help="Logging level")
+    parser.add_argument("--jska", action="store_true", help="Flag ingest process for JWST.")
     return parser.parse_args(args)
 
 # Configure fetch.MSID to cache recent results for performance in
@@ -201,12 +206,16 @@ def main_loop():
     logger.info('')
 
     # Get the archive content filetypes
+    # NOTE: Not sure if jSka will need this? ultimately references filetypes.dat
+    # but, at the moment there is just a single
+    
     filetypes = fetch.filetypes
     if opt.content:
         contents = [x.upper() for x in opt.content]
         filetypes = [x for x in filetypes
                      if any(re.match(y, x.content) for y in contents)]
-
+    print("LOOK AT ME")                
+    print(filetypes)
     # Update archive currently cannot create derived parameter content types
     if opt.create:
         filetypes = [x for x in filetypes if not x.content.startswith('DP_')]
@@ -219,8 +228,14 @@ def main_loop():
         if opt.create:
             create_content_dir()
 
-        colnames = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
-                    if x not in fetch.IGNORE_COLNAMES]
+        jwst_data = ingest.start()
+
+        if opt.jska:
+            colnames = []# list(jwst_data.keys())
+        else:
+            colnames = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
+                        if x not in fetch.IGNORE_COLNAMES]
+
 
         if not os.path.exists(fetch.msid_files['archfiles'].abs):
             logger.info('No archfiles.db3 for %s - skipping' % ft['content'])
@@ -621,43 +636,71 @@ def update_archive(filetype):
         dirname = arch_files['stagedir'].abs
         if not os.path.exists(dirname):
             os.makedirs(dirname)
+    elif opt.jska:
+        dirname = arch_files['stagedir'].abs
+        print("sdkjfisdhfdlshfdshfdslhflsdhfljsdhf")
+        print(dirname)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
     else:
         tmpdir = Ska.File.TempDir(dir=opt.data_root)
         dirname = tmpdir.name
 
     with Ska.File.chdir(dirname):
-        archfiles = get_archive_files(filetype)
-        if archfiles:
-            archfiles_processed = update_msid_files(filetype, archfiles)
-            move_archive_files(filetype, archfiles_processed)
+        if not opt.jska:
+            archfiles = get_archive_files(filetype)
+            if archfiles:
+                archfiles_processed = update_msid_files(filetype, archfiles)
+                move_archive_files(filetype, archfiles_processed)
+        else:
+            print("I'm doing JWST")
+            archfiles = get_archive_files(filetype)
+            if archfiles:
+                archfiles_processed = update_msid_files(filetype, archfiles)
+                move_archive_files(filetype, archfiles_processed)
 
 
 def make_h5_col_file(dats, colname):
+
     """Make a new h5 table to hold column from ``dat``."""
     filename = msid_files['msid'].abs
-    filedir = os.path.dirname(filename)
-    if not os.path.exists(filedir):
-        os.makedirs(filedir)
+    print("I am creating",filename)
+    print(colname)
+    if not opt.jska:
+        filedir = os.path.dirname(filename)
+        if not os.path.exists(filedir):
+            os.makedirs(filedir)
 
-    # Estimate the number of rows for 20 years based on available data
-    times = np.hstack([x['TIME'] for x in dats])
-    dt = np.median(times[1:] - times[:-1])
-    n_rows = int(86400 * 365 * 20 / dt)
+        # Estimate the number of rows for 20 years based on available data
+        #times = np.hstack([x['TIME'] for x in dats])
+        #dt = np.median(times[1:] - times[:-1])
+        n_rows = int(86400 * 365 * 20 / 18)
 
-    filters = tables.Filters(complevel=5, complib='zlib')
-    h5 = tables.open_file(filename, mode='w', filters=filters)
+        filters = tables.Filters(complevel=5, complib='zlib')
+        h5 = tables.open_file(filename, mode='w', filters=filters)
 
-    col = dats[-1][colname]
-    h5shape = (0,) + col.shape[1:]
-    h5type = tables.Atom.from_dtype(col.dtype)
-    h5.createEArray(h5.root, 'data', h5type, h5shape, title=colname,
-                    expectedrows=n_rows)
-    h5.createEArray(h5.root, 'quality', tables.BoolAtom(), (0,), title='Quality',
-                    expectedrows=n_rows)
-    logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
-                   .format(filename, colname, h5shape, n_rows / 1.0e6))
-    h5.close()
+        col = dats[-1][colname]
+        h5shape = (0,) + col.shape[1:]
+        h5type = tables.Atom.from_dtype(col.dtype)
+        h5.createEArray(h5.root, 'data', h5type, h5shape, title=colname,
+                        expectedrows=n_rows)
+    # h5.createEArray(h5.root, 'quality', tables.BoolAtom(), (0,), title='Quality',
+    #                 expectedrows=n_rows)
+        logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
+                    .format(filename, colname, h5shape, n_rows / 1.0e6))
+        h5.close()
 
+    else:
+       
+        filters = tables.Filters(complevel=5, complib='zlib')
+        h5file = tables.open_file(filename, driver="H5FD_CORE", mode="w", filters=filters)
+        # print(h5file.root)
+        # print(type(filters))
+        group = h5file.create_group(h5file.root, "data", "Data")
+        #table = h5file.create_table(group, 'values', "whatever")
+
+        #table.flush()
+        h5file.close()
 
 def append_filled_h5_col(dats, colname, data_len):
     """
@@ -703,12 +746,12 @@ def append_h5_col(dats, colname, files_overlaps):
 
     h5 = tables.open_file(msid_files['msid'].abs, mode='a')
     stacked_data = np.hstack([x[colname] for x in dats])
-    stacked_quality = np.hstack([x['QUALITY'][:, i_colname(x)] for x in dats])
+    #stacked_quality = np.hstack([x['QUALITY'][:, i_colname(x)] for x in dats])
     logger.verbose('Appending %d items to %s' % (len(stacked_data), msid_files['msid'].abs))
 
     if not opt.dry_run:
         h5.root.data.append(stacked_data)
-        h5.root.quality.append(stacked_quality)
+        #h5.root.quality.append(stacked_quality)
 
     # Remove overlaps in the archive files where file0['tstop'] > file1['tstart'].
     # Do this by setting the TIME column quality flag for the overlapping rows
@@ -793,38 +836,61 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
 
     # Read FITS archive file and accumulate data into dats list and header into headers dict
     logger.info('Reading (%d / %d) %s' % (i, len(archfiles), filename))
-    hdus = pyfits.open(f)
-    hdu = hdus[1]
+    
+    if opt.jska:
+        # TODO: read in the file using pandas 
+        jwst_data = ingest.get_data()
+        dat = converters.convert(jwst_data, filetype['content'])
+        #dat['QUALITY'] = np.array([1])
+        print(archfiles_hdr_cols)
+        print("JWST MADE IT HERE!!!!!")
+        archfiles_row = {}
+        archfiles_row['tstart'] = 1
+        archfiles_row['tstop'] = 100
+        archfiles_row['date'] =  123456
+        archfiles_row['checksum'] = "md5ohuaeshoufaeohuohudhjoedojqdojhqew"
+        archfiles_row['rowstart'] = 0
+        archfiles_row['rowstop'] = 100
+        archfiles_row['filename'] = filename
+        archfiles_row['filetime'] = 8 #int(re.search(r'(\d+)', archfiles_row['filename']).group(1))
+        filedate = DateTime((2019, 1,1, 15, 8, 24, 78915)) #(archfiles_row['filetime']).date
+        # year, doy = (int(x) for x in re.search(r'(\d\d\d\d):(\d\d\d)', filedate).groups())
+        archfiles_row['year'] = 2019
+        archfiles_row['doy'] = 30
+    else:
+        hdus = pyfits.open(f)
+        hdu = hdus[1]
 
-    try:
-        dat = converters.convert(hdu.data, filetype['content'])
+        try:
+            dat = converters.convert(hdu.data, filetype['content'])
+            
 
-    except converters.NoValidDataError:
-        # When creating files allow NoValidDataError
+        except converters.NoValidDataError:
+            # When creating files allow NoValidDataError
+            hdus.close()
+            logger.warning('WARNING: no valid data in data file {}'.format(filename))
+            return None, None
+
+        except converters.DataShapeError as err:
+            hdus.close()
+            logger.warning('WARNING: skipping file {} with bad data shape: ASCDSVER={} {}'
+                        .format(filename, hdu.header['ASCDSVER'], err))
+            return None, None
+
+        # Accumlate relevant info about archfile that will be ingested into
+        # MSID h5 files.  Commit info before h5 ingest so if there is a failure
+        # the needed info will be available to do the repair.
+        archfiles_row = dict((x, hdu.header.get(x.upper())) for x in archfiles_hdr_cols)
+        archfiles_row['checksum'] = hdu.header.get('checksum') or hdu._checksum
+        archfiles_row['rowstart'] = row
+        archfiles_row['rowstop'] = row + len(dat)
+        archfiles_row['filename'] = filename
+        archfiles_row['filetime'] = int(re.search(r'(\d+)', archfiles_row['filename']).group(1))
+        filedate = DateTime(archfiles_row['filetime']).date
+        year, doy = (int(x) for x in re.search(r'(\d\d\d\d):(\d\d\d)', filedate).groups())
+        archfiles_row['year'] = year
+        archfiles_row['doy'] = doy
         hdus.close()
-        logger.warning('WARNING: no valid data in data file {}'.format(filename))
-        return None, None
-
-    except converters.DataShapeError as err:
-        hdus.close()
-        logger.warning('WARNING: skipping file {} with bad data shape: ASCDSVER={} {}'
-                       .format(filename, hdu.header['ASCDSVER'], err))
-        return None, None
-
-    # Accumlate relevant info about archfile that will be ingested into
-    # MSID h5 files.  Commit info before h5 ingest so if there is a failure
-    # the needed info will be available to do the repair.
-    archfiles_row = dict((x, hdu.header.get(x.upper())) for x in archfiles_hdr_cols)
-    archfiles_row['checksum'] = hdu.header.get('checksum') or hdu._checksum
-    archfiles_row['rowstart'] = row
-    archfiles_row['rowstop'] = row + len(dat)
-    archfiles_row['filename'] = filename
-    archfiles_row['filetime'] = int(re.search(r'(\d+)', archfiles_row['filename']).group(1))
-    filedate = DateTime(archfiles_row['filetime']).date
-    year, doy = (int(x) for x in re.search(r'(\d\d\d\d):(\d\d\d)', filedate).groups())
-    archfiles_row['year'] = year
-    archfiles_row['doy'] = doy
-    hdus.close()
 
     return dat, archfiles_row
 
@@ -982,10 +1048,10 @@ def update_msid_files(filetype, archfiles):
         # This breaks things, so in this case just skip the file.  However
         # since last_archfile is set above the gap check considers this file to
         # have been ingested.
-        if not content_is_derived and dat['QUALITY'].shape[1] != len(dat.dtype.names):
-            logger.warning('WARNING: skipping because of quality size mismatch: %d %d' %
-                           (dat['QUALITY'].shape[1], len(dat.dtype.names)))
-            continue
+        # if not content_is_derived and dat['QUALITY'].shape[1] != len(dat.dtype.names):
+        #     logger.warning('WARNING: skipping because of quality size mismatch: %d %d' %
+        #                    (dat['QUALITY'].shape[1], len(dat.dtype.names)))
+        #     continue
 
         # Mark the archfile as ingested in the database and add to list for
         # subsequent relocation into arch_files archive.  In the case of a gap
@@ -1026,7 +1092,7 @@ def update_msid_files(filetype, archfiles):
                     continue
             data_len = append_h5_col(dats, colname, archfiles_overlaps)
             data_lens.add(data_len)
-            processed_cols.add(colname)
+            #processed_cols.add(colname)
 
         if len(data_lens) != 1:
             raise ValueError('h5 data length inconsistency {}, investigate NOW!'
@@ -1100,6 +1166,10 @@ def get_archive_files(filetype):
     files = sorted(glob.glob(filetype['fileglob']))
     if opt.occ or files:
         return sorted(files)[:opt.max_arch_files]
+    
+    # Might do something else here for JWST not sure.
+    if opt.jska:
+        return sorted(files)[:opt.max_arch_files]
 
     # Retrieve CXC archive files in a temp directory with arc5gl
     arc5 = Ska.arc5gl.Arc5gl(echo=True)
@@ -1167,4 +1237,5 @@ def main():
 
     for date_now in date_nows:
         opt.date_now = date_now
+
         main_loop()

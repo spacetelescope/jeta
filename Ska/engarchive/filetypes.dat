@@ -74,6 +74,7 @@ L0   TEL       TEL1ENG         TEL_ENG_0{TEL1ENG}           *.fits.gz
 L0   TEL       TEL2ENG         TEL_ENG_0{TEL2ENG}           *.fits.gz
 L0   TEL       TEL3ENG         TEL_ENG_0{TEL3ENG}           *.fits.gz
 L0   THM       THM1ENG         THM_ENG_0{THM1ENG}           *.fits.gz
+L0   FOF       FOF1ENG         FOF_ENG_0{FOF1ENG}           *.CSV
 L0   THM       THM2ENG         THM_ENG_0{THM2ENG}           *.fits.gz
 L0   THM       THM3ENG         THM_ENG_0{THM3ENG}           *.fits.gz
 L0   SIM       SIMDIAG         SIM_0{SIMDIAG}               *.fits.gz

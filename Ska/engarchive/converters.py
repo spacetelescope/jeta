@@ -34,7 +34,7 @@ def quality_index(dat, colname):
 
 
 def numpy_converter(dat):
-    return Ska.Numpy.structured_array(dat, colnames=dat.dtype.names)
+    return Ska.Numpy.structured_array(dat) #Ska.Numpy.structured_array(dat, colnames=dat.dtype.names)
 
 
 def convert(dat, content):
