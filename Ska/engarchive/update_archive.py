@@ -702,15 +702,12 @@ def make_h5_col_file(dats, colname):
     else:
         create_directory(filename)
 
-        # year_range = ingest.get_min_max_year_for_mnemonic(colname)
-
-        delta_times = ingest.get_delta_times(colname)
-
-        print("======================Delta Times=========================")
-        print(len(delta_times))
-        print(delta_times)
+        #year_range = ingest.get_min_max_year_for_mnemonic(colname)
 
         filepath = DataProduct.create_values_hdf5(colname, dats, filename)
+
+        print("FILE PATH IN MAKE COL")
+        print(filepath)
 
         return filepath
    
@@ -735,12 +732,15 @@ def append_filled_h5_col(dats, colname, data_len, filepath):
     quals = np.zeros(fill_len, dtype=bool)
 
     # Append zeros (for the data type) and quality=True (bad)
-    h5 = tables.open_file(filepath, mode='a')
-    logger.verbose('Appending %d zeros to %s' % (len(zeros), filepath))
+    h5 = tables.open_file( DataProduct.get_archive_path(colname, msid_files['msid'].abs), mode='a')
+    logger.verbose('Appending %d zeros to %s' % (len(zeros), DataProduct.get_archive_path(colname, msid_files['msid'].abs)))
     if not opt.dry_run:
         h5.root.data.append(zeros)
 #        h5.root.quality.append(quals)
     h5.close()
+
+    print("FILE PATH IN APPEND FILLED")
+    print(filepath)
 
     # Now actually append the new data
     append_h5_col(new_dats, colname, [], filepath)
@@ -752,6 +752,9 @@ def append_h5_col(dats, colname, files_overlaps, filepath):
     :param dats: List of pyfits HDU data objects
     :param colname: column name
     """
+
+    print("FILE PATH IN APPEND H5 COL")
+    print(filepath)
     def i_colname(dat):
         """Return the index for `colname` in `dat`"""
         return list(dat.dtype.names).index(colname)
@@ -1095,7 +1098,7 @@ def update_msid_files(filetype, archfiles):
 
     print("5454543535353434343434343434433434")
     print(dats)
-
+    
     if dats:
         logger.verbose('Writing accumulated column data to h5 file at ' + time.ctime())
         data_lens = set()
@@ -1103,7 +1106,8 @@ def update_msid_files(filetype, archfiles):
         for colname in colnames:
             ft['msid'] = colname
             if not os.path.exists(msid_files['msid'].abs):
-                filepath = make_h5_col_file(dats, colname)
+                filedir = make_h5_col_file(dats, colname)
+                filepath = DataProduct.get_archive_path(colname, filedir)
                 if not opt.create:
                     # New MSID was found for this content type.  This must be associated with
                     # an update to the TDB.  Skip for the moment to ensure that other MSIDs
@@ -1125,7 +1129,7 @@ def update_msid_files(filetype, archfiles):
             data_len = 2
         for colname in colnames - processed_cols:
             ft['msid'] = colname
-            append_filled_h5_col(dats, colname, data_len, filepath)
+            append_filled_h5_col(dats, colname, data_len, DataProduct.get_archive_path(colname, msid_files['msid'].abs))
 
     # Assuming everything worked now commit the db inserts that signify the
     # new archive files have been processed

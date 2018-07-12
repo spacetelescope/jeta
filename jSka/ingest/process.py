@@ -115,7 +115,6 @@ class Ingest:
         # file type ingested. For now flat csv is assumed.
         self.data = self.partition()
 
-
         # Create the HDF5 file(s) archive 
         # self.archive()
 

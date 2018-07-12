@@ -27,31 +27,26 @@ class DataProduct:
         
         return n_rows
 
-    def append(self, entry):
+    @staticmethod
+    def get_archive_path(mnemonic, filedir):
 
-        pass
+        filedir = os.path.dirname(filedir)
+        filepath = Path(filedir).joinpath(str(mnemonic+'_values.h5'))
 
-    def create(self):
-
-        pass
+        return filepath
 
     @staticmethod
     def create_values_hdf5(mnemonic, data, filepath):
 
-        n_rows = int(86400 * 365 * 20 / 18)
+        filedir = os.path.dirname(filepath)
+        filepath = Path(filedir).joinpath(str(mnemonic+'_values.h5'))
 
         filters = tables.Filters(complevel=5, complib='zlib')
-
-        filedir = os.path.dirname(filepath)
-
-        filepath = Path(filedir).joinpath(str(mnemonic+'_values_.h5'))
-    
         h5file = tables.open_file(filepath, driver="H5FD_CORE", mode="w", filters=filters)
 
+        n_rows = int(86400 * 365 * 20 / 18)
         col = data[-1][mnemonic]
-
         h5shape = (0,) + col.shape[1:]
-
         h5type = tables.Atom.from_dtype(col.dtype)
 
         h5file.create_earray(h5file.root, 'data', h5type, h5shape, title=mnemonic,
@@ -60,44 +55,43 @@ class DataProduct:
     
         h5file.close()
 
-        return filepath
-
-    def create_t0_hdf(self):
-        pass
-        #print("CREATING: ", self.mu+"_t0.h5" )
-
-    def create_dt_XXXX(self):
-
-        # TODO: variable path, year discovery
+        return filedir
+    
+    @staticmethod
+    def append_delta_times(mnemonic, delta_times, filepath):
+        
         filters = tables.Filters(complevel=5, complib='zlib')
-        h5file = tables.open_file("../output/"+self.mu+"_dt_2019.h5", driver="H5FD_CORE", mode="w", filters=filters)
-        group = h5file.create_group("/", self.mu, self.mu+' Data')
+
+        h5file = tables.open_file(filepath, driver="H5FD_CORE", mode="w", filters=filters)
+        group = h5file.create_group("/", mnemonic, "Data")
         table = h5file.create_table(group, 'deltatime', DeltaTime, "DeltaTime")
 
-        x = table.row
+        row = table.row
 
-        for i in self.deltatime:
-            x['delta_time'] = i
-            x.append()
+        for delta_time in delta_times:
+            row['delta_time'] = delta_time
+            row.append()
         
         table.flush()
         h5file.close()
 
-        #print("CREATING: ", self.mu+"_dt_XXXX.h5" )
-    
-    def create(self):
-        
-        #print("OUTPUT DIR: ", self.output_path)
+    @staticmethod
+    def create_delta_time_hdf5(mnemonic, filepath):
 
-        self.create_values_hdf()
-        self.create_t0_hdf()
-        self.create_dt_XXXX()
-    
+        filedir = os.path.dirname(filepath)
+        delta_time_filepath = Path(filedir).joinpath(str(mnemonic+'_delta_times.h5'))
+
+        filters = tables.Filters(complevel=5, complib='zlib')
+
+        h5file = tables.open_file(filepath, driver="H5FD_CORE", mode="w", filters=filters)
+      
+        h5file.close()
+
+        return delta_time_filepath
+
     def __init__(self, mu, eu, deltatime, output_path=Path.cwd()):
 
         self.mu = mu
         self.eu = eu
         self.deltatime = deltatime
         self.output_path=Path(output_path)
-        #self.output_file=output_file
-#self.full_output_path=self.output_path.joinpath(self.output_file)
