@@ -36,6 +36,11 @@ from jSka.ingest import process
 
 ingest = process.Ingest('fof1eng.CSV')
 
+from tables import IsDescription, StringCol
+
+class Value(IsDescription):
+
+    eu_values = StringCol(16)
 
 def get_options(args=None):
     parser = argparse.ArgumentParser()
@@ -214,8 +219,7 @@ def main_loop():
         contents = [x.upper() for x in opt.content]
         filetypes = [x for x in filetypes
                      if any(re.match(y, x.content) for y in contents)]
-    print("LOOK AT ME")                
-    print(filetypes)
+    
     # Update archive currently cannot create derived parameter content types
     if opt.create:
         filetypes = [x for x in filetypes if not x.content.startswith('DP_')]
@@ -638,8 +642,7 @@ def update_archive(filetype):
             os.makedirs(dirname)
     elif opt.jska:
         dirname = arch_files['stagedir'].abs
-        print("sdkjfisdhfdlshfdshfdslhflsdhfljsdhf")
-        print(dirname)
+        
         if not os.path.exists(dirname):
             os.makedirs(dirname)
     else:
@@ -653,19 +656,17 @@ def update_archive(filetype):
                 archfiles_processed = update_msid_files(filetype, archfiles)
                 move_archive_files(filetype, archfiles_processed)
         else:
-            print("I'm doing JWST")
+           
             archfiles = get_archive_files(filetype)
             if archfiles:
                 archfiles_processed = update_msid_files(filetype, archfiles)
                 move_archive_files(filetype, archfiles_processed)
 
-
 def make_h5_col_file(dats, colname):
 
     """Make a new h5 table to hold column from ``dat``."""
     filename = msid_files['msid'].abs
-    print("I am creating",filename)
-    print(colname)
+   
     if not opt.jska:
         filedir = os.path.dirname(filename)
         if not os.path.exists(filedir):
@@ -691,15 +692,15 @@ def make_h5_col_file(dats, colname):
         h5.close()
 
     else:
-       
+        n_rows = int(86400 * 365 * 20 / 18)
         filters = tables.Filters(complevel=5, complib='zlib')
         h5file = tables.open_file(filename, driver="H5FD_CORE", mode="w", filters=filters)
-        # print(h5file.root)
-        # print(type(filters))
-        group = h5file.create_group(h5file.root, "data", "Data")
-        #table = h5file.create_table(group, 'values', "whatever")
+        col = dats[-1][colname]
+        h5shape = (0,) + col.shape[1:]
+        h5type = tables.Atom.from_dtype(col.dtype)
+        h5file.create_earray(h5file.root, 'data', h5type, h5shape, title=colname,
+                        expectedrows=n_rows)
 
-        #table.flush()
         h5file.close()
 
 def append_filled_h5_col(dats, colname, data_len):
@@ -727,7 +728,7 @@ def append_filled_h5_col(dats, colname, data_len):
     logger.verbose('Appending %d zeros to %s' % (len(zeros), msid_files['msid'].abs))
     if not opt.dry_run:
         h5.root.data.append(zeros)
-        h5.root.quality.append(quals)
+#        h5.root.quality.append(quals)
     h5.close()
 
     # Now actually append the new data
@@ -748,6 +749,9 @@ def append_h5_col(dats, colname, files_overlaps):
     stacked_data = np.hstack([x[colname] for x in dats])
     #stacked_quality = np.hstack([x['QUALITY'][:, i_colname(x)] for x in dats])
     logger.verbose('Appending %d items to %s' % (len(stacked_data), msid_files['msid'].abs))
+
+    print("992939239239239232932932932932")
+    print(h5.root.data)
 
     if not opt.dry_run:
         h5.root.data.append(stacked_data)
@@ -1077,6 +1081,9 @@ def update_msid_files(filetype, archfiles):
 
         row += len(dat)
 
+    print("5454543535353434343434343434433434")
+    print(dats)
+
     if dats:
         logger.verbose('Writing accumulated column data to h5 file at ' + time.ctime())
         data_lens = set()
@@ -1090,16 +1097,20 @@ def update_msid_files(filetype, archfiles):
                     # an update to the TDB.  Skip for the moment to ensure that other MSIDs
                     # are fully processed.
                     continue
+            
             data_len = append_h5_col(dats, colname, archfiles_overlaps)
             data_lens.add(data_len)
-            #processed_cols.add(colname)
+            processed_cols.add(colname)
 
-        if len(data_lens) != 1:
-            raise ValueError('h5 data length inconsistency {}, investigate NOW!'
-                             .format(data_lens))
+        # if len(data_lens) != 1:
+        #     raise ValueError('h5 data length inconsistency {}, investigate NOW!'
+        #                      .format(data_lens))
 
         # Process any new MSIDs (this is extremely rare)
-        data_len = data_lens.pop()
+        try:
+            data_len = data_lens.pop()
+        except:
+            data_len = 2
         for colname in colnames - processed_cols:
             ft['msid'] = colname
             append_filled_h5_col(dats, colname, data_len)
@@ -1149,7 +1160,10 @@ def move_archive_files(filetype, archfiles):
             logger.info('mv %s %s' % (os.path.abspath(f), archfile))
             if not opt.dry_run:
                 if not opt.occ:
-                    shutil.copy2(f, stagedir)
+                    try:
+                        shutil.copy2(f, stagedir)
+                    except:
+                        pass
                 shutil.move(f, archfile)
 
         if os.path.exists(f):
