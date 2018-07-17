@@ -24,6 +24,7 @@ class Ingest:
     # The delta times collection
     delta_times =  collections.defaultdict(list)
 
+    # TODO: Write a better comment
     load_strategy = {
         'csv': LoadFlatCSVStrategy,
         'hdf5': LoadHDF5Strategy
@@ -114,6 +115,7 @@ class Ingest:
         # since the format of the data will be completely different depending on the 
         # file type ingested. For now flat csv is assumed.
         self.data = self.partition()
+
 
         # Create the HDF5 file(s) archive 
         # self.archive()
