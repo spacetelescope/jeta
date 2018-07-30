@@ -30,6 +30,8 @@ class Ingest:
         'hdf5': LoadHDF5Strategy
     }
 
+    data = {}
+
     def set_delta_times(self, mnemonic):
 
         times_with_epoch = ['2018-01-01 00:00:00.000']
@@ -95,7 +97,7 @@ class Ingest:
             self.values[row[properties.NAME_COLUMN]].append(value)
             self.times[row[properties.NAME_COLUMN]].append(str(date))
 
-        self.tstop = date
+        self.tstop = Time(date, format='iso').jd
         
         self.headers = list(self.values.keys())
         
@@ -104,13 +106,13 @@ class Ingest:
         
         for mnemonic, value in self.values.items():
 
-            self.dat[mnemonic] = {
-                'times': Time(times[mnemonic], format='isot', in_subfmt='date_hms').jd,
+            self.data[mnemonic] = {
+                'times': Time(self.times[mnemonic], format='iso', in_subfmt='date_hms').jd,
                 'values': np.array(self.values[mnemonic])
             }
 
      
-        return data
+        return self
         
     def start(self):
 
@@ -124,7 +126,7 @@ class Ingest:
         # Sort the data into buckets, this will have to be another strategy 
         # since the format of the data will be completely different depending on the 
         # file type ingested. For now flat csv is assumed.
-        self.data = self.partition()
+        self.partition()
 
 
         # Create the HDF5 file(s) archive 

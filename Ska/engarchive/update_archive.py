@@ -33,6 +33,7 @@ import Ska.engarchive.file_defs as file_defs
 import Ska.engarchive.derived as derived
 #import Ska.arc5gl
 
+from jSka.ingest import process
 
 def get_options(args=None):
     parser = argparse.ArgumentParser()
@@ -659,6 +660,11 @@ def make_h5_col_file_tlm(dat, colname):
     times = col['times']
     values = col['values']
     dt = np.median(times[1:] - times[:-1])
+    
+  
+    if dt < 1:
+        dt = 1.0
+    print(dt)
     n_rows = int(365 * 20 / dt)
 
     filters = tables.Filters(complevel=5, complib='zlib')
@@ -756,34 +762,38 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
     # Read archive file and accumulate data into dats list and header into headers dict
     logger.info('Reading (%d / %d) %s' % (i, len(archfiles), filename))
 
-    dates = defaultdict(list)
-    values = defaultdict(list)
-    tstart = None
+    ingest = process.Ingest(f).start()
 
-    print("I actually made it here.")
-    print(f)
+    # dates = defaultdict(list)
+    # values = defaultdict(list)
+    # tstart = None
 
-    for line in open(f, 'r'):
-        msid, date, value = line.split()
-        if tstart is None:
-            tstart = Time(date).jd
-        dates[msid].append(date)
-        values[msid].append(date)
-    tstop = Time(date).jd  # last date in file
+    # for line in open(f, 'r'):
+    #     msid, date, value = line.split()
+    #     if tstart is None:
+    #         tstart = Time(date).jd
+    #     dates[msid].append(date)
+    #     values[msid].append(date)
+    # tstop = Time(date).jd  # last date in file
 
-    dat = {}
-    for msid in dates:
-        dat[msid] = {'times': Time(dates[msid], format='isot', in_subfmt='date_hms').jd,
-                     'values': np.array(values[msid])}
+    # dat = {}
+    # for msid in dates:
+    #     dat[msid] = {'times': Time(dates[msid], format='isot', in_subfmt='date_hms').jd,
+    #                  'values': np.array(values[msid])}
+
+    # print(ingest.data)
+    # print(ingest.tstart)
+    # print(ingest.tstop)
 
     archfiles_row = dict(filename=f,
-                         tstart=tstart,
-                         tstop=tstop,
+                         tstart=ingest.tstart,
+                         tstop=ingest.tstop,
                          rowstart=row,
                          rowstop=row + 1,
                          date=Time.now().iso)
 
-    return dat, archfiles_row
+    
+    return ingest.data, archfiles_row
 
 
 def read_derived(i, filename, filetype, row, colnames, archfiles, db):
