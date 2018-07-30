@@ -82,25 +82,35 @@ class Ingest:
         
         self.values = collections.defaultdict(list)
         self.times =  collections.defaultdict(list)
+        self.tstart = None
 
         for idx, row in self.df.iterrows():
 
-            self.values[row[properties.NAME_COLUMN]].append(row[properties.VALUE_COLUMN])
-            self.times[row[properties.NAME_COLUMN]].append(str(row[properties.TIME_COLUMN]).replace("/", "-"))
+            if self.tstart is None:
+                self.tstart = Time(row[properties.TIME_COLUMN].replace("/", "-")).jd
+
+            date = str(row[properties.TIME_COLUMN]).replace("/", "-")
+            value = row[properties.VALUE_COLUMN]
+
+            self.values[row[properties.NAME_COLUMN]].append(value)
+            self.times[row[properties.NAME_COLUMN]].append(str(date))
+
+        self.tstop = date
         
         self.headers = list(self.values.keys())
         
         for mnemonic in self.headers:
             self.set_delta_times(mnemonic)
-
-        # NOTE not sure about this, quick and dirty ,
-        # maybe move or change altogther
         
-        for key, value in self.values.items():
-            self.values[key] = np.array(value)
+        for mnemonic, value in self.values.items():
 
-        
-        return self.values, self.times
+            self.dat[mnemonic] = {
+                'times': Time(times[mnemonic], format='isot', in_subfmt='date_hms').jd,
+                'values': np.array(self.values[mnemonic])
+            }
+
+     
+        return data
         
     def start(self):
 
@@ -120,7 +130,7 @@ class Ingest:
         # Create the HDF5 file(s) archive 
         # self.archive()
 
-        return self.data
+        return self
       
     def __init__(self, input_file, input_path=properties.INGEST_DIR):
 
