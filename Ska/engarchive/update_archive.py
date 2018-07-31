@@ -34,6 +34,9 @@ import Ska.engarchive.derived as derived
 #import Ska.arc5gl
 
 from jSka.ingest import process
+from jSka.ingest.archive import DataProduct
+
+working_filename = None
 
 def get_options(args=None):
     parser = argparse.ArgumentParser()
@@ -280,7 +283,9 @@ def fix_misorders(filetype):
             ft['msid'] = colname
             logger.info('Fixing %s', msid_files['msid'].abs)
             if not opt.dry_run:
-                h5 = tables.open_file(msid_files['msid'].abs, mode='a')
+                filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, 'value')
+                h5 = tables.open_file(filepath, mode='a')
+                #h5 = tables.open_file(msid_files['msid'].abs, mode='a')
                 hrd = h5.root.data
                 hrq = h5.root.quality
 
@@ -652,45 +657,49 @@ def make_h5_col_file_tlm(dat, colname):
     """Make a new h5 table to hold column from ``dat``."""
     filename = msid_files['msid'].abs
     filedir = os.path.dirname(filename)
-    if not os.path.exists(filedir):
-        os.makedirs(filedir)
+    print(colname)
+    if not os.path.exists(filedir+"/"+colname):
+        os.makedirs(filedir+"/"+colname)
 
+    #DataProduct.create_values_hdf5(colname, dat, filedir+"/"+colname)
     # Estimate the number of rows for 20 years based on available data
-    col = dat[colname]
-    times = col['times']
-    values = col['values']
-    dt = np.median(times[1:] - times[:-1])
+
     
+    h5, filename = DataProduct.create_values_hdf5(colname, dat, filedir+"/"+colname) 
+   
+    #filters = tables.Filters(complevel=5, complib='zlib')
+    #h5 =tables.open_file(filename, mode='w', filters=filters)
+
+    # print(h5)
+    # print(filename)
+    
+    # h5shape = (0,)
+    # h5type = tables.Atom.from_dtype(values.dtype)
+    # h5timetype = tables.Atom.from_dtype(times.dtype)
+
   
-    if dt < 1:
-        dt = 1.0
-    print(dt)
-    n_rows = int(365 * 20 / dt)
-
-    filters = tables.Filters(complevel=5, complib='zlib')
-    h5 = tables.open_file(filename, mode='w', filters=filters)
-
-    h5shape = (0,)
-    h5type = tables.Atom.from_dtype(values.dtype)
-    h5timetype = tables.Atom.from_dtype(times.dtype)
-    h5.create_earray(h5.root, 'data', h5type, h5shape, title=colname,
-                     expectedrows=n_rows)
-    h5.create_earray(h5.root, 'time', h5timetype, h5shape, title='Time',
-                     expectedrows=n_rows)
+    
     logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
-                   .format(filename, colname, h5shape, n_rows / 1.0e6))
+                   .format(filedir+"/"+colname, colname, None, None))
     h5.close()
 
+    return filename
 
 def append_h5_col_tlm(dat, colname):
     """Append new values to an HDF5 MSID data table.
     :param dats: List of pyfits HDU data objects
     :param colname: column name
     """
+
+    filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, 'value')
+    # print("SHHHHHAKAAAA BOOOM!!!!!")
+    # print(filepath)
+    # raise ValueError('BA BOOM!!!!!!')
+  
     times = dat[colname]['times']
     values = dat[colname]['values']
-    h5 = tables.open_file(msid_files['msid'].abs, mode='a')
-    logger.verbose('Appending %d items to %s' % (len(values), msid_files['msid'].abs))
+    h5 = tables.open_file(filepath, mode='a')
+    logger.verbose('Appending %d items to %s' % (len(values), filepath))
 
     if not opt.dry_run:
         h5.root.time.append(times)
@@ -724,7 +733,7 @@ def truncate_archive(filetype, date):
 
     for colname in colnames:
         ft['msid'] = colname
-        filename = msid_files['msid'].abs
+        filename = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, 'value') # msid_files['msid'].abs
         if not os.path.exists(filename):
             raise IOError('MSID file {} not found'.format(filename))
         if not opt.dry_run:
@@ -882,6 +891,8 @@ def update_msid_files(filetype, archfiles):
     content_is_derived = (filetype['instrum'] == 'DERIVED')
     make_h5_col_file = make_h5_col_file_derived if content_is_derived else make_h5_col_file_tlm
     append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
+    #append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
+    
 
     for i, f in enumerate(archfiles):
         get_data = (read_derived if content_is_derived else read_archfile)

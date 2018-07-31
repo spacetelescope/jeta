@@ -3,7 +3,9 @@ from pathlib import Path
 #import h5py
 import tables
 from tables import *
+import tables3_api
 
+import numpy as np
 import pyyaks.logger
 
 import os
@@ -36,26 +38,47 @@ class DataProduct:
         return filepath
 
     @staticmethod
+    def get_file_write_path(fullpath, mnemonic, type):
+
+        filename = fullpath
+        filedir = os.path.dirname(filename)
+       
+        filepath = Path(filedir+"/"+mnemonic).joinpath(str('values.h5'))
+
+        return filepath
+
+    @staticmethod
     def create_values_hdf5(mnemonic, data, filepath):
 
-        filedir = os.path.dirname(filepath)
-        filepath = Path(filedir).joinpath(str(mnemonic+'_values.h5'))
+        filepath = Path(filepath).joinpath(str('values.h5'))
 
         filters = tables.Filters(complevel=5, complib='zlib')
-        h5file = tables.open_file(filepath, driver="H5FD_CORE", mode="w", filters=filters)
+        h5 = tables.open_file(filepath, driver="H5FD_CORE", mode="w", filters=filters)
 
-        n_rows = int(86400 * 365 * 20 / 18)
-        col = data[-1][mnemonic]
-        h5shape = (0,) + col.shape[1:]
-        h5type = tables.Atom.from_dtype(col.dtype)
+        col = data[mnemonic]
+        times = col['times']
+        values = col['values']
+        dt = np.median(times[1:] - times[:-1])
 
-        h5file.create_earray(h5file.root, 'data', h5type, h5shape, title=mnemonic,
-                        expectedrows=n_rows)
+        if dt < 1:
+            dt = 1.0
+            print(dt)
+        n_rows = int(365 * 20 / dt)
+    
+        h5shape = (0,)
+        h5type = tables.Atom.from_dtype(values.dtype)
+        h5timetype = tables.Atom.from_dtype(times.dtype)
+
+        h5.create_earray(h5.root, 'data', h5type, h5shape, title=mnemonic,
+                     expectedrows=n_rows)
+
+        h5.create_earray(h5.root, 'time', h5timetype, h5shape, title='Time',
+                     expectedrows=n_rows)
 
     
-        h5file.close()
+        h5.close()
 
-        return filedir
+        return h5, filepath
     
     @staticmethod
     def append_delta_times(mnemonic, delta_times, filepath):
