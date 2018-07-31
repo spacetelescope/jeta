@@ -1,60 +1,106 @@
+import os
+import numpy as np
+
 from pathlib import Path
 
-#import h5py
 import tables
 from tables import *
 import tables3_api
 
-import numpy as np
 import pyyaks.logger
 
-import os
 
-class DeltaTime(IsDescription):
-
-    delta_time = Float64Col()
-
-class Value(IsDescription):
-
-    eu_values = StringCol(16)
+loglevel = pyyaks.logger.VERBOSE
+logger = pyyaks.logger.get_logger(name='jskaarcive', level=loglevel,
+                                  format="%(asctime)s %(message)s")
 
 class DataProduct:
 
-    output_directory = None
+    """ This class is responsible for managing the output of the various DataProduct
     
+    """
 
-    def calc_n_rows(self):
 
-        n_rows = int(86400 * 365 * 20 / 18)
+    @staticmethod 
+    def create_archive_directory(fullpath, mnemonic):
+
+        """ This static method creates the archive directory for a specified
+        mnemonic. The method body will likely change, but interface will
+        remain.
+
+        :param fullpath: this is the path to the archive root directory.
+        :param mnemonic: mnemonic
+        :raise IOError: raises an IO Error if the directory cannot be created. 
+        """
+    
+        filedir = os.path.dirname(fullpath)
+
+        if not os.path.exists(filedir+"/"+mnemonic):
+            try:
+                os.makedirs(filedir+"/"+mnemonic)
+                logger.verbose('INFO: created new directory {} for column {}'
+                   .format(filedir+"/"+mnemonic, mnemonic))
+            except IOError as e:
+                raise IOError("Failed to create directory.")
+           
+
+    @staticmethod
+    def get_file_write_path(fullpath, mnemonic, h5type=None):
+
+        """ This static method gets the file write path for one of the three different h5 data products. 
         
-        return n_rows
+        NOTE: As the code is written today full path contains an extra component, 
+        a file named  <mnemonic>.h5 this will need to be replaced. The interafce will 
+        remain the same and just accept the path to the parent archive directory.
 
-    @staticmethod
-    def get_archive_path(mnemonic, filedir):
+        :param fullpath: this is the fullpath to the parent archive directory.
+        :param mnenmonic: mnemonic
+        :param h5type: the type (name) of the .h5 file path to return
+        :returns: fullpath including file name of the archive file. 
+        """
 
-        filedir = os.path.dirname(filedir)
-        filepath = Path(filedir).joinpath(str(mnemonic+'_values.h5'))
+        filetype = {
+            'values': 'values.h5',
+            'times': 'times.h5',
+            'index': 'index.h5',
+        }
+
+        if h5type is not None:
+
+            filename = fullpath
+            filedir = os.path.dirname(filename)
+        
+            filepath = Path(filedir+"/"+mnemonic).joinpath(filetype[h5type])
+
+        else: 
+            raise ValueError('Error: Invalid filetype. Must be values, times or index.')
 
         return filepath
 
     @staticmethod
-    def get_file_write_path(fullpath, mnemonic, type):
+    def create_values_hdf5(mnemonic, data, fullpath):
 
-        filename = fullpath
-        filedir = os.path.dirname(filename)
-       
-        filepath = Path(filedir+"/"+mnemonic).joinpath(str('values.h5'))
+        """ This method does the work of creating the hdf5 file that store values.
 
-        return filepath
+        :param mnemonic: the mnemonic for which to create a file.
+        :param data: the data associated with that mnemonic
+        :param fullpath: the fullpath to the parent archive directory, becomes the
+        full path to the archive file.
+        :returns h5, fullpath: a reference to the h5 file object and the path on disk
 
-    @staticmethod
-    def create_values_hdf5(mnemonic, data, filepath):
+        """
 
-        filepath = Path(filepath).joinpath(str('values.h5'))
+        fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='values')
 
         filters = tables.Filters(complevel=5, complib='zlib')
-        h5 = tables.open_file(filepath, driver="H5FD_CORE", mode="w", filters=filters)
-
+        h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="w", filters=filters)
+        
+        """ 
+            TODO: 
+                Ecapsulate This Block, the method is doing to many things and the
+                code will have to be repated elsewhere anyway. 
+        """
+        #########BLOCK#############
         col = data[mnemonic]
         times = col['times']
         values = col['values']
@@ -62,59 +108,33 @@ class DataProduct:
 
         if dt < 1:
             dt = 1.0
-            print(dt)
         n_rows = int(365 * 20 / dt)
+
+        ##########END BLOCK#########
     
         h5shape = (0,)
         h5type = tables.Atom.from_dtype(values.dtype)
-        h5timetype = tables.Atom.from_dtype(times.dtype)
+        #h5timetype = tables.Atom.from_dtype(times.dtype)
 
         h5.create_earray(h5.root, 'data', h5type, h5shape, title=mnemonic,
                      expectedrows=n_rows)
 
-        h5.create_earray(h5.root, 'time', h5timetype, h5shape, title='Time',
-                     expectedrows=n_rows)
+        # h5.create_earray(h5.root, 'time', h5timetype, h5shape, title='Time',
+        #              expectedrows=n_rows)
 
+        logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
+                   .format(fullpath, mnemonic, None, None))
     
         h5.close()
 
-        return h5, filepath
+        return h5, fullpath
     
-    @staticmethod
-    def append_delta_times(mnemonic, delta_times, filepath):
-        
-        filters = tables.Filters(complevel=5, complib='zlib')
-
-        h5file = tables.open_file(filepath, driver="H5FD_CORE", mode="w", filters=filters)
-        group = h5file.create_group("/", mnemonic, "Data")
-        table = h5file.create_table(group, 'deltatime', DeltaTime, "DeltaTime")
-
-        row = table.row
-
-        for delta_time in delta_times:
-            row['delta_time'] = delta_time
-            row.append()
-        
-        table.flush()
-        h5file.close()
 
     @staticmethod
-    def create_delta_time_hdf5(mnemonic, filepath):
+    def create_times_hdf5(mnemonic, filepath):
 
-        filedir = os.path.dirname(filepath)
-        delta_time_filepath = Path(filedir).joinpath(str(mnemonic+'_delta_times.h5'))
+        pass
 
-        filters = tables.Filters(complevel=5, complib='zlib')
+    def __init__(self):
 
-        h5file = tables.open_file(filepath, driver="H5FD_CORE", mode="w", filters=filters)
-      
-        h5file.close()
-
-        return delta_time_filepath
-
-    def __init__(self, mu, eu, deltatime, output_path=Path.cwd()):
-
-        self.mu = mu
-        self.eu = eu
-        self.deltatime = deltatime
-        self.output_path=Path(output_path)
+        pass

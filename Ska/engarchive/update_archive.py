@@ -283,7 +283,7 @@ def fix_misorders(filetype):
             ft['msid'] = colname
             logger.info('Fixing %s', msid_files['msid'].abs)
             if not opt.dry_run:
-                filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, 'value')
+                filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
                 h5 = tables.open_file(filepath, mode='a')
                 #h5 = tables.open_file(msid_files['msid'].abs, mode='a')
                 hrd = h5.root.data
@@ -655,35 +655,10 @@ def append_h5_col_derived(dats, colname):
 
 def make_h5_col_file_tlm(dat, colname):
     """Make a new h5 table to hold column from ``dat``."""
-    filename = msid_files['msid'].abs
-    filedir = os.path.dirname(filename)
-    print(colname)
-    if not os.path.exists(filedir+"/"+colname):
-        os.makedirs(filedir+"/"+colname)
-
-    #DataProduct.create_values_hdf5(colname, dat, filedir+"/"+colname)
-    # Estimate the number of rows for 20 years based on available data
-
     
-    h5, filename = DataProduct.create_values_hdf5(colname, dat, filedir+"/"+colname) 
-   
-    #filters = tables.Filters(complevel=5, complib='zlib')
-    #h5 =tables.open_file(filename, mode='w', filters=filters)
+    DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
+    DataProduct.create_values_hdf5(colname, dat, msid_files['msid'].abs) 
 
-    # print(h5)
-    # print(filename)
-    
-    # h5shape = (0,)
-    # h5type = tables.Atom.from_dtype(values.dtype)
-    # h5timetype = tables.Atom.from_dtype(times.dtype)
-
-  
-    
-    logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
-                   .format(filedir+"/"+colname, colname, None, None))
-    h5.close()
-
-    return filename
 
 def append_h5_col_tlm(dat, colname):
     """Append new values to an HDF5 MSID data table.
@@ -691,18 +666,18 @@ def append_h5_col_tlm(dat, colname):
     :param colname: column name
     """
 
-    filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, 'value')
+    filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
     # print("SHHHHHAKAAAA BOOOM!!!!!")
     # print(filepath)
     # raise ValueError('BA BOOM!!!!!!')
   
-    times = dat[colname]['times']
+    # times = dat[colname]['times']
     values = dat[colname]['values']
     h5 = tables.open_file(filepath, mode='a')
     logger.verbose('Appending %d items to %s' % (len(values), filepath))
 
     if not opt.dry_run:
-        h5.root.time.append(times)
+        # h5.root.time.append(times)
         h5.root.data.append(values)
 
     data_len = len(h5.root.data)
@@ -733,7 +708,7 @@ def truncate_archive(filetype, date):
 
     for colname in colnames:
         ft['msid'] = colname
-        filename = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, 'value') # msid_files['msid'].abs
+        filename = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values') # msid_files['msid'].abs
         if not os.path.exists(filename):
             raise IOError('MSID file {} not found'.format(filename))
         if not opt.dry_run:
