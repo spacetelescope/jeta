@@ -7,3 +7,8 @@ class ImproperlyConfigured(Exception):
 
     def __init__(self, message):
         super().__init__(message)
+
+class StrategyNotImplemented(Exception):
+
+    def __init__(self, message):
+        super().__init__(message)

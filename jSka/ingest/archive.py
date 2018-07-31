@@ -131,7 +131,12 @@ class DataProduct:
     
 
     @staticmethod
-    def create_times_hdf5(mnemonic, filepath):
+    def create_times_hdf5(mnemonic, data,filepath):
+
+        pass
+        
+    @staticmethod
+    def create_index_hdf5(mnemonic, data,filepath):
 
         pass
 

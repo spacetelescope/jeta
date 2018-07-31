@@ -995,3 +995,4 @@ def get_archive_files(filetype):
     files = sorted(glob.glob('stage/*.CSV'))
     print(files)
     return files
+    

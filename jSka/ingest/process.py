@@ -7,12 +7,18 @@ import pandas as pd
 
 from astropy.time import Time
 
-from .strategy import LoadFlatCSVStrategy 
-from .strategy import LoadHDF5Strategy
+from .strategy import LoadPandasCSVStrategy 
+from .strategy import LoadPythonCSVStrategy
+from .strategy import LoadPyTablesHDF5Strategy
+from .strategy import LoadH5PYHDF5Strategy
 
 from ..config import properties
 
 class Ingest:
+
+    """ This class is responsible for reading and processing input files.
+    
+    """
 
     
     # Pandas Data Frame for storing raw data ingested from an input file.
@@ -24,15 +30,17 @@ class Ingest:
     # The delta times collection
     delta_times =  collections.defaultdict(list)
 
-    # TODO: Write a better comment
+    # This dictionary contains references to different file loading strategies
     load_strategy = {
-        'csv': LoadFlatCSVStrategy,
-        'hdf5': LoadHDF5Strategy
+        'pandas': LoadPandasCSVStrategy,
+        'native': LoadPythonCSVStrategy,
+        'pytables': LoadPyTablesHDF5Strategy,
+        'h5py': LoadH5PYHDF5Strategy
     }
 
     data = {}
 
-    def set_delta_times(self, mnemonic):
+    def set_delta_times(self, mnemonic, epoch=None):
 
         times_with_epoch = ['2018-01-01 00:00:00.000']
 
@@ -139,4 +147,4 @@ class Ingest:
         self.input_path=Path(properties.INGEST_DIR)
         self.input_file=input_file
         self.full_input_path=self.input_path.joinpath(self.input_file)
-        self._source_import_method = self.load_strategy['csv'](self.full_input_path)
+        self._source_import_method = self.load_strategy['pandas'](self.full_input_path)
