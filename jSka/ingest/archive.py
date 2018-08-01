@@ -114,13 +114,11 @@ class DataProduct:
     
         h5shape = (0,)
         h5type = tables.Atom.from_dtype(values.dtype)
-        #h5timetype = tables.Atom.from_dtype(times.dtype)
+       
 
         h5.create_earray(h5.root, 'data', h5type, h5shape, title=mnemonic,
                      expectedrows=n_rows)
 
-        # h5.create_earray(h5.root, 'time', h5timetype, h5shape, title='Time',
-        #              expectedrows=n_rows)
 
         logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
                    .format(fullpath, mnemonic, None, None))
@@ -131,12 +129,41 @@ class DataProduct:
     
 
     @staticmethod
-    def create_times_hdf5(mnemonic, data,filepath):
+    def create_times_hdf5(mnemonic, data, fullpath):
 
-        pass
+        fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='times')
+
+        """ 
+            TODO: 
+                Ecapsulate This Block, the method is doing to many things and the
+                code will have to be repated elsewhere anyway. 
+        """
+
+        #########BLOCK#############
+        col = data[mnemonic]
+        times = col['times']
+        dt = np.median(times[1:] - times[:-1])
+
+        if dt < 1:
+            dt = 1.0
+        n_rows = int(365 * 20 / dt)
+
+        ##########END BLOCK#########
+
+        filters = tables.Filters(complevel=5, complib='zlib')
+        h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="w", filters=filters)
+
+        h5shape = (0,)
+
+        h5timetype = tables.Atom.from_dtype(times.dtype)
+
+        h5.create_earray(h5.root, 'time', h5timetype, h5shape, title='Time',
+                    expectedrows=n_rows)
         
+        h5.close()
+
     @staticmethod
-    def create_index_hdf5(mnemonic, data,filepath):
+    def create_index_hdf5(mnemonic, data, filepath):
 
         pass
 

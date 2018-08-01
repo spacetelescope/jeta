@@ -657,7 +657,9 @@ def make_h5_col_file_tlm(dat, colname):
     """Make a new h5 table to hold column from ``dat``."""
     
     DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
-    DataProduct.create_values_hdf5(colname, dat, msid_files['msid'].abs) 
+    
+    DataProduct.create_values_hdf5(colname, dat, msid_files['msid'].abs)
+    DataProduct.create_times_hdf5(colname, dat, msid_files['msid'].abs)  
 
 
 def append_h5_col_tlm(dat, colname):
@@ -666,22 +668,28 @@ def append_h5_col_tlm(dat, colname):
     :param colname: column name
     """
 
-    filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
+    values_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
+    times_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='times')
     # print("SHHHHHAKAAAA BOOOM!!!!!")
-    # print(filepath)
-    # raise ValueError('BA BOOM!!!!!!')
+    print(values_filepath)
+    #raise ValueError('BA BOOM!!!!!!')
   
-    # times = dat[colname]['times']
+    times = dat[colname]['times']
     values = dat[colname]['values']
-    h5 = tables.open_file(filepath, mode='a')
-    logger.verbose('Appending %d items to %s' % (len(values), filepath))
+
+    h5_values_file = tables.open_file(values_filepath, mode='a')
+    logger.verbose('Appending %d items to %s' % (len(values), values_filepath))
+
+    h5_times_file = tables.open_file(times_filepath, mode='a')
+    logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
 
     if not opt.dry_run:
-        # h5.root.time.append(times)
-        h5.root.data.append(values)
+        h5_times_file.root.time.append(times)
+        h5_values_file.root.data.append(values)
 
-    data_len = len(h5.root.data)
-    h5.close()
+    data_len = len(h5_values_file.root.data)
+    h5_times_file.close()
+    h5_values_file.close()
 
     return data_len
 
@@ -995,4 +1003,3 @@ def get_archive_files(filetype):
     files = sorted(glob.glob('stage/*.CSV'))
     print(files)
     return files
-    
