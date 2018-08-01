@@ -42,7 +42,6 @@ class DataProduct:
                    .format(filedir+"/"+mnemonic, mnemonic))
             except IOError as e:
                 raise IOError("Failed to create directory.")
-           
 
     @staticmethod
     def get_file_write_path(fullpath, mnemonic, h5type=None):
@@ -127,7 +126,6 @@ class DataProduct:
 
         return h5, fullpath
     
-
     @staticmethod
     def create_times_hdf5(mnemonic, data, fullpath):
 

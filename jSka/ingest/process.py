@@ -1,5 +1,7 @@
 import sys
 import collections
+from datetime import datetime
+
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +15,8 @@ from .strategy import LoadPyTablesHDF5Strategy
 from .strategy import LoadH5PYHDF5Strategy
 
 from ..config import properties
+
+
 
 class Ingest:
 
@@ -40,13 +44,14 @@ class Ingest:
 
     data = {}
 
-    def set_delta_times(self, mnemonic, epoch=None):
+    def get_delta_times(self, mnemonic, epoch=None):
 
-        times_with_epoch = ['2018-01-01 00:00:00.000']
+            if epoch is None:
+                epoch = self.epoch_date
 
-        times_with_epoch += self.times[mnemonic]
-
-        self.delta_times[mnemonic] = np.diff(Time(times_with_epoch, format='iso', scale='utc').jd)
+            jd_times = Time(self.times[mnemonic], format='iso', in_subfmt='date_hms').jd
+           
+            return np.diff(np.insert(jd_times, 0, Time(epoch).jd))
 
     def set_ingest_path(self, ingest_path):
 
@@ -59,11 +64,6 @@ class Ingest:
     def set_max_entry_date(self, date_string):
 
         self.max_entry_date = str(date_string).replace("/", "-")
-
-
-    def get_delta_times(self, mnemonic):
-
-        return self.delta_times[mnemonic]
 
     def get_times(self, mnemonic):
 
@@ -97,7 +97,10 @@ class Ingest:
         for idx, row in self.df.iterrows():
 
             if self.tstart is None:
-                self.tstart = Time(row[properties.TIME_COLUMN].replace("/", "-")).jd
+
+                start_time = row[properties.TIME_COLUMN].replace("/", "-")   
+                self.epoch_date = start_time[:11]+"00:00:00.000"
+                self.tstart = Time(start_time).jd
 
             date = str(row[properties.TIME_COLUMN]).replace("/", "-")
             value = row[properties.VALUE_COLUMN]
@@ -107,18 +110,12 @@ class Ingest:
 
         self.tstop = Time(date, format='iso').jd
         
-        self.headers = list(self.values.keys())
-        
-        for mnemonic in self.headers:
-            self.set_delta_times(mnemonic)
-        
         for mnemonic, value in self.values.items():
 
             self.data[mnemonic] = {
-                'times': Time(self.times[mnemonic], format='iso', in_subfmt='date_hms').jd,
+                'times': self.get_delta_times(mnemonic) ,
                 'values': np.array(self.values[mnemonic])
             }
-
      
         return self
         
