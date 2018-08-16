@@ -4,6 +4,8 @@ import numpy as np
 from pathlib import Path
 
 import tables
+import h5py
+
 from tables import *
 import tables3_api
 
@@ -13,6 +15,11 @@ import pyyaks.logger
 loglevel = pyyaks.logger.VERBOSE
 logger = pyyaks.logger.get_logger(name='jskaarcive', level=loglevel,
                                   format="%(asctime)s %(message)s")
+
+class Epoch(IsDescription):
+
+    index = UInt64Col()
+    epoch = Float64Col()
 
 class DataProduct:
 
@@ -42,6 +49,8 @@ class DataProduct:
                    .format(filedir+"/"+mnemonic, mnemonic))
             except IOError as e:
                 raise IOError("Failed to create directory.")
+    
+        return str(filedir+"/"+mnemonic)
 
     @staticmethod
     def get_file_write_path(fullpath, mnemonic, h5type=None):
@@ -91,79 +100,168 @@ class DataProduct:
 
         fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='values')
 
-        filters = tables.Filters(complevel=5, complib='zlib')
-        h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="w", filters=filters)
+        if not os.path.exists(fullpath):
+
+            filters = tables.Filters(complevel=5, complib='zlib')
+            h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="a", filters=filters)
+            
+            """ 
+                TODO: 
+                    Ecapsulate This Block, the method is doing to many things and the
+                    code will have to be repated elsewhere anyway. 
+            """
+            #########BLOCK#############
+            col = data[mnemonic]
+            times = col['times']
+            values = col['values']
+            dt = np.median(times[1:] - times[:-1])
+
+            if dt < 1:
+                dt = 1.0
+            n_rows = int(365 * 20 / dt)
+
+            ##########END BLOCK#########
         
-        """ 
-            TODO: 
-                Ecapsulate This Block, the method is doing to many things and the
-                code will have to be repated elsewhere anyway. 
-        """
-        #########BLOCK#############
-        col = data[mnemonic]
-        times = col['times']
-        values = col['values']
-        dt = np.median(times[1:] - times[:-1])
+            h5shape = (0,)
+            h5type = tables.Atom.from_dtype(values.dtype)
+        
 
-        if dt < 1:
-            dt = 1.0
-        n_rows = int(365 * 20 / dt)
-
-        ##########END BLOCK#########
-    
-        h5shape = (0,)
-        h5type = tables.Atom.from_dtype(values.dtype)
-       
-
-        h5.create_earray(h5.root, 'data', h5type, h5shape, title=mnemonic,
-                     expectedrows=n_rows)
+            h5.create_earray(h5.root, 'data', h5type, h5shape, title=mnemonic,
+                        expectedrows=n_rows)
 
 
-        logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
-                   .format(fullpath, mnemonic, None, None))
-    
-        h5.close()
+            logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
+                    .format(fullpath, mnemonic, None, None))
+        
+            h5.close()
 
-        return h5, fullpath
+            return h5, fullpath
     
     @staticmethod
     def create_times_hdf5(mnemonic, data, fullpath):
 
         fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='times')
 
-        """ 
-            TODO: 
-                Ecapsulate This Block, the method is doing to many things and the
-                code will have to be repated elsewhere anyway. 
+        if not os.path.exists(fullpath):
+            """ 
+                TODO: 
+                    Ecapsulate This Block, the method is doing to many things and the
+                    code will have to be repated elsewhere anyway. 
+            """
+
+            #########BLOCK#############
+            col = data[mnemonic]
+            times = col['times']
+            dt = np.median(times[1:] - times[:-1])
+
+            if dt < 1:
+                dt = 1.0
+            n_rows = int(365 * 20 / dt)
+
+            ##########END BLOCK#########
+
+            filters = tables.Filters(complevel=5, complib='zlib')
+            h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="a", filters=filters)
+
+            h5shape = (0,)
+
+            h5timetype = tables.Atom.from_dtype(times.dtype)
+
+            h5.create_earray(h5.root, 'time', h5timetype, h5shape, title='Time',
+                        expectedrows=n_rows)
+            
+            h5.close()
+
+
+    @staticmethod
+    def get_index_file_length(mnemonic):
+        pass
+
+
+    @staticmethod
+    def get_archive_file_length(parent_directory, mnemonic):
+
+        file_length = 0
+
+        fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'values')
+        
+        if os.path.exists(fullpath):
+            h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="r")
+            table = h5.root.data
+            file_length = len(table)
+
+            h5.close()
+ 
+        return file_length
+
+    @staticmethod
+    def get_last_known_epoch(parent_directory, mnemonic):
+
+        fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'index')
+      
+        if os.path.exists(fullpath):
+            h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="r")
+            table = h5.root.epoch
+            last_known_epoch = table[-1][0]
+            #print(f'last known epoch {table[-1][1]}')
+            h5.close()
+        else:
+            last_known_epoch = 2454466.5 # 2008-01-01 00:00:00.000 in JD
+            
+        #print(f'Last known epoch for this mnemonic is: {last_known_epoch}')
+        return last_known_epoch
+
+    @staticmethod
+    def touch_index(parent_directory, mnemonic, idx=None, epoch=None):
+
+        fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'index')
+
+        if os.path.exists(parent_directory):
+            DataProduct.create_archive_directory(parent_directory, mnemonic)
+
+        filters = tables.Filters(complevel=5, complib='zlib')
+        h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="a", filters=filters)
+        
+        if idx is not None and epoch is not None:
+
+            print(f'I am going to create an index file with an index of {idx} and a jd of {epoch}.')
+            try:
+                table = h5.create_table(h5.root, 'epoch', Epoch)
+            except:
+                table = h5.root.epoch
+            finally:
+                table.row['index'] = idx
+                table.row['epoch'] = epoch
+                table.row.append()
+                table.flush()
+
+                # print(table[0][0])
+
+        h5.close()
+
+        logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
+                   .format(fullpath, mnemonic, None, None))
+
+    @staticmethod
+    def create_hdf5(mnemonic, data, parent_directory, h5_file_type):
+
+        """ This method may server as a generic replacement to the other two create methods
         """
 
-        #########BLOCK#############
-        col = data[mnemonic]
-        times = col['times']
-        dt = np.median(times[1:] - times[:-1])
-
-        if dt < 1:
-            dt = 1.0
-        n_rows = int(365 * 20 / dt)
-
-        ##########END BLOCK#########
-
+        fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, h5_file_type)
         filters = tables.Filters(complevel=5, complib='zlib')
         h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="w", filters=filters)
 
-        h5shape = (0,)
+        n_rows = int(365 * 20)
 
-        h5timetype = tables.Atom.from_dtype(times.dtype)
+        #h5.create_earray(h5.root, h5_file_type, title=mnemonic,
+        #            expectedrows=n_rows)
 
-        h5.create_earray(h5.root, 'time', h5timetype, h5shape, title='Time',
-                    expectedrows=n_rows)
-        
+
+        logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
+                   .format(fullpath, mnemonic, None, None))
+    
         h5.close()
-
-    @staticmethod
-    def create_index_hdf5(mnemonic, data, filepath):
-
-        pass
 
     def __init__(self):
 

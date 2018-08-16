@@ -9,6 +9,8 @@ import pandas as pd
 
 from astropy.time import Time
 
+from .archive import DataProduct
+
 from .strategy import LoadPandasCSVStrategy 
 from .strategy import LoadPythonCSVStrategy
 from .strategy import LoadPyTablesHDF5Strategy
@@ -23,7 +25,6 @@ class Ingest:
     """ This class is responsible for reading and processing input files.
     
     """
-
     
     # Pandas Data Frame for storing raw data ingested from an input file.
     df = None
@@ -44,6 +45,13 @@ class Ingest:
 
     data = {}
 
+    values = collections.defaultdict(list)
+    times =  collections.defaultdict(list)
+    indices = collections.defaultdict(dict)
+
+    tstart = None
+    epoch_date = None
+
     def get_delta_times(self, mnemonic, epoch=None):
 
             if epoch is None:
@@ -53,6 +61,14 @@ class Ingest:
            
             return np.diff(np.insert(jd_times, 0, Time(epoch).jd))
 
+    def init_times(self, row):
+
+        if self.tstart is None:
+
+            start_time = row[properties.TIME_COLUMN].replace("/", "-")   
+            self.epoch_date = start_time[:11]+"00:00:00.000"
+            self.tstart = Time(start_time).jd
+    
     def set_ingest_path(self, ingest_path):
 
         self.input_path = ingest_path
@@ -88,35 +104,90 @@ class Ingest:
 
         pass
 
+    def time_to_quadtime(self, time):
+
+        time =  Time(time[:11]+"00:00:00.000").jd
+        return time
+
+    def is_new_epoch_required(self, proposed_epoch):
+
+        proposed_epoch = datetime.strptime(proposed_epoch, "%Y-%m-%d %H:%M:%S.%f")
+        tmp_epoch = datetime.strptime(self.epoch_date , "%Y-%m-%d %H:%M:%S.%f")
+
+        return proposed_epoch > tmp_epoch 
+
+    def update_epoch_time(self, proposed_epoch):
+
+        self.epoch_date = max([proposed_epoch, self.epoch_date])
+
+        return self.epoch_date
+
     def partition(self):
-        
+
         self.values = collections.defaultdict(list)
         self.times =  collections.defaultdict(list)
-        self.tstart = None
+        self.indices = collections.defaultdict(dict)
 
         for idx, row in self.df.iterrows():
 
-            if self.tstart is None:
+            mnemonic = row[properties.NAME_COLUMN]
 
-                start_time = row[properties.TIME_COLUMN].replace("/", "-")   
-                self.epoch_date = start_time[:11]+"00:00:00.000"
-                self.tstart = Time(start_time).jd
+            # DataProduct.create_archive_directory(self.output_path, mnemonic)
+            
+            self.init_times(row)
 
             date = str(row[properties.TIME_COLUMN]).replace("/", "-")
+
+            # possible_epoch = self.time_to_quadtime(date)
+            # last_known_epoch = DataProduct.get_last_known_epoch(self.output_path, mnemonic)
+            
+            # if possible_epoch > last_known_epoch and self.indices[mnemonic].get('update', True) is True:
+
+            #     index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
+            #     print('Updating EPOCH')
+            #     self.indices[mnemonic] = {'index': index, 'epoch': possible_epoch, 'update': False}
+                # DataProduct.touch_index(self.output_path, mnemonic, index , possible_epoch)
+        
             value = row[properties.VALUE_COLUMN]
 
-            self.values[row[properties.NAME_COLUMN]].append(value)
-            self.times[row[properties.NAME_COLUMN]].append(str(date))
+            self.values[mnemonic].append(value)
+
+            self.times[mnemonic].append(str(date))
 
         self.tstop = Time(date, format='iso').jd
         
+        
         for mnemonic, value in self.values.items():
 
+            self.times[mnemonic] = sorted(self.times[mnemonic])
+          
+            parent_directory = DataProduct.create_archive_directory(self.output_path, mnemonic)
+
+            if self.time_to_quadtime(self.times[mnemonic][-1]) == self.time_to_quadtime(self.times[mnemonic][0]):
+                index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
+                epoch = self.times[mnemonic][0]
+                self.indices[mnemonic] = {'index': index, 'epoch': self.time_to_quadtime(epoch)}
+            else:
+                pass
+            # for time in self.times[mnemonic]:
+                
+            #     possible_epoch = self.time_to_quadtime(time)
+            #     last_known_epoch = DataProduct.get_last_known_epoch(self.output_path, mnemonic)
+            
+            #     if possible_epoch > last_known_epoch: # and self.indices[mnemonic].get('update', True) is True:
+
+            #         index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
+                    
+            #         self.indices[mnemonic] = {'index': index, 'epoch': possible_epoch}
+           
             self.data[mnemonic] = {
-                'times': self.get_delta_times(mnemonic) ,
-                'values': np.array(self.values[mnemonic])
+                'times': self.get_delta_times(mnemonic, epoch),
+                'values': np.array(self.values[mnemonic]),
+                'index': self.indices[mnemonic],
+                'parent_directory': parent_directory
             }
-     
+        
+        # raise ValueError("adjshfsjdfjlsdhfljsdfjldshflsdjhfsljdhfdlsjhfdsljf")
         return self
         
     def start(self):
@@ -124,8 +195,9 @@ class Ingest:
         # load data into Dataframe from some source
         self.df = self._source_import_method.execute()
 
-        self.set_min_entry_date(self.df.iloc[0][properties.TIME_COLUMN])
-        self.set_max_entry_date(self.df.iloc[-1][properties.TIME_COLUMN])
+        # This wont work because date/times are not in order
+        # self.set_min_entry_date(self.df.iloc[0][properties.TIME_COLUMN])
+        # self.set_max_entry_date(self.df.iloc[-1][properties.TIME_COLUMN])
 
         
         # Sort the data into buckets, this will have to be another strategy 
@@ -139,9 +211,12 @@ class Ingest:
 
         return self
       
-    def __init__(self, input_file, input_path=properties.INGEST_DIR):
+    def __init__(self, input_file, output_path, input_path=properties.INGEST_DIR):
 
+        
+        
         self.input_path=Path(properties.INGEST_DIR)
         self.input_file=input_file
+        self.output_path = output_path
         self.full_input_path=self.input_path.joinpath(self.input_file)
         self._source_import_method = self.load_strategy['pandas'](self.full_input_path)

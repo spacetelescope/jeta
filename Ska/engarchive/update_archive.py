@@ -656,8 +656,8 @@ def append_h5_col_derived(dats, colname):
 def make_h5_col_file_tlm(dat, colname):
     """Make a new h5 table to hold column from ``dat``."""
     
-    DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
-    
+    # DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
+    DataProduct.touch_index(msid_files['msid'].abs, colname, dat[colname]['index']['index'], dat[colname]['index']['epoch'])
     DataProduct.create_values_hdf5(colname, dat, msid_files['msid'].abs)
     DataProduct.create_times_hdf5(colname, dat, msid_files['msid'].abs)  
 
@@ -670,10 +670,7 @@ def append_h5_col_tlm(dat, colname):
 
     values_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
     times_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='times')
-    # print("SHHHHHAKAAAA BOOOM!!!!!")
-    print(values_filepath)
-    #raise ValueError('BA BOOM!!!!!!')
-  
+
     times = dat[colname]['times']
     values = dat[colname]['values']
 
@@ -752,30 +749,9 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
         return None, None
 
     # Read archive file and accumulate data into dats list and header into headers dict
-    logger.info('Reading (%d / %d) %s' % (i, len(archfiles), filename))
+    logger.info('Reading (%d / %d) %s' % (i+1, len(archfiles), filename))
 
-    ingest = process.Ingest(f).start()
-
-    # dates = defaultdict(list)
-    # values = defaultdict(list)
-    # tstart = None
-
-    # for line in open(f, 'r'):
-    #     msid, date, value = line.split()
-    #     if tstart is None:
-    #         tstart = Time(date).jd
-    #     dates[msid].append(date)
-    #     values[msid].append(date)
-    # tstop = Time(date).jd  # last date in file
-
-    # dat = {}
-    # for msid in dates:
-    #     dat[msid] = {'times': Time(dates[msid], format='isot', in_subfmt='date_hms').jd,
-    #                  'values': np.array(values[msid])}
-
-    # print(ingest.data)
-    # print(ingest.tstart)
-    # print(ingest.tstop)
+    ingest = process.Ingest(f, msid_files['colnames'].abs).start()
 
     archfiles_row = dict(filename=f,
                          tstart=ingest.tstart,
