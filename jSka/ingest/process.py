@@ -59,7 +59,7 @@ class Ingest:
 
             jd_times = Time(self.times[mnemonic], format='iso', in_subfmt='date_hms').jd
            
-            return np.diff(np.insert(jd_times, 0, Time(epoch).jd))
+            return np.diff(np.insert(jd_times, 0, self.time_to_quadtime(epoch)))
 
     def init_times(self, row):
 
@@ -106,7 +106,7 @@ class Ingest:
 
     def time_to_quadtime(self, time):
 
-        time =  Time(time[:11]+"00:00:00.000").jd
+        time = Time(time[:11]+"00:00:00.000").jd
         return time
 
     def is_new_epoch_required(self, proposed_epoch):
@@ -137,16 +137,6 @@ class Ingest:
             self.init_times(row)
 
             date = str(row[properties.TIME_COLUMN]).replace("/", "-")
-
-            # possible_epoch = self.time_to_quadtime(date)
-            # last_known_epoch = DataProduct.get_last_known_epoch(self.output_path, mnemonic)
-            
-            # if possible_epoch > last_known_epoch and self.indices[mnemonic].get('update', True) is True:
-
-            #     index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
-            #     print('Updating EPOCH')
-            #     self.indices[mnemonic] = {'index': index, 'epoch': possible_epoch, 'update': False}
-                # DataProduct.touch_index(self.output_path, mnemonic, index , possible_epoch)
         
             value = row[properties.VALUE_COLUMN]
 
@@ -169,16 +159,6 @@ class Ingest:
                 self.indices[mnemonic] = {'index': index, 'epoch': self.time_to_quadtime(epoch)}
             else:
                 pass
-            # for time in self.times[mnemonic]:
-                
-            #     possible_epoch = self.time_to_quadtime(time)
-            #     last_known_epoch = DataProduct.get_last_known_epoch(self.output_path, mnemonic)
-            
-            #     if possible_epoch > last_known_epoch: # and self.indices[mnemonic].get('update', True) is True:
-
-            #         index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
-                    
-            #         self.indices[mnemonic] = {'index': index, 'epoch': possible_epoch}
            
             self.data[mnemonic] = {
                 'times': self.get_delta_times(mnemonic, epoch),
@@ -187,7 +167,6 @@ class Ingest:
                 'parent_directory': parent_directory
             }
         
-        # raise ValueError("adjshfsjdfjlsdhfljsdfjldshflsdjhfsljdhfdlsjhfdsljf")
         return self
         
     def start(self):
