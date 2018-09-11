@@ -18,8 +18,8 @@ SKA = os.environ.get('SKA') or '/proj/sot/ska'
 # Root directories for MSID files.  msid_root is prime, others are backups.
 # NOTE: msid_root(s) used ONLY in one-off or legacy code, not in update_archive.py or
 # transfer_stage.py
-msid_root = os.path.join(SKA, 'data', 'eng_archive')
-msid_roots = [msid_root]
+#msid_root = os.path.join(SKA, 'data', 'eng_archive')
+#msid_roots = [msid_root]
 
 msid_files = {'filetypes':    'filetypes.dat',
               'msid_bad_times': 'msid_bad_times.dat',
@@ -32,6 +32,9 @@ msid_files = {'filetypes':    'filetypes.dat',
               'data':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
               'statsdir':     'data/{{ft.content}}/{{ft.interval}}/',
               'stats':        'data/{{ft.content}}/{{ft.interval}}/{{ft.msid | upper}}.h5',
+              'mnemonic_index': 'data/{{ft.content}}/{{ft.msid | upper}}/index.h5',
+              'mnemonic_value': 'data/{{ft.content}}/{{ft.msid | upper}}/value.h5',
+              'mnemonic_times': 'data/{{ft.content}}/{{ft.msid | upper}}/times.h5',
               }
 
 

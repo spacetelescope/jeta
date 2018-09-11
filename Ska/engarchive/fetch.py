@@ -18,6 +18,7 @@ import re
 
 import numpy as np
 from astropy.io import ascii
+from astropy.time import Time
 import pyyaks.context
 import six
 from six.moves import cPickle as pickle
@@ -85,13 +86,14 @@ CONTENT_TIME_RANGES = {}
 DEFAULT_DATA_SOURCE = 'cxc'
 
 
+
 class _DataSource(object):
     """
     Context manager and quasi-singleton configuration object for managing the
     data_source(s) used for fetching telemetry.
     """
     _data_sources = (DEFAULT_DATA_SOURCE,)
-    _allowed = ('cxc', 'maude', 'test-drop-half')
+    _allowed = ('cxc', 'maude', 'test-drop-half', 'tlm')
 
     def __init__(self, *data_sources):
         self._new_data_sources = data_sources
@@ -1745,6 +1747,7 @@ class memoized(object):
 
 
 def get_time_range(msid, format=None):
+
     """
     Get the time range for the given ``msid``.
 
@@ -1752,33 +1755,63 @@ def get_time_range(msid, format=None):
     :param format: Output format (DateTime format, e.g. 'secs', 'date', 'greta')
     :returns: (tstart, tstop) in CXC seconds
     """
+    
     MSID = msid.upper()
     with _cache_ft():
-        ft['content'] = content[MSID]
-        ft['msid'] = 'time'
-        filename = msid_files['msid'].abs
-        logger.info('Reading %s', filename)
+        
+        content[msid] = ""
+        ft['content'] = 'tlm'
+        ft['msid'] = msid
 
-        @local_or_remote_function("Getting time range from Ska eng archive server...")
-        def get_time_data_from_server(filename):
-            import tables
-            open_file = getattr(tables, 'open_file', None) or tables.openFile
-            h5 = open_file(os.path.join(*filename))
-            tstart = h5.root.data[0]
-            tstop = h5.root.data[-1]
-            h5.close()
-            return tstart, tstop
+        # times_filename = msid_files['mnemonic_times'].abs
+        # index_filename = msid_files['mnemonic_index'].abs
 
-        if filename in CONTENT_TIME_RANGES:
-            tstart, tstop = CONTENT_TIME_RANGES[filename]
-        else:
-            tstart, tstop = get_time_data_from_server(_split_path(filename))
-            CONTENT_TIME_RANGES[filename] = (tstart, tstop)
+        times_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/times.h5'
+        index_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/index.h5'
+     
+        logger.info('Reading %s', times_filepath)
 
-    if format is not None:
-        tstart = getattr(DateTime(tstart), format)
-        tstop = getattr(DateTime(tstop), format)
-    return tstart, tstop
+        import tables
+     
+        times_h5 = tables.open_file(times_filepath)
+        index_h5 = tables.open_file(index_filepath)
+
+        tstart = index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0])[0]
+        tstop =  index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0:-1])[-1] + len(index_h5.root.epoch)
+
+        index_h5.close()
+        times_h5.close()
+
+        if format == 'iso':
+            tstart = Time(tstart, format='jd').iso
+            tstop = Time(tstop, format='jd').iso
+
+        return tstart, tstop
+
+        ############################
+
+    #     @local_or_remote_function("Getting time range from Ska eng archive server...")
+    #     def get_time_data_from_server(filename):
+    #         import tables
+    #         open_file = getattr(tables, 'open_file', None) or tables.openFile
+    #         h5 = open_file(os.path.join(*filename))
+    #         tstart = h5.root.data[0]
+    #         tstop = h5.root.data[-1]
+    #         h5.close()
+    #         return tstart, tstop
+
+    #     if filename in CONTENT_TIME_RANGES:
+    #         tstart, tstop = CONTENT_TIME_RANGES[filename]
+    #     else:
+    #         tstart, tstop = get_time_data_from_server(_split_path(filename))
+    #         CONTENT_TIME_RANGES[filename] = (tstart, tstop)
+
+    # if format is not None:
+    #     tstart = getattr(DateTime(tstart), format)
+    #     tstop = getattr(DateTime(tstop), format)
+    # return tstart, tstop
+
+    # return ""
 
 
 def get_telem(msids, start=None, stop=None, sampling='full', unit_system='eng',
@@ -1949,3 +1982,7 @@ def _plural(x):
     known small set of cases within fetch where it will get applied.
     """
     return x + 'es' if (x.endswith('x') or x.endswith('s')) else x + 's'
+
+def do_something(mnemonic):
+
+    print(mnemonic)

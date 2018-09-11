@@ -132,8 +132,6 @@ class Ingest:
 
             mnemonic = row[properties.NAME_COLUMN]
 
-            # DataProduct.create_archive_directory(self.output_path, mnemonic)
-            
             self.init_times(row)
 
             date = str(row[properties.TIME_COLUMN]).replace("/", "-")
@@ -141,7 +139,6 @@ class Ingest:
             value = row[properties.VALUE_COLUMN]
 
             self.values[mnemonic].append(value)
-
             self.times[mnemonic].append(str(date))
 
         self.tstop = Time(date, format='iso').jd
