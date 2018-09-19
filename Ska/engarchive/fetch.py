@@ -83,8 +83,7 @@ STATE_CODES = {
 CONTENT_TIME_RANGES = {}
 
 # Default source of data.
-DEFAULT_DATA_SOURCE = 'cxc'
-
+DEFAULT_DATA_SOURCE = 'jwst'
 
 
 class _DataSource(object):
@@ -93,7 +92,7 @@ class _DataSource(object):
     data_source(s) used for fetching telemetry.
     """
     _data_sources = (DEFAULT_DATA_SOURCE,)
-    _allowed = ('cxc', 'maude', 'test-drop-half', 'tlm')
+    _allowed = ('cxc', 'maude', 'test-drop-half', 'jwst')
 
     def __init__(self, *data_sources):
         self._new_data_sources = data_sources
@@ -504,14 +503,17 @@ class MSID(object):
     fetch = sys.modules[__name__]
 
     def __init__(self, msid, start=LAUNCH_DATE, stop=None, filter_bad=False, stat=None):
-        msids, MSIDs = msid_glob(msid)
-        if len(MSIDs) > 1:
-            raise ValueError('Multiple matches for {} in Eng Archive'
-                             .format(msid))
-        else:
-            self.msid = msids[0]
-            self.MSID = MSIDs[0]
-
+        # msids, MSIDs = msid_glob(msid)
+        # if len(MSIDs) > 1:
+        #     raise ValueError('Multiple matches for {} in Eng Archive'
+        #                      .format(msid))
+        # else:
+        #    self.msid = msids[0]
+        #    self.MSID = MSIDs[0]
+        
+        self.msid = msid.lower()
+        self.MSID = msid.upper()
+        
         # Capture the current module units
         self.units = Units(self.units['system'])
         self.unit = self.units.get_msid_unit(self.MSID)
@@ -544,8 +546,8 @@ class MSID(object):
             self._get_data_over_intervals(intervals)
 
         # If requested filter out bad values and set self.bad = None
-        if filter_bad:
-            self.filter_bad()
+        # if filter_bad:
+        #     self.filter_bad()
 
     def __len__(self):
         return len(self.vals)
@@ -603,6 +605,14 @@ class MSID(object):
                 else:
                     self.colnames = ['vals', 'times', 'bads']
                     args = (self.content, self.tstart, self.tstop, self.MSID, self.units['system'])
+
+                    if ('jwst' in data_source.sources()): #and self.MSID in data_source.get_msids('jwst')):
+                      
+                        get_msid_data = self._get_msid_data_from_jwst
+                        # get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
+                        #                  else self._get_msid_data_from_cxc)
+                        self.vals, self.times, self.bads = get_msid_data(*args)
+                        # self.data_source['cxc'] = _get_start_stop_dates(self.times)
 
                     if ('cxc' in data_source.sources() and
                             self.MSID in data_source.get_msids('cxc')):
@@ -700,6 +710,102 @@ class MSID(object):
         files and cache recent results.  Caching is very beneficial for derived
         parameter updates but not desirable for normal fetch usage."""
         return MSID._get_msid_data_from_cxc(content, tstart, tstop, msid, unit_system)
+
+    @staticmethod
+    def temp_get_jwst_data(start, stop, msid):
+
+        import tables
+
+        # start = '2019-01-01 00:00:00.000'
+        # start = '2020-01-01 00:00:00.000'
+
+        print("Time Format")
+        print(start)
+        print(stop)
+        print("============")
+
+       
+        start = 2458119.5
+        stop = 2458849.5
+
+        start_jd = Time(start, format='jd').jd
+        stop_jd = Time(stop, format='jd').jd
+
+       
+
+        index_file = 'index.h5'  # index file for ``msid``
+        val_file = 'val.h5'  # data for msid
+        dt_file = 'dt.h5'  # delta times
+
+        values_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/values.h5'
+        times_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/times.h5'
+        index_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/index.h5'
+
+        # Assume the index.h5 file is a table with 'row' and 'jd' columns
+        h5 = tables.open_file(index_filepath, 'r')
+        index = h5.root.epoch[:]  # read the whole thing into a numpy structured array
+        h5.close()
+
+        # Chop down to the required time interval, roughly.  The side='right'
+        # arg to np.searchsorted is a subtletry related to a query where
+        # start or stop is *exactly* the same as the index boundary, e.g. if
+        # you use quad-zero and user asks for a time with quad-zero, then
+        # I *THINK* this gives the right answer.  Well, 70/30 confidence there,
+        # you need to check.  Probably easiest with code tests at the end.
+
+        # Interval that starts *before* start_jd, making sure to not go below 0
+        idx0 = max(np.searchsorted(index['epoch'], start_jd, side='right') - 1, 0)
+        # Interval that starts *after* stop_jd
+        idx1 = np.searchsorted(index['epoch'], stop_jd, side='right')
+        index = index[idx0:idx1 + 1]  # The +1 is so that the idx1 record is included
+
+        # Start and stop rows which are guaranteed to contain start, stop
+        row0 = index['index'][0]
+        row1 = index['index'][-1]
+
+        h5 = tables.open_file(values_filepath, 'r')
+        vals = h5.root.data[row0:row1]
+        h5.close()
+
+        h5 = tables.open_file(times_filepath, 'r')
+        dts = h5.root.time[row0:row1]
+        h5.close()
+
+        # Make the final time array now
+        jds = np.zeros_like(dts)
+
+        # Apply the delta times.  This is the meat of the computation and is really
+        # just a few lines.
+        for index0, index1 in zip(index[:-1], index[1:]):
+            r0 = index0['index'] - row0
+            r1 = index1['index'] - row0
+            jds[r0:r1] = index0['epoch'] + np.cumsum(dts[r0:r1])
+
+        # Final time filtering for exact user interval
+        idx0, idx1 = np.searchsorted(jds, [start_jd, stop_jd])
+
+        return jds[idx0:idx1], vals[idx0:idx1]
+
+    @staticmethod
+    def _get_msid_data_from_jwst(content, tstart, tstop, msid, unit_system):
+
+        """Do the actual work of getting time and values for an MSID from HDF5
+        files"""
+
+        times, vals = MSID.temp_get_jwst_data(tstart, tstop, msid)
+
+        times = Time(times, format="jd").unix
+       
+        print(times)
+        print(vals)
+
+        print(len(times))
+        print(len(vals))
+
+        bads = None
+        
+        return (vals[0:10], times[0:10], bads)
+
 
     @staticmethod
     def _get_msid_data_from_cxc(content, tstart, tstop, msid, unit_system):
@@ -1763,8 +1869,11 @@ def get_time_range(msid, format=None):
         ft['content'] = 'tlm'
         ft['msid'] = msid
 
+        # print("dsfsdfdsfdsfdsfsdfsdfsdfsdfsdfsdfsdgsfdsfsdfsdf")
         # times_filename = msid_files['mnemonic_times'].abs
         # index_filename = msid_files['mnemonic_index'].abs
+        # print(times_filename)
+        # print(index_filename)
 
         times_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/times.h5'
         index_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/index.h5'
@@ -1776,8 +1885,10 @@ def get_time_range(msid, format=None):
         times_h5 = tables.open_file(times_filepath)
         index_h5 = tables.open_file(index_filepath)
 
+        sp_idx = int(index_h5.root.epoch[-1][1]) - 1
+
         tstart = index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0])[0]
-        tstop =  index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0:-1])[-1] + len(index_h5.root.epoch)
+        tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1] #+ len(index_h5.root.epoch[-1][1])
 
         index_h5.close()
         times_h5.close()

@@ -13,13 +13,13 @@ all MSIDs in the same content-type group (e.g. ACIS2ENG).
 """
 import os
 
-SKA = os.environ.get('SKA') or '/proj/sot/ska'
+SKA = '/Users/dkauffman/Projects/jSka/jska-eng_archive/'#os.environ.get('SKA') or '/proj/sot/ska'
 
 # Root directories for MSID files.  msid_root is prime, others are backups.
 # NOTE: msid_root(s) used ONLY in one-off or legacy code, not in update_archive.py or
 # transfer_stage.py
-#msid_root = os.path.join(SKA, 'data', 'eng_archive')
-#msid_roots = [msid_root]
+msid_root = os.path.join(SKA, 'data', 'eng_archive')
+msid_roots = [msid_root]
 
 msid_files = {'filetypes':    'filetypes.dat',
               'msid_bad_times': 'msid_bad_times.dat',
