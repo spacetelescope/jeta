@@ -590,7 +590,7 @@ class MSID(object):
         """Get data from the Eng archive"""
         logger.info('Getting data for %s between %s to %s',
                     self.msid, self.datestart, self.datestop)
-
+        print("adsfhsluhfsdhfkljdshfjldshfljdshfljdshfjldshklfjhdshfjsdhfl")
         # Avoid stomping on caller's filetype 'ft' values with _cache_ft()
         with _cache_ft():
             ft['content'] = self.content
@@ -607,6 +607,8 @@ class MSID(object):
                     args = (self.content, self.tstart, self.tstop, self.MSID, self.units['system'])
 
                     if ('jwst' in data_source.sources()): #and self.MSID in data_source.get_msids('jwst')):
+
+                        print("JWST Data Source")
                       
                         get_msid_data = self._get_msid_data_from_jwst
                         # get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
@@ -614,15 +616,15 @@ class MSID(object):
                         self.vals, self.times, self.bads = get_msid_data(*args)
                         # self.data_source['cxc'] = _get_start_stop_dates(self.times)
 
-                    if ('cxc' in data_source.sources() and
-                            self.MSID in data_source.get_msids('cxc')):
-                        # CACHE is normally True only when doing ingest processing.  Note
-                        # also that to support caching the get_msid_data_from_cxc_cached
-                        # method must be static.
-                        get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
-                                         else self._get_msid_data_from_cxc)
-                        self.vals, self.times, self.bads = get_msid_data(*args)
-                        self.data_source['cxc'] = _get_start_stop_dates(self.times)
+                    # if ('cxc' in data_source.sources() and
+                    #         self.MSID in data_source.get_msids('cxc')):
+                    #     # CACHE is normally True only when doing ingest processing.  Note
+                    #     # also that to support caching the get_msid_data_from_cxc_cached
+                    #     # method must be static.
+                    #     get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
+                    #                      else self._get_msid_data_from_cxc)
+                    #     self.vals, self.times, self.bads = get_msid_data(*args)
+                    #     self.data_source['cxc'] = _get_start_stop_dates(self.times)
 
                     if 'test-drop-half' in data_source.sources() and hasattr(self, 'vals'):
                         # For testing purposes drop half the data off the end.  This assumes another
@@ -716,26 +718,12 @@ class MSID(object):
 
         import tables
 
-        # start = '2019-01-01 00:00:00.000'
-        # start = '2020-01-01 00:00:00.000'
+        start_jd = Time(start, format='cxcsec', scale="utc").jd
+        stop_jd = Time(stop, format='cxcsec', scale="utc").jd
 
-        print("Time Format")
-        print(start)
-        print(stop)
-        print("============")
-
-       
-        start = 2458119.5
-        stop = 2458849.5
-
-        start_jd = Time(start, format='jd').jd
-        stop_jd = Time(stop, format='jd').jd
-
-       
-
-        index_file = 'index.h5'  # index file for ``msid``
-        val_file = 'val.h5'  # data for msid
-        dt_file = 'dt.h5'  # delta times
+        # index_file = 'index.h5'  # index file for ``msid``
+        # val_file = 'val.h5'  # data for msid
+        # dt_file = 'dt.h5'  # delta times
 
         values_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/values.h5'
         times_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/times.h5'
@@ -745,6 +733,8 @@ class MSID(object):
         h5 = tables.open_file(index_filepath, 'r')
         index = h5.root.epoch[:]  # read the whole thing into a numpy structured array
         h5.close()
+        print("INDEX!!!!!!!!!!")
+        print(index)
 
         # Chop down to the required time interval, roughly.  The side='right'
         # arg to np.searchsorted is a subtletry related to a query where
@@ -755,15 +745,39 @@ class MSID(object):
 
         # Interval that starts *before* start_jd, making sure to not go below 0
         idx0 = max(np.searchsorted(index['epoch'], start_jd, side='right') - 1, 0)
+
+        print(f"Index 0: {idx0}")
+
         # Interval that starts *after* stop_jd
         idx1 = np.searchsorted(index['epoch'], stop_jd, side='right')
-        index = index[idx0:idx1 + 1]  # The +1 is so that the idx1 record is included
+
+        if len(index) == idx1:
+
+            h5 = tables.open_file(values_filepath, 'r')
+            dt = np.dtype([ ('epoch','<f8'), ('index', '<u8')])
+            last_idx = np.array([(0, len(h5.root.data[0:-1]) )], dtype=dt)
+            index = np.append(index, last_idx)
+            h5.close()
+        else:
+            index = index[idx0:idx1 + 1]  # The +1 is so that the idx1 record is included
+            print(index)
+
+        print(f"Index 1: {idx1}")
 
         # Start and stop rows which are guaranteed to contain start, stop
         row0 = index['index'][0]
         row1 = index['index'][-1]
 
+        print(f"file length: {len(index)}")
+        print(f"Start Row: {row0}")
+        print(f"End Row: {row1}")
+
         h5 = tables.open_file(values_filepath, 'r')
+
+        # if len(index) == idx1:
+        #     print(f"Index of last entry: {len(h5.root.data[row0:-1])}")
+        #     row1 = len(h5.root.data[row0:-1])
+            
         vals = h5.root.data[row0:row1]
         h5.close()
 
@@ -779,6 +793,9 @@ class MSID(object):
         for index0, index1 in zip(index[:-1], index[1:]):
             r0 = index0['index'] - row0
             r1 = index1['index'] - row0
+
+            print(f"row 0: {r0}")
+            print(f"row 0: {r1}")
             jds[r0:r1] = index0['epoch'] + np.cumsum(dts[r0:r1])
 
         # Final time filtering for exact user interval
@@ -793,10 +810,19 @@ class MSID(object):
         files"""
 
         times, vals = MSID.temp_get_jwst_data(tstart, tstop, msid)
-
-        times = Time(times, format="jd").unix
-       
+        print("FROM GET DATA=========+=========")
         print(times)
+
+        temp_times = times
+        times = Time(times, format="jd").unix
+
+        times_iso = Time(temp_times, format="jd").iso
+        
+        print("NOT GET DATA=========+=========")
+        print(temp_times)
+        print(times)
+
+        print(times_iso)
         print(vals)
 
         print(len(times))
@@ -804,7 +830,7 @@ class MSID(object):
 
         bads = None
         
-        return (vals[0:10], times[0:10], bads)
+        return (vals[330:400], times[330:400], bads)
 
 
     @staticmethod
@@ -1756,6 +1782,8 @@ class Msid(MSID):
     """
     units = UNITS
 
+    print("uashjdljahsdljhasljdhasljdhasjldhasldjhasd;lashdjashjldhasjkdhkjashdkjasdh")
+
     def __init__(self, msid, start=LAUNCH_DATE, stop=None, filter_bad=True, stat=None):
         super(Msid, self).__init__(msid, start=start, stop=stop,
                                    filter_bad=filter_bad, stat=stat)
@@ -2093,7 +2121,3 @@ def _plural(x):
     known small set of cases within fetch where it will get applied.
     """
     return x + 'es' if (x.endswith('x') or x.endswith('s')) else x + 's'
-
-def do_something(mnemonic):
-
-    print(mnemonic)
