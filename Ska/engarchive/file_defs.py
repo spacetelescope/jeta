@@ -13,7 +13,8 @@ all MSIDs in the same content-type group (e.g. ACIS2ENG).
 """
 import os
 
-SKA = '/Users/dkauffman/Projects/jSka/jska-eng_archive/'#os.environ.get('SKA') or '/proj/sot/ska'
+SKA = os.environ.get('SKA') or '/proj/sot/ska'
+
 
 # Root directories for MSID files.  msid_root is prime, others are backups.
 # NOTE: msid_root(s) used ONLY in one-off or legacy code, not in update_archive.py or
@@ -33,7 +34,7 @@ msid_files = {'filetypes':    'filetypes.dat',
               'statsdir':     'data/{{ft.content}}/{{ft.interval}}/',
               'stats':        'data/{{ft.content}}/{{ft.interval}}/{{ft.msid | upper}}.h5',
               'mnemonic_index': 'data/{{ft.content}}/{{ft.msid | upper}}/index.h5',
-              'mnemonic_value': 'data/{{ft.content}}/{{ft.msid | upper}}/value.h5',
+              'mnemonic_value': 'data/{{ft.content}}/{{ft.msid | upper}}/values.h5',
               'mnemonic_times': 'data/{{ft.content}}/{{ft.msid | upper}}/times.h5',
               }
 

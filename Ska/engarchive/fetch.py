@@ -321,6 +321,12 @@ logger = logging.getLogger('Ska.engarchive.fetch')
 logger.addHandler(NullHandler())
 logger.propagate = False
 
+# jwst_fetch_logger = logging.StreamHandler(sys.stdout)
+# jwst_fetch_logger.setLevel(logging.DEBUG)
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# jwst_fetch_logger.setFormatter(formatter)
+# logger.addHandler(jwst_fetch_logger)
+
 # Warn the user if ENG_ARCHIVE is set such that the data path is non-standard
 if os.getenv('ENG_ARCHIVE'):
     print('fetch: using ENG_ARCHIVE={} for archive path'
@@ -590,7 +596,7 @@ class MSID(object):
         """Get data from the Eng archive"""
         logger.info('Getting data for %s between %s to %s',
                     self.msid, self.datestart, self.datestop)
-        print("adsfhsluhfsdhfkljdshfjldshfljdshfljdshfjldshklfjhdshfjsdhfl")
+    
         # Avoid stomping on caller's filetype 'ft' values with _cache_ft()
         with _cache_ft():
             ft['content'] = self.content
@@ -718,24 +724,23 @@ class MSID(object):
 
         import tables
 
+        # start_datetime =  Time(start, format='cxcsec', scale="utc").iso
+        # end_datetime = Time(stop, format='cxcsec', scale="utc").iso
+        
+        # logger.info(f"Fetching telemetry data starting @{start_datetime} and ending @{end_datetime}")
+
         start_jd = Time(start, format='cxcsec', scale="utc").jd
         stop_jd = Time(stop, format='cxcsec', scale="utc").jd
 
-        # index_file = 'index.h5'  # index file for ``msid``
-        # val_file = 'val.h5'  # data for msid
-        # dt_file = 'dt.h5'  # delta times
-
-        values_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/values.h5'
-        times_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/times.h5'
-        index_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/index.h5'
+        values_filepath = msid_files['mnemonic_value'].abs
+        times_filepath = msid_files['mnemonic_times'].abs
+        index_filepath = msid_files['mnemonic_index'].abs
 
         # Assume the index.h5 file is a table with 'row' and 'jd' columns
         h5 = tables.open_file(index_filepath, 'r')
         index = h5.root.epoch[:]  # read the whole thing into a numpy structured array
         h5.close()
-        print("INDEX!!!!!!!!!!")
-        print(index)
-
+       
         # Chop down to the required time interval, roughly.  The side='right'
         # arg to np.searchsorted is a subtletry related to a query where
         # start or stop is *exactly* the same as the index boundary, e.g. if
@@ -745,8 +750,6 @@ class MSID(object):
 
         # Interval that starts *before* start_jd, making sure to not go below 0
         idx0 = max(np.searchsorted(index['epoch'], start_jd, side='right') - 1, 0)
-
-        print(f"Index 0: {idx0}")
 
         # Interval that starts *after* stop_jd
         idx1 = np.searchsorted(index['epoch'], stop_jd, side='right')
@@ -758,26 +761,17 @@ class MSID(object):
             last_idx = np.array([(0, len(h5.root.data[0:-1]) )], dtype=dt)
             index = np.append(index, last_idx)
             h5.close()
-        else:
-            index = index[idx0:idx1 + 1]  # The +1 is so that the idx1 record is included
-            print(index)
 
-        print(f"Index 1: {idx1}")
+        else:
+
+            index = index[idx0:idx1 + 1]  # The +1 is so that the idx1 record is included
 
         # Start and stop rows which are guaranteed to contain start, stop
         row0 = index['index'][0]
         row1 = index['index'][-1]
 
-        print(f"file length: {len(index)}")
-        print(f"Start Row: {row0}")
-        print(f"End Row: {row1}")
-
         h5 = tables.open_file(values_filepath, 'r')
 
-        # if len(index) == idx1:
-        #     print(f"Index of last entry: {len(h5.root.data[row0:-1])}")
-        #     row1 = len(h5.root.data[row0:-1])
-            
         vals = h5.root.data[row0:row1]
         h5.close()
 
@@ -794,8 +788,6 @@ class MSID(object):
             r0 = index0['index'] - row0
             r1 = index1['index'] - row0
 
-            print(f"row 0: {r0}")
-            print(f"row 0: {r1}")
             jds[r0:r1] = index0['epoch'] + np.cumsum(dts[r0:r1])
 
         # Final time filtering for exact user interval
@@ -810,27 +802,14 @@ class MSID(object):
         files"""
 
         times, vals = MSID.temp_get_jwst_data(tstart, tstop, msid)
-        print("FROM GET DATA=========+=========")
-        print(times)
+        times = DateTime(times, format="jd").plotdate
 
-        temp_times = times
-        times = Time(times, format="jd").unix
-
-        times_iso = Time(temp_times, format="jd").iso
+        # temp_times = times
+        # times_iso = Time(temp_times, format="jd").iso
         
-        print("NOT GET DATA=========+=========")
-        print(temp_times)
-        print(times)
-
-        print(times_iso)
-        print(vals)
-
-        print(len(times))
-        print(len(vals))
-
         bads = None
         
-        return (vals[330:400], times[330:400], bads)
+        return (vals, times, bads)
 
 
     @staticmethod
@@ -1782,8 +1761,6 @@ class Msid(MSID):
     """
     units = UNITS
 
-    print("uashjdljahsdljhasljdhasljdhasjldhasldjhasd;lashdjashjldhasjkdhkjashdkjasdh")
-
     def __init__(self, msid, start=LAUNCH_DATE, stop=None, filter_bad=True, stat=None):
         super(Msid, self).__init__(msid, start=start, stop=stop,
                                    filter_bad=filter_bad, stat=stat)
@@ -1897,14 +1874,8 @@ def get_time_range(msid, format=None):
         ft['content'] = 'tlm'
         ft['msid'] = msid
 
-        # print("dsfsdfdsfdsfdsfsdfsdfsdfsdfsdfsdfsdgsfdsfsdfsdf")
-        # times_filename = msid_files['mnemonic_times'].abs
-        # index_filename = msid_files['mnemonic_index'].abs
-        # print(times_filename)
-        # print(index_filename)
-
-        times_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/times.h5'
-        index_filepath = f'/Users/dkauffman/Projects/jSka/jska-eng_archive/data/tlm/{msid.upper()}/index.h5'
+        times_filepath = msid_files['mnemonic_times'].abs
+        index_filepath = msid_files['mnemonic_index'].abs
      
         logger.info('Reading %s', times_filepath)
 
@@ -1916,7 +1887,7 @@ def get_time_range(msid, format=None):
         sp_idx = int(index_h5.root.epoch[-1][1]) - 1
 
         tstart = index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0])[0]
-        tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1] #+ len(index_h5.root.epoch[-1][1])
+        tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1] 
 
         index_h5.close()
         times_h5.close()
