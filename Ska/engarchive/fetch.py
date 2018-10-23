@@ -151,8 +151,10 @@ class _DataSource(object):
         elif source == 'maude':
             import maude
             out = list(maude.MSIDS.keys())
+        elif source == 'jwst':
+            out = list(content.keys())
         else:
-            raise ValueError('source must be "cxc" or "msid"')
+            raise ValueError('source must be "cxc" or "msid" or jwst')
 
         return set(out)
 
@@ -516,10 +518,10 @@ class MSID(object):
         # else:
         #    self.msid = msids[0]
         #    self.MSID = MSIDs[0]
-        
+
         self.msid = msid.lower()
         self.MSID = msid.upper()
-        
+
         # Capture the current module units
         self.units = Units(self.units['system'])
         self.unit = self.units.get_msid_unit(self.MSID)
@@ -596,7 +598,7 @@ class MSID(object):
         """Get data from the Eng archive"""
         logger.info('Getting data for %s between %s to %s',
                     self.msid, self.datestart, self.datestop)
-    
+
         # Avoid stomping on caller's filetype 'ft' values with _cache_ft()
         with _cache_ft():
             ft['content'] = self.content
@@ -615,7 +617,7 @@ class MSID(object):
                     if ('jwst' in data_source.sources()): #and self.MSID in data_source.get_msids('jwst')):
 
                         print("JWST Data Source")
-                      
+
                         get_msid_data = self._get_msid_data_from_jwst
                         # get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
                         #                  else self._get_msid_data_from_cxc)
@@ -720,13 +722,17 @@ class MSID(object):
         return MSID._get_msid_data_from_cxc(content, tstart, tstop, msid, unit_system)
 
     @staticmethod
-    def temp_get_jwst_data(start, stop, msid):
+    def _get_jwst_data(start, stop, msid):
 
         import tables
+        ft['content'] = 'tlm'
+
+        """Do the actual work of getting time and values for an MSID from HDF5
+        files"""
 
         # start_datetime =  Time(start, format='cxcsec', scale="utc").iso
         # end_datetime = Time(stop, format='cxcsec', scale="utc").iso
-        
+
         # logger.info(f"Fetching telemetry data starting @{start_datetime} and ending @{end_datetime}")
 
         start_jd = Time(start, format='cxcsec', scale="utc").jd
@@ -740,7 +746,7 @@ class MSID(object):
         h5 = tables.open_file(index_filepath, 'r')
         index = h5.root.epoch[:]  # read the whole thing into a numpy structured array
         h5.close()
-       
+
         # Chop down to the required time interval, roughly.  The side='right'
         # arg to np.searchsorted is a subtletry related to a query where
         # start or stop is *exactly* the same as the index boundary, e.g. if
@@ -798,17 +804,26 @@ class MSID(object):
     @staticmethod
     def _get_msid_data_from_jwst(content, tstart, tstop, msid, unit_system):
 
-        """Do the actual work of getting time and values for an MSID from HDF5
-        files"""
+        """
+            Interface for JWST to the original Ska.engarchive system. Accepts the same
+            parameters and then passes them to the JWST data fetching function.
+        """
 
-        times, vals = MSID.temp_get_jwst_data(tstart, tstop, msid)
-        times = DateTime(times, format="jd").plotdate
+        times, vals = MSID._get_jwst_data(tstart, tstop, msid)
 
-        # temp_times = times
-        # times_iso = Time(temp_times, format="jd").iso
-        
+        # Covert to a time the original code expected
+        times = Time(times, format="jd").unix
+
+        try:
+            vals = np.float64(vals)
+        except Exception as e:
+            pass
+        # print(len(vals))
+        # print(len(times))
+
+        # Currenly no concept of bads
         bads = None
-        
+
         return (vals, times, bads)
 
 
@@ -1462,6 +1477,10 @@ class MSID(object):
         import matplotlib.pyplot as plt
         from Ska.Matplotlib import plot_cxctime
         vals = self.raw_vals if self.state_codes else self.vals
+
+        # print(self.vals)
+        # print(self.times)
+
         plot_cxctime(self.times, vals, *args, state_codes=self.state_codes,
                      **kwargs)
         plt.margins(0.02, 0.05)
@@ -1866,28 +1885,28 @@ def get_time_range(msid, format=None):
     :param format: Output format (DateTime format, e.g. 'secs', 'date', 'greta')
     :returns: (tstart, tstop) in CXC seconds
     """
-    
+
     MSID = msid.upper()
     with _cache_ft():
-        
+
         content[msid] = ""
         ft['content'] = 'tlm'
         ft['msid'] = msid
 
         times_filepath = msid_files['mnemonic_times'].abs
         index_filepath = msid_files['mnemonic_index'].abs
-     
+
         logger.info('Reading %s', times_filepath)
 
         import tables
-     
+
         times_h5 = tables.open_file(times_filepath)
         index_h5 = tables.open_file(index_filepath)
 
         sp_idx = int(index_h5.root.epoch[-1][1]) - 1
 
         tstart = index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0])[0]
-        tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1] 
+        tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1]
 
         index_h5.close()
         times_h5.close()
