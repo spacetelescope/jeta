@@ -103,6 +103,8 @@ if opt.create:
     opt.update_stats = False
 
 ft = fetch.ft
+print("FT OVER HERE")
+print(ft)
 msid_files = pyyaks.context.ContextDict('update_archive.msid_files',
                                         basedir=opt.data_root)
 msid_files.update(file_defs.msid_files)
@@ -154,7 +156,9 @@ def create_content_dir():
             pickle.dump(empty, f)
 
     if not os.path.exists(msid_files['archfiles'].abs):
-        archfiles_def = open('archfiles_def.sql').read()
+        print("look here!")
+        print(msid_files['archfiles'].abs)
+        archfiles_def = open('/Users/dkauffman/Projects/jSka/tia/tia/ingest/archfiles_def.sql').read()
         filename = msid_files['archfiles'].abs
         logger.info('Creating db {}'.format(filename))
         db = Ska.DBI.DBI(dbi='sqlite', server=filename, autocommit=False)
@@ -655,11 +659,11 @@ def append_h5_col_derived(dats, colname):
 
 def make_h5_col_file_tlm(dat, colname):
     """Make a new h5 table to hold column from ``dat``."""
-    
+
     # DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
     DataProduct.touch_index(msid_files['msid'].abs, colname, dat[colname]['index']['index'], dat[colname]['index']['epoch'])
     DataProduct.create_values_hdf5(colname, dat, msid_files['msid'].abs)
-    DataProduct.create_times_hdf5(colname, dat, msid_files['msid'].abs)  
+    DataProduct.create_times_hdf5(colname, dat, msid_files['msid'].abs)
 
 
 def append_h5_col_tlm(dat, colname):
@@ -760,7 +764,7 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
                          rowstop=row + 1,
                          date=Time.now().iso)
 
-    
+
     return ingest.data, archfiles_row
 
 
@@ -851,7 +855,7 @@ def update_msid_files(filetype, archfiles):
     make_h5_col_file = make_h5_col_file_derived if content_is_derived else make_h5_col_file_tlm
     append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
     #append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
-    
+
 
     for i, f in enumerate(archfiles):
         get_data = (read_derived if content_is_derived else read_archfile)
@@ -863,7 +867,7 @@ def update_msid_files(filetype, archfiles):
         # define the column names now.
         if opt.create and not colnames:
             colnames = set(get_dat_colnames(dat))
- 
+
         # Ensure that the time gap between the end of the last ingested archive
         # file and the start of this one is less than opt.max_gap (or
         # filetype-based defaults).  If this fails then break out of the
@@ -976,6 +980,8 @@ def get_archive_files(filetype):
 
     print("getting archive files")
 
-    files = sorted(glob.glob('stage/*.CSV'))
+    #files = sorted(glob.glob('stage/*.CSV'))
+    print(os.environ['STAGING_DIRECTORY'])
+    files = sorted(glob.glob(f"{os.environ['STAGING_DIRECTORY']}*.CSV"))
     print(files)
     return files

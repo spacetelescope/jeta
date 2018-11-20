@@ -382,6 +382,8 @@ read_bad_times(os.path.join(DIR_PATH, 'msid_bad_times.dat'))
 
 
 def msid_glob(msid):
+
+    print("msid_glob")
     """Get the archive MSIDs matching ``msid``.
 
     The function returns a tuple of (msids, MSIDs) where ``msids`` is a list of
@@ -409,6 +411,9 @@ def msid_glob(msid):
 
 
 def _msid_glob(msid, source):
+
+    print("msid_glob")
+
     """Get the archive MSIDs matching ``msid``.
 
     The function returns a tuple of (msids, MSIDs) where ``msids`` is a list of
@@ -1015,6 +1020,8 @@ class MSID(object):
         return Ska.tdb.msids[self.MSID]
 
     def interpolate(self, dt=None, start=None, stop=None, times=None):
+
+        print("dsfljsdhlfjhdsjlfhdsljfhdlsjhfljdshfldshfldshfjldshfljdhslfhsdljfhsd")
         """Perform nearest-neighbor interpolation of the MSID to the specified
         time sequence.
 
@@ -1037,6 +1044,9 @@ class MSID(object):
         """
         import Ska.Numpy
 
+        print("interpolate")
+        print(times)
+
         if times is not None:
             if any(kwarg is not None for kwarg in (dt, start, stop)):
                 raise ValueError('If "times" keyword is set then "dt", "start", '
@@ -1045,15 +1055,22 @@ class MSID(object):
             ok = (times >= self.times[0]) & (times <= self.times[-1])
             times = times[ok]
         else:
+            print('else')
             dt = 328.0 if dt is None else dt
             tstart = DateTime(start).secs if start else self.times[0]
             tstop = DateTime(stop).secs if stop else self.times[-1]
+            print("interpolate")
+            print(times)
 
+            print('legacy')
             # Legacy method for backward compatibility.  Note that the np.arange()
             # call accrues floating point error.
             tstart = max(tstart, self.times[0])
             tstop = min(tstop, self.times[-1])
             times = np.arange(tstart, tstop, dt)
+            print("interpolate")
+            print(times)
+
 
         logger.info('Interpolating index for %s', self.msid)
         indexes = Ska.Numpy.interpolate(np.arange(len(self.times)),
@@ -1070,6 +1087,7 @@ class MSID(object):
         # interpolation times.
         self.times0 = self.times
         self.times = times
+
 
     def copy(self):
         from copy import deepcopy
@@ -1631,6 +1649,8 @@ class MSIDset(collections.OrderedDict):
 
     def interpolate(self, dt=None, start=None, stop=None, filter_bad=True, times=None,
                     bad_union=False, copy=False):
+
+        print('interpolate 2')
         """
         Perform nearest-neighbor interpolation of all MSID values in the set
         to a common time sequence.  The values are updated in-place.
@@ -1691,22 +1711,36 @@ class MSIDset(collections.OrderedDict):
         max_fetch_tstart = max(msid.times[0] for msid in msids)
         min_fetch_tstop = min(msid.times[-1] for msid in msids)
 
+
         if times is not None:
+            print('First time:')
+            print(times)
             if any(kwarg is not None for kwarg in (dt, start, stop)):
                 raise ValueError('If "times" keyword is set then "dt", "start", '
                                  'and "stop" cannot be set')
             # Use user-supplied times that are within the range of telemetry.
             ok = (times >= max_fetch_tstart) & (times <= min_fetch_tstop)
             obj.times = times[ok]
+
+            print('obj.times:')
+            print(obj.times)
         else:
             # Get the nominal tstart / tstop range
             dt = 328.0 if dt is None else dt
+
             tstart = DateTime(start).secs if start else obj.tstart
             tstop = DateTime(stop).secs if stop else obj.tstop
+            print('tstart:')
+            print(tstart)
+            print('tstop:')
+            print(tstop)
 
             tstart = max(tstart, max_fetch_tstart)
             tstop = min(tstop, min_fetch_tstop)
             obj.times = np.arange((tstop - tstart) // dt + 1) * dt + tstart
+
+            print('obj.times:')
+            print(obj.times)
 
         for msid in msids:
             if filter_bad and not bad_union:
@@ -1724,6 +1758,8 @@ class MSIDset(collections.OrderedDict):
             # Make a new attribute times0 that stores the nearest neighbor
             # interpolated times.  Then set the MSID times to be the common
             # interpolation times.
+            print('msid.times')
+            print(msid.times)
             msid.times0 = msid.times
             msid.times = obj.times
 
