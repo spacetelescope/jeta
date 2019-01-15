@@ -13,7 +13,7 @@ import pyyaks.logger
 
 
 loglevel = pyyaks.logger.VERBOSE
-logger = pyyaks.logger.get_logger(name='jskaarcive', level=loglevel,
+logger = pyyaks.logger.get_logger(name='jskaarchive', level=loglevel,
                                   format="%(asctime)s %(message)s")
 
 class Epoch(IsDescription):
@@ -58,9 +58,9 @@ class DataProduct:
 
         """ This static method gets the file write path for one of the three different h5 data products.
 
-        NOTE: As the code is written today full path contains an extra component,
-        a file named  <mnemonic>.h5 this will need to be replaced. The interafce will
-        remain the same and just accept the path to the parent archive directory.
+        TODO: Full path contains an extra component and will need to be replaced.
+        The interafce will remain the same and just accept the path to the parent
+        archive directory. Is will be worked using JSKA-35
 
         :param fullpath: this is the fullpath to the parent archive directory.
         :param mnenmonic: mnemonic
@@ -145,7 +145,7 @@ class DataProduct:
             """
                 TODO:
                     Ecapsulate This Block, the method is doing to many things and the
-                    code will have to be repated elsewhere anyway.
+                    code will have to be repeated elsewhere anyway.
             """
 
             #########BLOCK#############

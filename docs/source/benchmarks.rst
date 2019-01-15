@@ -1,6 +1,7 @@
-Ingesting
-=========
+==========
+Benchmarks
+==========
 
-- fof (csv file)
+- csv file
 - grouped data (hdf5)
 - flat table (hdf5)

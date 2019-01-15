@@ -32,4 +32,10 @@ Supported Ingest Files
 Telemetry Archive Structure
 ---------------------------
 
-The tele
+TBD
+
+---------------
+Ingest Schedule
+---------------
+
+TBD
