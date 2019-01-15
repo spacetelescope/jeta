@@ -23,12 +23,13 @@ class Epoch(IsDescription):
 
 class DataProduct:
 
-    """ This class is responsible for managing the output of the various DataProduct
-    
+    """ This class is responsible for managing the output of the three per mnemonic DataProducts
+
+        see: Telemetry Archive Structure in the documentation for detials about how data is stored.
     """
 
 
-    @staticmethod 
+    @staticmethod
     def create_archive_directory(fullpath, mnemonic):
 
         """ This static method creates the archive directory for a specified
@@ -37,34 +38,34 @@ class DataProduct:
 
         :param fullpath: this is the path to the archive root directory.
         :param mnemonic: mnemonic
-        :raise IOError: raises an IO Error if the directory cannot be created. 
+        :raise IOError: raises an IO Error if the directory cannot be created.
         """
-    
+
         filedir = os.path.dirname(fullpath)
 
         if not os.path.exists(filedir+"/"+mnemonic):
             try:
                 os.makedirs(filedir+"/"+mnemonic)
-                logger.verbose('INFO: created new directory {} for column {}'
-                   .format(filedir+"/"+mnemonic, mnemonic))
+                # logger.verbose('INFO: created new directory {} for column {}'
+                #    .format(filedir+"/"+mnemonic, mnemonic))
             except IOError as e:
                 raise IOError("Failed to create directory.")
-    
+
         return str(filedir+"/"+mnemonic)
 
     @staticmethod
     def get_file_write_path(fullpath, mnemonic, h5type=None):
 
-        """ This static method gets the file write path for one of the three different h5 data products. 
-        
-        NOTE: As the code is written today full path contains an extra component, 
-        a file named  <mnemonic>.h5 this will need to be replaced. The interafce will 
+        """ This static method gets the file write path for one of the three different h5 data products.
+
+        NOTE: As the code is written today full path contains an extra component,
+        a file named  <mnemonic>.h5 this will need to be replaced. The interafce will
         remain the same and just accept the path to the parent archive directory.
 
         :param fullpath: this is the fullpath to the parent archive directory.
         :param mnenmonic: mnemonic
         :param h5type: the type (name) of the .h5 file path to return
-        :returns: fullpath including file name of the archive file. 
+        :returns: fullpath including file name of the archive file.
         """
 
         filetype = {
@@ -77,10 +78,10 @@ class DataProduct:
 
             filename = fullpath
             filedir = os.path.dirname(filename)
-        
+
             filepath = Path(filedir+"/"+mnemonic).joinpath(filetype[h5type])
 
-        else: 
+        else:
             raise ValueError('Error: Invalid filetype. Must be values, times or index.')
 
         return filepath
@@ -92,10 +93,8 @@ class DataProduct:
 
         :param mnemonic: the mnemonic for which to create a file.
         :param data: the data associated with that mnemonic
-        :param fullpath: the fullpath to the parent archive directory, becomes the
-        full path to the archive file.
-        :returns h5, fullpath: a reference to the h5 file object and the path on disk
-
+        :param fullpath: the fullpath to the parent archive directory, becomes the full path to the archive file.
+        :returns: h5, fullpath: a reference to the h5 file object and the path on disk
         """
 
         fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='values')
@@ -104,11 +103,11 @@ class DataProduct:
 
             filters = tables.Filters(complevel=5, complib='zlib')
             h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="a", filters=filters)
-            
-            """ 
-                TODO: 
+
+            """
+                TODO:
                     Ecapsulate This Block, the method is doing to many things and the
-                    code will have to be repated elsewhere anyway. 
+                    code will have to be repated elsewhere anyway.
             """
             #########BLOCK#############
             col = data[mnemonic]
@@ -121,32 +120,32 @@ class DataProduct:
             n_rows = int(365 * 20 / dt)
 
             ##########END BLOCK#########
-        
+
             h5shape = (0,)
             h5type = tables.Atom.from_dtype(values.dtype)
-        
+
 
             h5.create_earray(h5.root, 'data', h5type, h5shape, title=mnemonic,
                         expectedrows=n_rows)
 
 
-            logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
-                    .format(fullpath, mnemonic, None, None))
-        
+            # logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
+            #         .format(fullpath, mnemonic, None, None))
+
             h5.close()
 
             return h5, fullpath
-    
+
     @staticmethod
     def create_times_hdf5(mnemonic, data, fullpath):
 
         fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='times')
 
         if not os.path.exists(fullpath):
-            """ 
-                TODO: 
+            """
+                TODO:
                     Ecapsulate This Block, the method is doing to many things and the
-                    code will have to be repated elsewhere anyway. 
+                    code will have to be repated elsewhere anyway.
             """
 
             #########BLOCK#############
@@ -169,7 +168,7 @@ class DataProduct:
 
             h5.create_earray(h5.root, 'time', h5timetype, h5shape, title='Time',
                         expectedrows=n_rows)
-            
+
             h5.close()
 
 
@@ -184,21 +183,21 @@ class DataProduct:
         file_length = 0
 
         fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'values')
-        
+
         if os.path.exists(fullpath):
             h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="r")
             table = h5.root.data
             file_length = len(table)
 
             h5.close()
- 
+
         return file_length
 
     @staticmethod
     def get_last_known_epoch(parent_directory, mnemonic):
 
         fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'index')
-      
+
         if os.path.exists(fullpath):
             h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="r")
             table = h5.root.epoch
@@ -207,7 +206,7 @@ class DataProduct:
             h5.close()
         else:
             last_known_epoch = 2454466.5 # 2008-01-01 00:00:00.000 in JD
-            
+
         #print(f'Last known epoch for this mnemonic is: {last_known_epoch}')
         return last_known_epoch
 
@@ -221,10 +220,9 @@ class DataProduct:
 
         filters = tables.Filters(complevel=5, complib='zlib')
         h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="a", filters=filters)
-        
+
         if idx is not None and epoch is not None:
 
-            print(f'I am going to create an index file with an index of {idx} and a jd of {epoch}.')
             try:
                 table = h5.create_table(h5.root, 'epoch', Epoch)
             except:
@@ -239,8 +237,8 @@ class DataProduct:
 
         h5.close()
 
-        logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
-                   .format(fullpath, mnemonic, None, None))
+        # logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
+        #            .format(fullpath, mnemonic, None, None))
 
     @staticmethod
     def create_hdf5(mnemonic, data, parent_directory, h5_file_type):
@@ -258,9 +256,9 @@ class DataProduct:
         #            expectedrows=n_rows)
 
 
-        logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
-                   .format(fullpath, mnemonic, None, None))
-    
+        # logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
+        #            .format(fullpath, mnemonic, None, None))
+
         h5.close()
 
     def __init__(self):

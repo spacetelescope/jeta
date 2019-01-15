@@ -11,7 +11,7 @@ from astropy.time import Time
 
 from .archive import DataProduct
 
-from .strategy import LoadPandasCSVStrategy 
+from .strategy import LoadPandasCSVStrategy
 from .strategy import LoadPythonCSVStrategy
 from .strategy import LoadPyTablesHDF5Strategy
 from .strategy import LoadH5PYHDF5Strategy
@@ -23,9 +23,9 @@ from ..config import properties
 class Ingest:
 
     """ This class is responsible for reading and processing input files.
-    
+
     """
-    
+
     # Pandas Data Frame for storing raw data ingested from an input file.
     df = None
 
@@ -58,17 +58,17 @@ class Ingest:
                 epoch = self.epoch_date
 
             jd_times = Time(self.times[mnemonic], format='iso', in_subfmt='date_hms').jd
-           
+
             return np.diff(np.insert(jd_times, 0, self.time_to_quadtime(epoch)))
 
     def init_times(self, row):
 
         if self.tstart is None:
 
-            start_time = row[properties.TIME_COLUMN].replace("/", "-")   
+            start_time = row[properties.TIME_COLUMN].replace("/", "-")
             self.epoch_date = start_time[:11]+"00:00:00.000"
             self.tstart = Time(start_time).jd
-    
+
     def set_ingest_path(self, ingest_path):
 
         self.input_path = ingest_path
@@ -76,7 +76,7 @@ class Ingest:
     def set_min_entry_date(self, date_string):
 
         self.min_entry_date = str(date_string).replace("/", "-")
-       
+
     def set_max_entry_date(self, date_string):
 
         self.max_entry_date = str(date_string).replace("/", "-")
@@ -92,14 +92,14 @@ class Ingest:
     def get_mnemonic_data(self, mnemonic):
 
         return self.data[mnemonic]
-  
+
     def get_min_max_year_for_mnemonic(self, mnemonic):
 
         return [self.times[mnemonic][0][0:4], self.times[mnemonic][-1][0:4]]
-  
+
     def get_max_entry_date(self):
         pass
-    
+
     def get_min_entry_date(self):
 
         pass
@@ -114,7 +114,7 @@ class Ingest:
         proposed_epoch = datetime.strptime(proposed_epoch, "%Y-%m-%d %H:%M:%S.%f")
         tmp_epoch = datetime.strptime(self.epoch_date , "%Y-%m-%d %H:%M:%S.%f")
 
-        return proposed_epoch > tmp_epoch 
+        return proposed_epoch > tmp_epoch
 
     def update_epoch_time(self, proposed_epoch):
 
@@ -135,19 +135,19 @@ class Ingest:
             self.init_times(row)
 
             date = str(row[properties.TIME_COLUMN]).replace("/", "-")
-        
+
             value = row[properties.VALUE_COLUMN]
 
             self.values[mnemonic].append(value)
             self.times[mnemonic].append(str(date))
 
         self.tstop = Time(date, format='iso').jd
-        
-        
+
+
         for mnemonic, value in self.values.items():
 
             self.times[mnemonic] = sorted(self.times[mnemonic])
-          
+
             parent_directory = DataProduct.create_archive_directory(self.output_path, mnemonic)
 
             if self.time_to_quadtime(self.times[mnemonic][-1]) == self.time_to_quadtime(self.times[mnemonic][0]):
@@ -156,16 +156,16 @@ class Ingest:
                 self.indices[mnemonic] = {'index': index, 'epoch': self.time_to_quadtime(epoch)}
             else:
                 pass
-           
+
             self.data[mnemonic] = {
                 'times': self.get_delta_times(mnemonic, epoch),
                 'values': np.array(self.values[mnemonic]),
                 'index': self.indices[mnemonic],
                 'parent_directory': parent_directory
             }
-        
+
         return self
-        
+
     def start(self):
 
         # load data into Dataframe from some source
@@ -175,22 +175,20 @@ class Ingest:
         # self.set_min_entry_date(self.df.iloc[0][properties.TIME_COLUMN])
         # self.set_max_entry_date(self.df.iloc[-1][properties.TIME_COLUMN])
 
-        
-        # Sort the data into buckets, this will have to be another strategy 
-        # since the format of the data will be completely different depending on the 
+
+        # Sort the data into buckets, this will have to be another strategy
+        # since the format of the data will be completely different depending on the
         # file type ingested. For now flat csv is assumed.
         self.partition()
 
 
-        # Create the HDF5 file(s) archive 
+        # Create the HDF5 file(s) archive
         # self.archive()
 
         return self
-      
+
     def __init__(self, input_file, output_path, input_path=properties.INGEST_DIR):
 
-        
-        
         self.input_path=Path(properties.INGEST_DIR)
         self.input_file=input_file
         self.output_path = output_path

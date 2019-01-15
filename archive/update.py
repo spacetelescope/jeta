@@ -13,6 +13,9 @@ import argparse
 import shutil
 import itertools
 from collections import OrderedDict, defaultdict
+import logging
+
+from datetime import datetime
 
 from astropy.time import Time
 from Chandra.Time import DateTime
@@ -103,8 +106,7 @@ if opt.create:
     opt.update_stats = False
 
 ft = fetch.ft
-print("FT OVER HERE")
-print(ft)
+
 msid_files = pyyaks.context.ContextDict('update_archive.msid_files',
                                         basedir=opt.data_root)
 msid_files.update(file_defs.msid_files)
@@ -120,7 +122,7 @@ if opt.data_root:
 
 # Set up logging
 loglevel = pyyaks.logger.VERBOSE if opt.log_level is None else int(opt.log_level)
-logger = pyyaks.logger.get_logger(name='engarchive', level=loglevel,
+logger = pyyaks.logger.get_logger(name='Engineering Digest Engine', level=loglevel,
                                   format="%(asctime)s %(message)s")
 
 # Also adjust fetch logging if non-default log-level supplied (mostly for debug)
@@ -129,7 +131,13 @@ if opt.log_level is not None:
 
 archfiles_hdr_cols = ('tstart', 'tstop', 'startmjf', 'startmnf', 'stopmjf', 'stopmnf',
                       'tlmver', 'ascdsver', 'revision', 'date')
+def get_env_variable(var_name):
 
+    try:
+        return os.environ[var_name]
+    except:
+        error_msg = 'Set the {} environment variable'.format(var_name)
+        raise ValueError(error_msg)
 
 def get_colnames():
     """Get column names for the current content type (defined by ft['content'])"""
@@ -156,9 +164,11 @@ def create_content_dir():
             pickle.dump(empty, f)
 
     if not os.path.exists(msid_files['archfiles'].abs):
-        print("look here!")
+
         print(msid_files['archfiles'].abs)
-        archfiles_def = open('/Users/dkauffman/Projects/jSka/tia/tia/ingest/archfiles_def.sql').read()
+
+        archfiles_def = open(get_env_variable('ARCHIVE_DEFINITION_SOURCE')).read()
+
         filename = msid_files['archfiles'].abs
         logger.info('Creating db {}'.format(filename))
         db = Ska.DBI.DBI(dbi='sqlite', server=filename, autocommit=False)
@@ -189,7 +199,7 @@ def fix_state_code(state_code):
     return out
 
 
-def main():
+def run():
     """
     Perform one full update of the eng archive based on opt parameters.
     This may be called in a loop by the program-level main().
@@ -198,6 +208,7 @@ def main():
     logger.info('Update_archive file: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch module file: {}'.format(os.path.abspath(fetch.__file__)))
     logger.info('')
+    print(f'Starting Ingest @ {datetime.now()}')
 
     # Get the archive content filetypes
     filetypes = fetch.filetypes
@@ -247,6 +258,7 @@ def main():
                 msid = update_stats(colname, 'daily')
                 update_stats(colname, '5min', msid)
 
+        logger.info(f' Archive Update Process Complete. {datetime.now()}')
 
 def fix_misorders(filetype):
     """Fix problems in the eng archive where archive files were ingested out of
@@ -679,10 +691,10 @@ def append_h5_col_tlm(dat, colname):
     values = dat[colname]['values']
 
     h5_values_file = tables.open_file(values_filepath, mode='a')
-    logger.verbose('Appending %d items to %s' % (len(values), values_filepath))
+    #logger.verbose('Appending %d items to %s' % (len(values), values_filepath))
 
     h5_times_file = tables.open_file(times_filepath, mode='a')
-    logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
+    #logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
 
     if not opt.dry_run:
         h5_times_file.root.time.append(times)
@@ -934,8 +946,7 @@ def update_msid_files(filetype, archfiles):
 
     # If colnames changed then give warning and update files.
     if colnames != old_colnames:
-        logger.warning('WARNING: updating %s because colnames changed: %s'
-                       % (msid_files['colnames'].abs, old_colnames ^ colnames))
+        logger.warning(f"WARNING: updating {msid_files['colnames'].abs} because colnames changed ...")
         if not opt.dry_run:
             pickle.dump(colnames, open(msid_files['colnames'].abs, 'wb'))
 
@@ -978,10 +989,14 @@ def move_archive_files(filetype, archfiles):
 def get_archive_files(filetype):
     """Get telemetry files"""
 
-    print("getting archive files")
+    staging_directory = get_env_variable('STAGING_DIRECTORY')
+    logger.info(f"Starting ingest file discovery in {staging_directory} ... ")
 
-    #files = sorted(glob.glob('stage/*.CSV'))
-    print(os.environ['STAGING_DIRECTORY'])
-    files = sorted(glob.glob(f"{os.environ['STAGING_DIRECTORY']}*.CSV"))
+    files = sorted(glob.glob(f"{staging_directory}*.CSV"))
+
+    logger.info(f"Discovered: {len(files)} in {staging_directory} ...")
+    logger.info(f"Files discovered: {files}")
+
+
     print(files)
     return files
