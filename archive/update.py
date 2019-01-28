@@ -12,16 +12,21 @@ from six.moves import zip
 import argparse
 import shutil
 import itertools
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
+import logging
 
+from datetime import datetime
+
+from astropy.time import Time
 from Chandra.Time import DateTime
 import Ska.File
 import Ska.DBI
 import Ska.Numpy
 import pyyaks.logger
 import pyyaks.context
-import pyfits
+import astropy.io.fits as pyfits
 import tables
+import tables3_api
 import numpy as np
 import scipy.stats.mstats
 
@@ -29,8 +34,12 @@ import Ska.engarchive.fetch as fetch
 import Ska.engarchive.converters as converters
 import Ska.engarchive.file_defs as file_defs
 import Ska.engarchive.derived as derived
-import Ska.arc5gl
+#import Ska.arc5gl
 
+from jSka.ingest import process
+from jSka.ingest.archive import DataProduct
+
+working_filename = None
 
 def get_options(args=None):
     parser = argparse.ArgumentParser()
@@ -51,14 +60,6 @@ def get_options(args=None):
     parser.add_argument("--create",
                         action="store_true",
                         help="Create the MSID H5 files from scratch")
-    parser.add_argument("--fix-misorders",
-                        action="store_true",
-                        default=False,
-                        help="Fix errors in ingest file order")
-    parser.add_argument("--state-codes-only",
-                        action="store_true",
-                        default=False,
-                        help="Only process MSIDs that have state codes")
     parser.add_argument("--truncate",
                         help="Truncate archive after <date> (CAUTION!!)")
     parser.add_argument("--max-lookback-time",
@@ -105,6 +106,7 @@ if opt.create:
     opt.update_stats = False
 
 ft = fetch.ft
+
 msid_files = pyyaks.context.ContextDict('update_archive.msid_files',
                                         basedir=opt.data_root)
 msid_files.update(file_defs.msid_files)
@@ -120,7 +122,7 @@ if opt.data_root:
 
 # Set up logging
 loglevel = pyyaks.logger.VERBOSE if opt.log_level is None else int(opt.log_level)
-logger = pyyaks.logger.get_logger(name='engarchive', level=loglevel,
+logger = pyyaks.logger.get_logger(name='Engineering Digest Engine', level=loglevel,
                                   format="%(asctime)s %(message)s")
 
 # Also adjust fetch logging if non-default log-level supplied (mostly for debug)
@@ -129,20 +131,25 @@ if opt.log_level is not None:
 
 archfiles_hdr_cols = ('tstart', 'tstop', 'startmjf', 'startmnf', 'stopmjf', 'stopmnf',
                       'tlmver', 'ascdsver', 'revision', 'date')
+def get_env_variable(var_name):
 
+    try:
+        return os.environ[var_name]
+    except:
+        error_msg = 'Set the {} environment variable'.format(var_name)
+        raise ValueError(error_msg)
 
 def get_colnames():
     """Get column names for the current content type (defined by ft['content'])"""
-    colnames = [x for x in pickle.load(open(msid_files['colnames'].abs))
+    colnames = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
                 if x not in fetch.IGNORE_COLNAMES]
     return colnames
 
 
 def create_content_dir():
     """
-    Make empty files for colnames.pkl, colnames_all.pkl and archfiles.db3
+    Make empty files for colnames.pkl and archfiles.db3
     for the current content type ft['content'].
-
     This only works within the development (git) directory in conjunction
     with the --create option.
     """
@@ -153,14 +160,15 @@ def create_content_dir():
 
     empty = set()
     if not os.path.exists(msid_files['colnames'].abs):
-        with open(msid_files['colnames'].abs, 'w') as f:
-            pickle.dump(empty, f)
-    if not os.path.exists(msid_files['colnames_all'].abs):
-        with open(msid_files['colnames_all'].abs, 'w') as f:
+        with open(msid_files['colnames'].abs, 'wb') as f:
             pickle.dump(empty, f)
 
     if not os.path.exists(msid_files['archfiles'].abs):
-        archfiles_def = open('archfiles_def.sql').read()
+
+        print(msid_files['archfiles'].abs)
+
+        archfiles_def = open(get_env_variable('ARCHIVE_DEFINITION_SOURCE')).read()
+
         filename = msid_files['archfiles'].abs
         logger.info('Creating db {}'.format(filename))
         db = Ska.DBI.DBI(dbi='sqlite', server=filename, autocommit=False)
@@ -169,6 +177,7 @@ def create_content_dir():
 
 
 _fix_state_code_cache = {}
+
 
 def fix_state_code(state_code):
     """
@@ -189,7 +198,8 @@ def fix_state_code(state_code):
 
     return out
 
-def main_loop():
+
+def run():
     """
     Perform one full update of the eng archive based on opt parameters.
     This may be called in a loop by the program-level main().
@@ -198,6 +208,7 @@ def main_loop():
     logger.info('Update_archive file: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch module file: {}'.format(os.path.abspath(fetch.__file__)))
     logger.info('')
+    print(f'Starting Ingest @ {datetime.now()}')
 
     # Get the archive content filetypes
     filetypes = fetch.filetypes
@@ -205,10 +216,6 @@ def main_loop():
         contents = [x.upper() for x in opt.content]
         filetypes = [x for x in filetypes
                      if any(re.match(y, x.content) for y in contents)]
-
-    # Update archive currently cannot create derived parameter content types
-    if opt.create:
-        filetypes = [x for x in filetypes if not x.content.startswith('DP_')]
 
     for filetype in filetypes:
         # Update attributes of global ContextValue "ft".  This is needed for
@@ -218,7 +225,7 @@ def main_loop():
         if opt.create:
             create_content_dir()
 
-        colnames = [x for x in pickle.load(open(msid_files['colnames'].abs))
+        colnames = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
                     if x not in fetch.IGNORE_COLNAMES]
 
         if not os.path.exists(fetch.msid_files['archfiles'].abs):
@@ -229,14 +236,6 @@ def main_loop():
 
         if opt.truncate:
             truncate_archive(filetype, opt.truncate)
-            continue
-
-        if opt.fix_misorders:
-            misorder_time = fix_misorders(filetype)
-            if misorder_time:
-                for colname in colnames:
-                    del_stats(colname, misorder_time, 'daily')
-                    del_stats(colname, misorder_time, '5min')
             continue
 
         if opt.update_full:
@@ -259,6 +258,7 @@ def main_loop():
                 msid = update_stats(colname, 'daily')
                 update_stats(colname, '5min', msid)
 
+        logger.info(f' Archive Update Process Complete. {datetime.now()}')
 
 def fix_misorders(filetype):
     """Fix problems in the eng archive where archive files were ingested out of
@@ -267,21 +267,17 @@ def fix_misorders(filetype):
     discontinuities in rowstart assuming filename ordering and swaps neighbors.
     One needs to verify in advance (--dry-run --fix-misorders --content ...)
     that this will be an adequate fix.
-
     Example::
-
       update_archive.py --dry-run --fix-misorders --content misc3eng
       update_archive.py --fix-misorders --content misc3eng >& fix_misc3.log
       update_archive.py --content misc3eng --max-lookback-time 100 >>& fix_misc3.log
-
     In the --dry-run it is important to verify that the gap is really just from
     two mis-ordered files that can be swapped.  Look at the rowstart,rowstop values
     in the filename-ordered list.
-
     :param filetype: filetype
     :returns: minimum time for all misorders found
     """
-    colnames = pickle.load(open(msid_files['colnames'].abs))
+    colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
 
     # Setup db handle with autocommit=False so that error along the way aborts insert transactions
     db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs, autocommit=False)
@@ -303,7 +299,9 @@ def fix_misorders(filetype):
             ft['msid'] = colname
             logger.info('Fixing %s', msid_files['msid'].abs)
             if not opt.dry_run:
-                h5 = tables.openFile(msid_files['msid'].abs, mode='a')
+                filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
+                h5 = tables.open_file(filepath, mode='a')
+                #h5 = tables.open_file(msid_files['msid'].abs, mode='a')
                 hrd = h5.root.data
                 hrq = h5.root.quality
 
@@ -362,7 +360,7 @@ def del_stats(colname, time0, interval):
 
     logger.info('Fixing stats file %s after time %s', stats_file, DateTime(time0).date)
 
-    stats = tables.openFile(stats_file, mode='a',
+    stats = tables.open_file(stats_file, mode='a',
                             filters=tables.Filters(complevel=5, complib='zlib'))
     index0 = time0 // dt - 1
     indexes = stats.root.data.col('index')[:]
@@ -379,7 +377,6 @@ def del_stats(colname, time0, interval):
 def calc_stats_vals(msid, rows, indexes, interval):
     """
     Compute statistics values for ``msid`` over specified intervals.
-
     :param msid: Msid object (filter_bad=True)
     :param rows: Msid row indices corresponding to stat boundaries
     :param indexes: Universal index values for stat (row times // dt)
@@ -489,7 +486,7 @@ def update_stats(colname, interval, msid=None):
         logger.info('Making stats dir {}'.format(msid_files['statsdir'].abs))
         os.makedirs(msid_files['statsdir'].abs)
 
-    stats = tables.openFile(stats_file, mode='a',
+    stats = tables.open_file(stats_file, mode='a',
                             filters=tables.Filters(complevel=5, complib='zlib'))
 
     # INDEX0 is somewhat before any CXC archive data (which starts around 1999:205)
@@ -562,7 +559,7 @@ def update_derived(filetype):
     index0 = last_row['stopmjf']
 
     # Get the full set of rootparams for all colnames
-    colnames = pickle.load(open(msid_files['colnames'].abs))
+    colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
     colnames = [x for x in colnames if x.startswith('DP_')]
     msids = set()
     for colname in colnames:
@@ -580,7 +577,7 @@ def update_derived(filetype):
         ft['msid'] = 'TIME'
         content = ft['content'] = fetch.content[msid]
         if content not in last_times:
-            h5 = tables.openFile(fetch.msid_files['msid'].abs, mode='r')
+            h5 = tables.open_file(fetch.msid_files['msid'].abs, mode='r')
             last_times[content] = h5.root.data[-1]
             h5.close()
     last_time = min(last_times.values()) - 1000
@@ -616,22 +613,12 @@ def update_archive(filetype):
     """Get new CXC archive files for ``filetype`` and update the full-resolution MSID
     archive files.
     """
-    if opt.occ:
-        dirname = arch_files['stagedir'].abs
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
-    else:
-        tmpdir = Ska.File.TempDir(dir=opt.data_root)
-        dirname = tmpdir.name
-
-    with Ska.File.chdir(dirname):
-        archfiles = get_archive_files(filetype)
-        if archfiles:
-            archfiles_processed = update_msid_files(filetype, archfiles)
-            move_archive_files(filetype, archfiles_processed)
+    archfiles = get_archive_files(filetype)
+    if archfiles:
+        update_msid_files(filetype, archfiles)
 
 
-def make_h5_col_file(dats, colname):
+def make_h5_col_file_derived(dats, colname):
     """Make a new h5 table to hold column from ``dat``."""
     filename = msid_files['msid'].abs
     filedir = os.path.dirname(filename)
@@ -644,55 +631,22 @@ def make_h5_col_file(dats, colname):
     n_rows = int(86400 * 365 * 20 / dt)
 
     filters = tables.Filters(complevel=5, complib='zlib')
-    h5 = tables.openFile(filename, mode='w', filters=filters)
+    h5 = tables.open_file(filename, mode='w', filters=filters)
 
     col = dats[-1][colname]
     h5shape = (0,) + col.shape[1:]
     h5type = tables.Atom.from_dtype(col.dtype)
-    h5.createEArray(h5.root, 'data', h5type, h5shape, title=colname,
+    h5.create_earray(h5.root, 'data', h5type, h5shape, title=colname,
                     expectedrows=n_rows)
-    h5.createEArray(h5.root, 'quality', tables.BoolAtom(), (0,), title='Quality',
+    h5.create_earray(h5.root, 'quality', tables.BoolAtom(), (0,), title='Quality',
                     expectedrows=n_rows)
     logger.verbose('WARNING: made new file {} for column {!r} shape={} with n_rows(1e6)={}'
                    .format(filename, colname, h5shape, n_rows / 1.0e6))
     h5.close()
 
 
-def append_filled_h5_col(dats, colname, data_len):
-    """
-    For ``colname`` that has newly appeared in the CXC content file due to a TDB
-    change, append a sufficient number of empty, bad-quality rows to offset to the start
-    of the first ``dats`` table with that ``colname``.
-
-    ``data_len`` represents the data length to the END of the current ``dats``
-    for this content type.
-    """
-    # Drop all dats until the first one that has the new colname, then include
-    # all after that.
-    new_dats = list(itertools.dropwhile(lambda x: colname not in x.dtype.names, dats))
-    stacked_data = np.hstack([x[colname] for x in new_dats])
-    fill_len = data_len - len(stacked_data)
-    if fill_len < 0:
-        raise ValueError('impossible negative length error {}'.format(fill_len))
-
-    zeros = np.zeros(fill_len, dtype=stacked_data.dtype)
-    quals = np.zeros(fill_len, dtype=bool)
-
-    # Append zeros (for the data type) and quality=True (bad)
-    h5 = tables.openFile(msid_files['msid'].abs, mode='a')
-    logger.verbose('Appending %d zeros to %s' % (len(zeros), msid_files['msid'].abs))
-    if not opt.dry_run:
-        h5.root.data.append(zeros)
-        h5.root.quality.append(quals)
-    h5.close()
-
-    # Now actually append the new data
-    append_h5_col(new_dats, colname, [])
-
-
-def append_h5_col(dats, colname, files_overlaps):
+def append_h5_col_derived(dats, colname):
     """Append new values to an HDF5 MSID data table.
-
     :param dats: List of pyfits HDU data objects
     :param colname: column name
     """
@@ -700,7 +654,7 @@ def append_h5_col(dats, colname, files_overlaps):
         """Return the index for `colname` in `dat`"""
         return list(dat.dtype.names).index(colname)
 
-    h5 = tables.openFile(msid_files['msid'].abs, mode='a')
+    h5 = tables.open_file(msid_files['msid'].abs, mode='a')
     stacked_data = np.hstack([x[colname] for x in dats])
     stacked_quality = np.hstack([x['QUALITY'][:, i_colname(x)] for x in dats])
     logger.verbose('Appending %d items to %s' % (len(stacked_data), msid_files['msid'].abs))
@@ -709,26 +663,46 @@ def append_h5_col(dats, colname, files_overlaps):
         h5.root.data.append(stacked_data)
         h5.root.quality.append(stacked_quality)
 
-    # Remove overlaps in the archive files where file0['tstop'] > file1['tstart'].
-    # Do this by setting the TIME column quality flag for the overlapping rows
-    # in file0.  files_overlaps is a list of 2-tuples with consequetive files that
-    # overlap.
-    if colname == 'TIME':
-        for file0, file1 in files_overlaps:
-            times = h5.root.data[file0['rowstart']:file0['rowstop']]
-            bad_rowstart = np.searchsorted(times, file1['tstart']) + file0['rowstart']
-            bad_rowstop = file0['rowstop']
-            if not opt.dry_run:
-                logger.verbose('Removing overlapping data in rows {0}:{1}'.format(
-                    bad_rowstart, bad_rowstop))
-                if  bad_rowstop > bad_rowstart:
-                    h5.root.quality[bad_rowstart:bad_rowstop] = True
-                else:
-                    logger.verbose('WARNING: Unexpected null file overlap file0=%s file1=%s'
-                                   % (file0, file1))
-
     data_len = len(h5.root.data)
     h5.close()
+
+    return data_len
+
+
+def make_h5_col_file_tlm(dat, colname):
+    """Make a new h5 table to hold column from ``dat``."""
+
+    # DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
+    DataProduct.touch_index(msid_files['msid'].abs, colname, dat[colname]['index']['index'], dat[colname]['index']['epoch'])
+    DataProduct.create_values_hdf5(colname, dat, msid_files['msid'].abs)
+    DataProduct.create_times_hdf5(colname, dat, msid_files['msid'].abs)
+
+
+def append_h5_col_tlm(dat, colname):
+    """Append new values to an HDF5 MSID data table.
+    :param dats: List of pyfits HDU data objects
+    :param colname: column name
+    """
+
+    values_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
+    times_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='times')
+
+    times = dat[colname]['times']
+    values = dat[colname]['values']
+
+    h5_values_file = tables.open_file(values_filepath, mode='a')
+    #logger.verbose('Appending %d items to %s' % (len(values), values_filepath))
+
+    h5_times_file = tables.open_file(times_filepath, mode='a')
+    #logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
+
+    if not opt.dry_run:
+        h5_times_file.root.time.append(times)
+        h5_values_file.root.data.append(values)
+
+    data_len = len(h5_values_file.root.data)
+    h5_times_file.close()
+    h5_values_file.close()
 
     return data_len
 
@@ -737,7 +711,7 @@ def truncate_archive(filetype, date):
     """Truncate msid and statfiles for every archive file after date (to nearest
     year:doy)
     """
-    colnames = pickle.load(open(msid_files['colnames'].abs))
+    colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
 
     date = DateTime(date).date
     year, doy = date[0:4], date[5:8]
@@ -755,11 +729,11 @@ def truncate_archive(filetype, date):
 
     for colname in colnames:
         ft['msid'] = colname
-        filename = msid_files['msid'].abs
+        filename = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values') # msid_files['msid'].abs
         if not os.path.exists(filename):
             raise IOError('MSID file {} not found'.format(filename))
         if not opt.dry_run:
-            h5 = tables.openFile(filename, mode='a')
+            h5 = tables.open_file(filename, mode='a')
             h5.root.data.truncate(rowstart)
             h5.root.quality.truncate(rowstart)
             h5.close()
@@ -790,42 +764,20 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
         os.unlink(f)
         return None, None
 
-    # Read FITS archive file and accumulate data into dats list and header into headers dict
-    logger.info('Reading (%d / %d) %s' % (i, len(archfiles), filename))
-    hdus = pyfits.open(f)
-    hdu = hdus[1]
+    # Read archive file and accumulate data into dats list and header into headers dict
+    logger.info('Reading (%d / %d) %s' % (i+1, len(archfiles), filename))
 
-    try:
-        dat = converters.convert(hdu.data, filetype['content'])
+    ingest = process.Ingest(f, msid_files['colnames'].abs).start()
 
-    except converters.NoValidDataError:
-        # When creating files allow NoValidDataError
-        hdus.close()
-        logger.warning('WARNING: no valid data in data file {}'.format(filename))
-        return None, None
+    archfiles_row = dict(filename=f,
+                         tstart=ingest.tstart,
+                         tstop=ingest.tstop,
+                         rowstart=row,
+                         rowstop=row + 1,
+                         date=Time.now().iso)
 
-    except converters.DataShapeError as err:
-        hdus.close()
-        logger.warning('WARNING: skipping file {} with bad data shape: ASCDSVER={} {}'
-                       .format(filename, hdu.header['ASCDSVER'], err))
-        return None, None
 
-    # Accumlate relevant info about archfile that will be ingested into
-    # MSID h5 files.  Commit info before h5 ingest so if there is a failure
-    # the needed info will be available to do the repair.
-    archfiles_row = dict((x, hdu.header.get(x.upper())) for x in archfiles_hdr_cols)
-    archfiles_row['checksum'] = hdu.header.get('checksum') or hdu._checksum
-    archfiles_row['rowstart'] = row
-    archfiles_row['rowstop'] = row + len(dat)
-    archfiles_row['filename'] = filename
-    archfiles_row['filetime'] = int(re.search(r'(\d+)', archfiles_row['filename']).group(1))
-    filedate = DateTime(archfiles_row['filetime']).date
-    year, doy = (int(x) for x in re.search(r'(\d\d\d\d):(\d\d\d)', filedate).groups())
-    archfiles_row['year'] = year
-    archfiles_row['doy'] = doy
-    hdus.close()
-
-    return dat, archfiles_row
+    return ingest.data, archfiles_row
 
 
 def read_derived(i, filename, filetype, row, colnames, archfiles, db):
@@ -890,11 +842,16 @@ def read_derived(i, filename, filetype, row, colnames, archfiles, db):
     return dat, archfiles_row
 
 
+def get_dat_colnames(dat):
+    """Iteratable over dat colnames"""
+    return dat if isinstance(dat, dict) else dat.dtype.names
+
+
 def update_msid_files(filetype, archfiles):
-    colnames = pickle.load(open(msid_files['colnames'].abs))
-    colnames_all = pickle.load(open(msid_files['colnames_all'].abs))
+
+    print("Updating....")
+    colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
     old_colnames = colnames.copy()
-    old_colnames_all = colnames_all.copy()
 
     # Setup db handle with autocommit=False so that error along the way aborts insert transactions
     db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs, autocommit=False)
@@ -904,11 +861,13 @@ def update_msid_files(filetype, archfiles):
     row = out['max(rowstop)'] or 0
     last_archfile = db.fetchone('SELECT * FROM archfiles where rowstop=?', (row,))
 
-    archfiles_overlaps = []
-    dats = []
     archfiles_processed = []
 
     content_is_derived = (filetype['instrum'] == 'DERIVED')
+    make_h5_col_file = make_h5_col_file_derived if content_is_derived else make_h5_col_file_tlm
+    append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
+    #append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
+
 
     for i, f in enumerate(archfiles):
         get_data = (read_derived if content_is_derived else read_archfile)
@@ -917,15 +876,9 @@ def update_msid_files(filetype, archfiles):
             continue
 
         # If creating new content type and there are no existing colnames, then
-        # define the column names now.  Filter out any multidimensional
-        # columns, including (typically) QUALITY.
+        # define the column names now.
         if opt.create and not colnames:
-            colnames = set(dat.dtype.names)
-            for colname in dat.dtype.names:
-                if len(dat[colname].shape) > 1:
-                    logger.info('Removing column {} from colnames because shape = {}'
-                                .format(colname, dat[colname].shape))
-                    colnames.remove(colname)
+            colnames = set(get_dat_colnames(dat))
 
         # Ensure that the time gap between the end of the last ingested archive
         # file and the start of this one is less than opt.max_gap (or
@@ -938,53 +891,19 @@ def update_msid_files(filetype, archfiles):
             time_gap = archfiles_row['tstart'] - last_archfile['tstop']
         max_gap = opt.max_gap
         if max_gap is None:
-            if filetype['instrum'] in ['EPHEM', 'DERIVED']:
+            if filetype['instrum'] in ['DERIVED']:
                 max_gap = 601
-            elif filetype['content'] == 'ACISDEAHK':
-                max_gap = 10000
-                # From P.Plucinsky 2011-09-23
-                # If ACIS is executing an Event Histogram run while in FMT1,
-                # the telemetry stream will saturate.  The amount of time for
-                # an opening in the telemetry to appear such that DEA HKP
-                # packets can get out is a bit indeterminate.  The histograms
-                # integrate for 5400s and then they are telemetered.  I would
-                # suggest 6000s, but perhaps you would want to double that to
-                # 12000s.
-            elif filetype['content'] in ['CPE1ENG', 'CCDM15ENG']:
-                # 100 years => no max gap for safe mode telemetry or dwell mode telemetry
-                max_gap = 100 * 3.1e7
             else:
                 max_gap = 32.9
+
         if time_gap > max_gap:
             logger.warning('WARNING: found gap of %.2f secs between archfiles %s and %s',
                            time_gap, last_archfile['filename'], archfiles_row['filename'])
-            if opt.create:
-                logger.warning('       Allowing gap because of opt.create=True')
-            elif DateTime() - DateTime(archfiles_row['tstart']) > opt.allow_gap_after_days:
-                # After 4 days (by default) just let it go through because this is
-                # likely a real gap and will not be fixed by subsequent processing.
-                # This can happen after normal sun mode to SIM products.
-                logger.warning('       Allowing gap because arch file '
-                               'start is more than {} days old'
-                               .format(opt.allow_gap_after_days))
-            else:
-                break
         elif time_gap < 0:
-            # Overlapping archfiles - deal with this in append_h5_col
-            archfiles_overlaps.append((last_archfile, archfiles_row))
+            raise ValueError('overlapping archive files')
 
         # Update the last_archfile values.
         last_archfile = archfiles_row
-
-        # A very small number of archive files (a few) have a problem where the
-        # quality column tform is specified as 3B instead of 17X (for example).
-        # This breaks things, so in this case just skip the file.  However
-        # since last_archfile is set above the gap check considers this file to
-        # have been ingested.
-        if not content_is_derived and dat['QUALITY'].shape[1] != len(dat.dtype.names):
-            logger.warning('WARNING: skipping because of quality size mismatch: %d %d' %
-                           (dat['QUALITY'].shape[1], len(dat.dtype.names)))
-            continue
 
         # Mark the archfile as ingested in the database and add to list for
         # subsequent relocation into arch_files archive.  In the case of a gap
@@ -996,63 +915,40 @@ def update_msid_files(filetype, archfiles):
         if not opt.dry_run:
             db.insert(archfiles_row, 'archfiles')
 
-        # Capture the data for subsequent storage in the hdf5 files
-        dats.append(dat)
+        # Update the running list of column names.
+        colnames.update(name for name in get_dat_colnames(dat))
 
-        # Update the running list of column names.  Colnames_all is the maximal (union)
-        # set giving all column names seen in any file for this content type.  Colnames
-        # was historically the minimal (intersection) set giving the list of column names
-        # seen in every file, but as of 0.39 it is allowed to grow as well to accommodate
-        # adding MSIDs in the TDB.  Include only 1-d columns, not things like AEPERR
-        # in PCAD8ENG which is a 40-element binary vector.
-        colnames_all.update(dat.dtype.names)
-        colnames.update(name for name in dat.dtype.names if dat[name].ndim == 1)
+        row += len(dat) if content_is_derived else 1
 
-        row += len(dat)
-
-    if dats:
         logger.verbose('Writing accumulated column data to h5 file at ' + time.ctime())
-        data_lens = set()
         processed_cols = set()
         for colname in colnames:
             ft['msid'] = colname
             if not os.path.exists(msid_files['msid'].abs):
-                make_h5_col_file(dats, colname)
+                make_h5_col_file(dat, colname)
                 if not opt.create:
                     # New MSID was found for this content type.  This must be associated with
                     # an update to the TDB.  Skip for the moment to ensure that other MSIDs
                     # are fully processed.
                     continue
-            data_len = append_h5_col(dats, colname, archfiles_overlaps)
-            data_lens.add(data_len)
+            append_h5_col(dat, colname)
             processed_cols.add(colname)
 
-        if len(data_lens) != 1:
-            raise ValueError('h5 data length inconsistency {}, investigate NOW!'
-                             .format(data_lens))
-
         # Process any new MSIDs (this is extremely rare)
-        data_len = data_lens.pop()
         for colname in colnames - processed_cols:
             ft['msid'] = colname
-            append_filled_h5_col(dats, colname, data_len)
+            append_h5_col(dat, colname)
 
     # Assuming everything worked now commit the db inserts that signify the
     # new archive files have been processed
     if not opt.dry_run:
         db.commit()
 
-    # If colnames or colnames_all changed then give warning and update files.
+    # If colnames changed then give warning and update files.
     if colnames != old_colnames:
-        logger.warning('WARNING: updating %s because colnames changed: %s'
-                       % (msid_files['colnames'].abs, old_colnames ^ colnames))
+        logger.warning(f"WARNING: updating {msid_files['colnames'].abs} because colnames changed ...")
         if not opt.dry_run:
-            pickle.dump(colnames, open(msid_files['colnames'].abs, 'w'))
-    if colnames_all != old_colnames_all:
-        logger.warning('WARNING: updating %s because colnames_all changed: %s'
-                       % (msid_files['colnames_all'].abs, colnames_all ^ old_colnames_all))
-        if not opt.dry_run:
-            pickle.dump(colnames_all, open(msid_files['colnames_all'].abs, 'w'))
+            pickle.dump(colnames, open(msid_files['colnames'].abs, 'wb'))
 
     return archfiles_processed
 
@@ -1091,79 +987,16 @@ def move_archive_files(filetype, archfiles):
 
 
 def get_archive_files(filetype):
-    """Update FITS file archive with arc5gl and ingest files into msid (HDF5) archive"""
+    """Get telemetry files"""
 
-    # If running on the OCC GRETA network the cwd is a staging directory that
-    # could already have files.  Also used in testing.
-    # Don't allow arbitrary arch files at once because of memory issues.
-    files = sorted(glob.glob(filetype['fileglob']))
-    if opt.occ or files:
-        return sorted(files)[:opt.max_arch_files]
+    staging_directory = get_env_variable('STAGING_DIRECTORY')
+    logger.info(f"Starting ingest file discovery in {staging_directory} ... ")
 
-    # Retrieve CXC archive files in a temp directory with arc5gl
-    arc5 = Ska.arc5gl.Arc5gl(echo=True)
+    files = sorted(glob.glob(f"{staging_directory}*.CSV"))
 
-    # End time for archive queries (minimum of start + max_query_days and NOW)
-    datestop = DateTime(opt.date_now)
-
-    # Get datestart as the most-recent file time from archfiles table.  However,
-    # do not look back further than --max-lookback-time
-    db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs)
-    vals = db.fetchone("select max(filetime) from archfiles")
-    datestart = DateTime(max(vals['max(filetime)'],
-                             datestop.secs - opt.max_lookback_time * 86400))
-
-    # For *ephem0 the query needs to extend well into the future
-    # to guarantee getting all available files.  This is the archives fault.
-    if filetype['level'] == 'L0' and filetype['instrum'] == 'EPHEM':
-        datestop = datestop + 50
-
-    # For instrum==EPHEM break queries into time ranges no longer than
-    # 100000 sec each.  EPHEM files are at least 7 days long and generated
-    # no more often than every ~3 days so this should work.
-    n_queries = (1 if filetype['instrum'] != 'EPHEM'
-                 else 1 + round((datestop.secs - datestart.secs) / 100000.))
-    times = np.linspace(datestart.secs, datestop.secs, n_queries + 1)
-
-    logger.info('********** %s %s **********' % (ft['content'], time.ctime()))
-
-    for t0, t1 in zip(times[:-1], times[1:]):
-        if t1 > t0:
-            arc5.sendline('tstart=%s' % DateTime(t0).date)
-            arc5.sendline('tstop=%s' % DateTime(t1).date)
-            arc5.sendline('get %s' % filetype['arc5gl_query'].lower())
-        else:
-            logger.info('INFO: Skipping archive query because datestop={} < datestart={}'
-                        .format(DateTime(t1).date, DateTime(t0).date))
-
-    return sorted(glob.glob(filetype['fileglob']))
+    logger.info(f"Discovered: {len(files)} in {staging_directory} ...")
+    logger.info(f"Files discovered: {files}")
 
 
-def main():
-    """
-    Program-level main.  This will normally be called via the update_archive.py wrapper
-    script installed in $SKA/share/eng_archive.
-    """
-    # Allow for a cmd line option --date-start.  If supplied then loop the
-    # effective value of opt.date_now from date_start to the cmd line
-    # --date-now in steps of --max-lookback-time
-    if opt.date_start is None:
-        date_nows = [opt.date_now]
-    else:
-        t_starts = np.arange(DateTime(opt.date_start).secs,
-                             DateTime(opt.date_now).secs,
-                             opt.max_lookback_time * 86400.)
-        date_nows = [DateTime(t).date for t in t_starts]
-        date_nows.append(opt.date_now)
-
-        # Drop the first date_now because that is covered by the second entry
-        # minus the extended max_lookback_time (below).
-        date_nows = date_nows[1:]
-
-        # Increase max_lookback_time by 50%, but by no less than 2 days and no more than
-        # 10 days.
-        opt.max_lookback_time += min(max(opt.max_lookback_time * 0.5, 2), 10)
-
-    for date_now in date_nows:
-        opt.date_now = date_now
-        main_loop()
+    print(files)
+    return files
