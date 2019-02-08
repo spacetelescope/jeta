@@ -3,7 +3,7 @@ import sys
 from setuptools import setup
 from setuptools.command.test import test as TestCommand
 
-from jSka.jeta.version import package_version
+from .version import package_version
 
 try:
     from testr.setup_helper import cmdclass

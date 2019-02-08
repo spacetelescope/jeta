@@ -102,7 +102,7 @@ class DataProduct:
         if not os.path.exists(fullpath):
 
             filters = tables.Filters(complevel=5, complib='zlib')
-            h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="a", filters=filters)
+            h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="a", filters=filters)
 
             """
                 TODO:
@@ -160,7 +160,7 @@ class DataProduct:
             ##########END BLOCK#########
 
             filters = tables.Filters(complevel=5, complib='zlib')
-            h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="a", filters=filters)
+            h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="a", filters=filters)
 
             h5shape = (0,)
 
@@ -185,7 +185,7 @@ class DataProduct:
         fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'values')
 
         if os.path.exists(fullpath):
-            h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="r")
+            h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="r")
             table = h5.root.data
             file_length = len(table)
 
@@ -199,7 +199,7 @@ class DataProduct:
         fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'index')
 
         if os.path.exists(fullpath):
-            h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="r")
+            h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="r")
             table = h5.root.epoch
             last_known_epoch = table[-1][0]
             #print(f'last known epoch {table[-1][1]}')
@@ -219,7 +219,7 @@ class DataProduct:
             DataProduct.create_archive_directory(parent_directory, mnemonic)
 
         filters = tables.Filters(complevel=5, complib='zlib')
-        h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="a", filters=filters)
+        h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="a", filters=filters)
 
         if idx is not None and epoch is not None:
 
@@ -248,7 +248,7 @@ class DataProduct:
 
         fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, h5_file_type)
         filters = tables.Filters(complevel=5, complib='zlib')
-        h5 = tables.open_file(fullpath, driver="H5FD_CORE", mode="w", filters=filters)
+        h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="w", filters=filters)
 
         n_rows = int(365 * 20)
 

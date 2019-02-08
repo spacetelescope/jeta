@@ -1906,13 +1906,15 @@ def get_time_range(msid, format=None):
         logger.info('Reading %s', times_filepath)
 
         import tables
-
+        print(f"Index File Path: {index_filepath}")
         times_h5 = tables.open_file(times_filepath)
         index_h5 = tables.open_file(index_filepath)
 
         sp_idx = int(index_h5.root.epoch[-1][1]) - 1
 
         tstart = index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0])[0]
+        
+        print(f"{Time(tstart, format='jd').iso}")
         tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1]
 
         index_h5.close()

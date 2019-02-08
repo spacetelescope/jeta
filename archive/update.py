@@ -30,14 +30,14 @@ import tables3_api
 import numpy as np
 import scipy.stats.mstats
 
-import Ska.engarchive.fetch as fetch
-import Ska.engarchive.converters as converters
-import Ska.engarchive.file_defs as file_defs
-import Ska.engarchive.derived as derived
+import jeta.archive.fetch as fetch
+import jeta.archive.converters as converters
+import jeta.archive.file_defs as file_defs
+import jeta.archive.derived as derived
 #import Ska.arc5gl
 
-from jSka.ingest import process
-from jSka.ingest.archive import DataProduct
+from jeta.ingest import process
+from jeta.ingest.archive import DataProduct
 
 working_filename = None
 
@@ -690,10 +690,10 @@ def append_h5_col_tlm(dat, colname):
     times = dat[colname]['times']
     values = dat[colname]['values']
 
-    h5_values_file = tables.open_file(values_filepath, mode='a')
+    h5_values_file = tables.open_file(str(values_filepath), mode='a')
     #logger.verbose('Appending %d items to %s' % (len(values), values_filepath))
 
-    h5_times_file = tables.open_file(times_filepath, mode='a')
+    h5_times_file = tables.open_file(str(times_filepath), mode='a')
     #logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
 
     if not opt.dry_run:
