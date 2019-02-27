@@ -15,6 +15,7 @@ import fnmatch
 import collections
 import warnings
 import re
+import json
 
 import numpy as np
 from astropy.io import ascii
@@ -1456,6 +1457,24 @@ class MSID(object):
         from .plot import MsidPlot
         self._iplot = MsidPlot(self, fmt, fmt_minmax, **plot_kwargs)
 
+    def get_telemetry_as_json(self):
+
+        minValue = min(self.vals)
+        maxValue = max(self.vals)
+
+        telemetry = {
+            'mnenmonic': {
+                'level': 1,
+                'minValue': minValue,
+                'maxValue': maxValue,
+                'datetimes': self.times,
+                'values': self.vals,
+            }
+        }
+
+        return json.dumps(telemetry)
+
+
     def plot(self, *args, **kwargs):
         """Plot the MSID ``vals`` using Ska.Matplotlib.plot_cxctime()
 
@@ -1913,16 +1932,19 @@ def get_time_range(msid, format=None):
         sp_idx = int(index_h5.root.epoch[-1][1]) - 1
 
         tstart = index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0])[0]
-        
-        print(f"{Time(tstart, format='jd').iso}")
-        tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1]
+
+        try:
+            tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1]
+        except Exception as err:
+            tstop = None
 
         index_h5.close()
         times_h5.close()
 
         if format == 'iso':
             tstart = Time(tstart, format='jd').iso
-            tstop = Time(tstop, format='jd').iso
+            if tstop is not None:
+                tstop = Time(tstop, format='jd').iso
 
         return tstart, tstop
 

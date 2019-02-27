@@ -187,10 +187,11 @@ class Ingest:
 
         return self
 
-    def __init__(self, input_file, output_path, input_path=properties.INGEST_DIR):
+    def __init__(self, input_file, output_path, strategy='pandas', input_path=properties.INGEST_DIR):
 
         self.input_path=Path(properties.INGEST_DIR)
         self.input_file=input_file
         self.output_path = output_path
         self.full_input_path=self.input_path.joinpath(self.input_file)
-        self._source_import_method = self.load_strategy['pandas'](self.full_input_path)
+        self._source_import_method = self.load_strategy[strategy](self.full_input_path)
+        print(f"Initialized Ingest Strategy: {self._source_import_method}")

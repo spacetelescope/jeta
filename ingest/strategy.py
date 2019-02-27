@@ -16,7 +16,7 @@ class LoadStrategy(object):
         - Loading a HDF5 file using pytables
         - Loading a HDF5 file using h5py
 
-        NOTE: Currently only one strategy, loading a CSV file using pandas 
+        NOTE: Currently only one strategy, loading a CSV file using pandas
         is implemented.
     """
 
@@ -25,13 +25,17 @@ class LoadStrategy(object):
     def __init__(self, filepath):
 
         self.filepath = filepath
-       
+
     @abc.abstractmethod
     def execute(self):
         pass
 
 
 class LoadPandasCSVStrategy(LoadStrategy):
+
+    def __str__(self):
+
+        return "LoadPandasCSVStrategy: Ingest FOF (.csv) files using pandas read_csv."
 
     def __init__(self, filepath):
 

@@ -200,8 +200,7 @@ def fix_state_code(state_code):
 
 
 def begin():
-    """ This method begins the telemetry archive update process.
-
+    """
     Perform one full update of the eng archive based on opt parameters.
     This may be called in a loop by the program-level main().
     """
@@ -209,7 +208,7 @@ def begin():
     logger.info('Update_archive file: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch module file: {}'.format(os.path.abspath(fetch.__file__)))
     logger.info('')
-    logger.info(f'Begun Ingest @ {datetime.now()}')
+    print(f'Starting Ingest @ {datetime.now()}')
 
     # Get the archive content filetypes
     filetypes = fetch.filetypes
@@ -259,7 +258,7 @@ def begin():
                 msid = update_stats(colname, 'daily')
                 update_stats(colname, '5min', msid)
 
-        logger.info(f' INFO: Archive Update Process Complete.')
+        logger.info(f' Archive Update Process Complete. {datetime.now()}')
 
 def fix_misorders(filetype):
     """Fix problems in the eng archive where archive files were ingested out of
@@ -1143,16 +1142,10 @@ def move_archive_files(filetype, archfiles):
 def get_archive_files(filetype):
     """Get telemetry files"""
 
-    ingest_file_types = ['CSV', '.h5']
-    files = []
-
     staging_directory = get_env_variable('STAGING_DIRECTORY')
     logger.info(f"Starting ingest file discovery in {staging_directory} ... ")
 
-    for file_type in ingest_file_types:
-        print(file_type)
-
-        files.extend(sorted(glob.glob(f"{staging_directory}*.{file_type}")))
+    files = sorted(glob.glob(f"{staging_directory}*.CSV"))
 
     logger.info(f"Discovered: {len(files)} in {staging_directory} ...")
     logger.info(f"Files discovered: {files}")
