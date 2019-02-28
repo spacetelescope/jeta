@@ -882,6 +882,19 @@ def get_dat_colnames(dat):
     """Iteratable over dat colnames"""
     return dat if isinstance(dat, dict) else dat.dtype.names
 
+def select_ingest_strategy(filepath):
+
+    strategy_map = {
+
+        'CSV': 'pandas',
+        'csv': 'pandas',
+        '.h5': 'h5py',
+        'hdf5': 'h5py',
+    }
+
+    print(filepath[-3:])
+
+    return strategy_map[filepath[-3:]]
 
 def update_telemetry(filetype, ingest_file_list):
 
@@ -907,7 +920,9 @@ def update_telemetry(filetype, ingest_file_list):
 
     for idx, ingest_file_path in enumerate(ingest_file_list):
 
-        ingest = process.Ingest(ingest_file_path, msid_files['colnames'].abs, strategy='pandas').start()
+        strategy = select_ingest_strategy(ingest_file_path)
+
+        ingest = process.Ingest(ingest_file_path, msid_files['colnames'].abs, strategy=strategy).start()
 
         archfiles_row = dict(filename=ingest_file_path,
                          tstart=ingest.tstart,
@@ -1143,20 +1158,17 @@ def move_archive_files(filetype, archfiles):
 def get_archive_files(filetype):
     """Get telemetry files"""
 
-    ingest_file_types = ['CSV', '.h5']
+    ingest_file_types = ['h5', 'CSV']
     files = []
 
     staging_directory = get_env_variable('STAGING_DIRECTORY')
     logger.info(f"Starting ingest file discovery in {staging_directory} ... ")
 
     for file_type in ingest_file_types:
-        print(file_type)
 
         files.extend(sorted(glob.glob(f"{staging_directory}*.{file_type}")))
 
     logger.info(f"Discovered: {len(files)} in {staging_directory} ...")
     logger.info(f"Files discovered: {files}")
 
-
-    print(files)
     return files

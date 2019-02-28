@@ -122,6 +122,41 @@ class Ingest:
 
         return self.epoch_date
 
+    def parseHDF5(self):
+
+        for mnemonic in self.df:
+
+            # NOTE: If data is properly typed this decoding step may not be required,
+            # its possible that a different storage decision could be though
+
+            self.values[mnemonic] = [x.decode("utf-8") for x in self.df[mnemonic]['data']['value']]
+            self.times[mnemonic] =  [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']]
+
+        self.tstart = Time('1985-01-01 00:00:00.000', format='iso').jd
+        self.tstop = Time('1985-01-01 00:00:00.000', format='iso').jd
+
+        for mnemonic, value in self.values.items():
+
+            self.times[mnemonic] = sorted(self.times[mnemonic])
+
+            parent_directory = DataProduct.create_archive_directory(self.output_path, mnemonic)
+
+            if self.time_to_quadtime(self.times[mnemonic][-1]) == self.time_to_quadtime(self.times[mnemonic][0]):
+                index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
+                epoch = self.times[mnemonic][0]
+                self.indices[mnemonic] = {'index': index, 'epoch': self.time_to_quadtime(epoch)}
+            else:
+                pass
+
+            self.data[mnemonic] = {
+                'times': self.get_delta_times(mnemonic, epoch),
+                'values': np.array(self.values[mnemonic]),
+                'index': self.indices[mnemonic],
+                'parent_directory': parent_directory
+            }
+
+        return self
+
     def partition(self):
 
         self.values = collections.defaultdict(list)
@@ -179,16 +214,20 @@ class Ingest:
         # Sort the data into buckets, this will have to be another strategy
         # since the format of the data will be completely different depending on the
         # file type ingested. For now flat csv is assumed.
-        self.partition()
+        if self.strategy == 'pandas':
+            self.partition()
+        else:
+            self.parseHDF5()
 
 
         # Create the HDF5 file(s) archive
         # self.archive()
-
+        # raise ValueError('Done in Error.')
         return self
 
     def __init__(self, input_file, output_path, strategy='pandas', input_path=properties.INGEST_DIR):
 
+        self.strategy = strategy
         self.input_path=Path(properties.INGEST_DIR)
         self.input_file=input_file
         self.output_path = output_path
