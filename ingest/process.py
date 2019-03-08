@@ -1,3 +1,4 @@
+import os
 import sys
 import collections
 from datetime import datetime
@@ -10,6 +11,7 @@ import pandas as pd
 from astropy.time import Time
 
 from .archive import DataProduct
+from .archive import ROOT_DIR
 
 from .strategy import LoadPandasCSVStrategy
 from .strategy import LoadPythonCSVStrategy
@@ -51,6 +53,22 @@ class Ingest:
 
     tstart = None
     epoch_date = None
+
+    def create_archive_directories(self):
+
+        ingest_mnemonics = np.array(list(self.df.keys()))
+        existing_archive_directories = np.array([x[1] for x in os.walk(ROOT_DIR)][0])
+
+        directories_to_create = np.setdiff1d(ingest_mnemonics, existing_archive_directories)
+
+        print("INFO: Creating archive directories ... ")
+
+        for archive_subdirectory in directories_to_create:
+
+            try:
+                os.makedirs(ROOT_DIR+"/"+archive_subdirectory)
+            except IOError as e:
+                raise IOError("Failed to create directory.")
 
     def get_delta_times(self, mnemonic, epoch=None):
 
@@ -124,6 +142,8 @@ class Ingest:
 
     def parseHDF5(self):
 
+        print("INFO: Ingest mnemonics into memory ...")
+
         for mnemonic in self.df:
 
             # NOTE: If data is properly typed this decoding step may not be required,
@@ -139,8 +159,6 @@ class Ingest:
 
             self.times[mnemonic] = sorted(self.times[mnemonic])
 
-            parent_directory = DataProduct.create_archive_directory(self.output_path, mnemonic)
-
             if self.time_to_quadtime(self.times[mnemonic][-1]) == self.time_to_quadtime(self.times[mnemonic][0]):
                 index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
                 epoch = self.times[mnemonic][0]
@@ -152,7 +170,7 @@ class Ingest:
                 'times': self.get_delta_times(mnemonic, epoch),
                 'values': np.array(self.values[mnemonic]),
                 'index': self.indices[mnemonic],
-                'parent_directory': parent_directory
+                'parent_directory': f"{ROOT_DIR}/{mnemonic}"
             }
 
         return self
@@ -210,6 +228,7 @@ class Ingest:
         # self.set_min_entry_date(self.df.iloc[0][properties.TIME_COLUMN])
         # self.set_max_entry_date(self.df.iloc[-1][properties.TIME_COLUMN])
 
+        self.create_archive_directories()
 
         # Sort the data into buckets, this will have to be another strategy
         # since the format of the data will be completely different depending on the

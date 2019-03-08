@@ -22,21 +22,22 @@ SKA = os.environ.get('SKA') or '/proj/sot/ska'
 msid_root = os.path.join(SKA, 'data', 'eng_archive')
 msid_roots = [msid_root]
 
-msid_files = {'filetypes':    'filetypes.dat',
-              'msid_bad_times': 'msid_bad_times.dat',
-              'contentdir':   'data/{{ft.content}}/',
-              'headers':      'data/{{ft.content}}/headers.pickle',
-              'archfiles':    'data/{{ft.content}}/archfiles.db3',
-              'colnames':     'data/{{ft.content}}/colnames.pickle',
-              'colnames_all': 'data/{{ft.content}}/colnames_all.pickle',
-              'msid':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
-              'data':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
-              'statsdir':     'data/{{ft.content}}/{{ft.interval}}/',
-              'stats':        'data/{{ft.content}}/{{ft.interval}}/{{ft.msid | upper}}.h5',
-              'mnemonic_index': 'data/{{ft.content}}/{{ft.msid | upper}}/index.h5',
-              'mnemonic_value': 'data/{{ft.content}}/{{ft.msid | upper}}/values.h5',
-              'mnemonic_times': 'data/{{ft.content}}/{{ft.msid | upper}}/times.h5',
-              }
+msid_files = {
+    'filetypes':    'filetypes.dat',
+    'msid_bad_times': 'msid_bad_times.dat',
+    'contentdir':   'data/{{ft.content}}/',
+    'headers':      'data/{{ft.content}}/headers.pickle',
+    'archfiles':    'data/{{ft.content}}/archfiles.db3',
+    'colnames':     'data/{{ft.content}}/colnames.pickle',
+    'colnames_all': 'data/{{ft.content}}/colnames_all.pickle',
+    'msid':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
+    'data':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
+    'statsdir':     'data/{{ft.content}}/{{ft.interval}}/',
+    'stats':        'data/{{ft.content}}/{{ft.interval}}/{{ft.msid | upper}}.h5',
+    'mnemonic_index': 'data/{{ft.content}}/{{ft.msid | upper}}/index.h5',
+    'mnemonic_value': 'data/{{ft.content}}/{{ft.msid | upper}}/values.h5',
+    'mnemonic_times': 'data/{{ft.content}}/{{ft.msid | upper}}/times.h5'
+}
 
 
 # NOTE: arch_root used ONLY in one-off or legacy code, not in update_archive.py or

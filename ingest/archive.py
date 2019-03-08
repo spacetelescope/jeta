@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import numpy as np
 
 from pathlib import Path
@@ -11,6 +13,7 @@ import tables3_api
 
 import pyyaks.logger
 
+ROOT_DIR =  "/Users/dkauffman/Projects/jSka/jeta/data/tlm"
 
 loglevel = pyyaks.logger.VERBOSE
 logger = pyyaks.logger.get_logger(name='jskaarchive', level=loglevel,
@@ -215,8 +218,8 @@ class DataProduct:
 
         fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'index')
 
-        if os.path.exists(parent_directory):
-            DataProduct.create_archive_directory(parent_directory, mnemonic)
+        # if os.path.exists(parent_directory):
+        #     DataProduct.create_archive_directory(parent_directory, mnemonic)
 
         filters = tables.Filters(complevel=5, complib='zlib')
         h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="a", filters=filters)

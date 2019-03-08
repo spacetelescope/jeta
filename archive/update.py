@@ -1158,13 +1158,13 @@ def move_archive_files(filetype, archfiles):
 def get_archive_files(filetype):
     """Get telemetry files"""
 
-    ingest_file_types = ['h5', 'CSV']
     files = []
-
+    supported_file_types = ['h5', 'CSV']
     staging_directory = get_env_variable('STAGING_DIRECTORY')
+
     logger.info(f"Starting ingest file discovery in {staging_directory} ... ")
 
-    for file_type in ingest_file_types:
+    for file_type in supported_file_types:
 
         files.extend(sorted(glob.glob(f"{staging_directory}*.{file_type}")))
 
