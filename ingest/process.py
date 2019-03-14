@@ -61,7 +61,7 @@ class Ingest:
 
         directories_to_create = np.setdiff1d(ingest_mnemonics, existing_archive_directories)
 
-        print("INFO: Creating archive directories ... ")
+        print("INFO: creating archive directories ... ")
 
         for archive_subdirectory in directories_to_create:
 
@@ -142,7 +142,7 @@ class Ingest:
 
     def parseHDF5(self):
 
-        print("INFO: Ingest mnemonics into memory ...")
+        print("INFO: ingesting mnemonics into memory ...")
 
         for mnemonic in self.df:
 

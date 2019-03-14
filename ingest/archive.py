@@ -100,7 +100,7 @@ class DataProduct:
         :returns: h5, fullpath: a reference to the h5 file object and the path on disk
         """
 
-        fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='values')
+        #fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='values')
 
         if not os.path.exists(fullpath):
 
@@ -142,7 +142,7 @@ class DataProduct:
     @staticmethod
     def create_times_hdf5(mnemonic, data, fullpath):
 
-        fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='times')
+        #fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='times')
 
         if not os.path.exists(fullpath):
             """

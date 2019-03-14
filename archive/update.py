@@ -300,7 +300,7 @@ def fix_misorders(filetype):
             ft['msid'] = colname
             logger.info('Fixing %s', msid_files['msid'].abs)
             if not opt.dry_run:
-                filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
+                filepath = msid_files['mnemonic_value'].abs
                 h5 = tables.open_file(filepath, mode='a')
                 #h5 = tables.open_file(msid_files['msid'].abs, mode='a')
                 hrd = h5.root.data
@@ -676,8 +676,9 @@ def make_h5_col_file_tlm(dat, colname):
 
     # DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
     DataProduct.touch_index(msid_files['msid'].abs, colname, dat[colname]['index']['index'], dat[colname]['index']['epoch'])
-    DataProduct.create_values_hdf5(colname, dat, msid_files['msid'].abs)
-    DataProduct.create_times_hdf5(colname, dat, msid_files['msid'].abs)
+
+    DataProduct.create_values_hdf5(colname, dat, msid_files['mnemonic_value'].abs)
+    DataProduct.create_times_hdf5(colname, dat, msid_files['mnemonic_times'].abs)
 
 
 def append_h5_col_tlm(dat, colname):
@@ -686,16 +687,13 @@ def append_h5_col_tlm(dat, colname):
     :param colname: column name
     """
 
-    values_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
-    times_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='times')
-
     times = dat[colname]['times']
     values = dat[colname]['values']
 
-    h5_values_file = tables.open_file(str(values_filepath), mode='a')
+    h5_values_file = tables.open_file(str(msid_files['mnemonic_value'].abs), mode='a')
     #logger.verbose('Appending %d items to %s' % (len(values), values_filepath))
 
-    h5_times_file = tables.open_file(str(times_filepath), mode='a')
+    h5_times_file = tables.open_file(str(msid_files['mnemonic_times'].abs), mode='a')
     #logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
 
     if not opt.dry_run:
@@ -731,7 +729,7 @@ def truncate_archive(filetype, date):
 
     for colname in colnames:
         ft['msid'] = colname
-        filename = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values') # msid_files['msid'].abs
+        filename = msid_files['mnemonic_value'].abs # msid_files['msid'].abs
         if not os.path.exists(filename):
             raise IOError('MSID file {} not found'.format(filename))
         if not opt.dry_run:
@@ -1100,7 +1098,7 @@ def update_msid_files(filetype, archfiles):
                     # an update to the TDB.  Skip for the moment to ensure that other MSIDs
                     # are fully processed.
                     continue
-            append_h5_col(dat, colname)
+            append_h5_col(dat, colname) # actual call to update data
             processed_cols.add(colname)
 
         # Process any new MSIDs (this is extremely rare)
