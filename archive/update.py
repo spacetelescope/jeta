@@ -139,6 +139,7 @@ def get_env_variable(var_name):
         error_msg = 'Set the {} environment variable'.format(var_name)
         raise ValueError(error_msg)
 
+
 def get_colnames():
     """Get column names for the current content type (defined by ft['content'])"""
     colnames = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
@@ -147,6 +148,7 @@ def get_colnames():
 
 
 def create_content_dir():
+
     """
     Make empty files for colnames.pkl and archfiles.db3
     for the current content type ft['content'].
@@ -154,6 +156,7 @@ def create_content_dir():
     with the --create option.
     """
     dirname = msid_files['contentdir'].abs
+
     if not os.path.exists(dirname):
         logger.info('Making directory {}'.format(dirname))
         os.makedirs(dirname)
@@ -213,10 +216,11 @@ def begin():
 
     # Get the archive content filetypes
     filetypes = fetch.filetypes
-    if opt.content:
-        contents = [x.upper() for x in opt.content]
-        filetypes = [x for x in filetypes
-                     if any(re.match(y, x.content) for y in contents)]
+
+    # if opt.content:
+    #     contents = [x.upper() for x in opt.content]
+    #     filetypes = [x for x in filetypes
+    #                  if any(re.match(y, x.content) for y in contents)]
 
     for filetype in filetypes:
         # Update attributes of global ContextValue "ft".  This is needed for
@@ -611,13 +615,12 @@ def update_derived(filetype):
 
 
 def update_archive(filetype):
-    """Get new CXC archive files for ``filetype`` and update the full-resolution MSID
-    archive files.
-    """
+
     archfiles = get_archive_files(filetype)
+
     if archfiles:
-        # update_msid_files(filetype, archfiles)
-        update_telemetry(filetype, archfiles)
+        processed_ingest_files = update_telemetry(filetype, archfiles)
+        move_archive_files(filetype, processed_ingest_files)
 
 
 def make_h5_col_file_derived(dats, colname):
@@ -681,6 +684,14 @@ def make_h5_col_file_tlm(dat, colname):
     DataProduct.create_times_hdf5(colname, dat, msid_files['mnemonic_times'].abs)
 
 
+def append_mnemonic_times(mnemonic, times):
+    pass
+
+
+def append_mnemonic_values(mnemonic, values):
+    pass
+
+
 def append_h5_col_tlm(dat, colname):
     """Append new values to an HDF5 MSID data table.
     :param dats: List of pyfits HDU data objects
@@ -697,6 +708,7 @@ def append_h5_col_tlm(dat, colname):
     #logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
 
     if not opt.dry_run:
+
         h5_times_file.root.time.append(times)
         h5_values_file.root.data.append(values)
 
@@ -751,6 +763,7 @@ def truncate_archive(filetype, date):
         db.commit()
     logger.verbose(cmd)
 
+
 def is_file_already_in_db(ingest_file_path, db):
 
     filename = os.path.basename(ingest_file_path)
@@ -758,6 +771,7 @@ def is_file_already_in_db(ingest_file_path, db):
         logger.verbose('File %s already in archfiles - unlinking and skipping' % filename)
         os.unlink(ingest_file_path)
         return True
+
 
 def process_ingest_file(idx, ingest_file_path, filetype, row, colnames, list_of_ingest_files, db):
     """
@@ -812,7 +826,6 @@ def process_ingest_file(idx, ingest_file_path, filetype, row, colnames, list_of_
 
 
 #     return ingest.data, archfiles_row
-
 
 def read_derived(i, filename, filetype, row, colnames, archfiles, db):
     """Read derived data using eng_archive and derived computation classes.
@@ -880,6 +893,7 @@ def get_dat_colnames(dat):
     """Iteratable over dat colnames"""
     return dat if isinstance(dat, dict) else dat.dtype.names
 
+
 def select_ingest_strategy(filepath):
 
     strategy_map = {
@@ -893,6 +907,7 @@ def select_ingest_strategy(filepath):
     print(filepath[-3:])
 
     return strategy_map[filepath[-3:]]
+
 
 def update_telemetry(filetype, ingest_file_list):
 
@@ -1011,6 +1026,7 @@ def update_telemetry(filetype, ingest_file_list):
 
     return archfiles_processed
 
+
 def update_msid_files(filetype, archfiles):
 
     print(f"Updating....")
@@ -1120,37 +1136,40 @@ def update_msid_files(filetype, archfiles):
     return archfiles_processed
 
 
-def move_archive_files(filetype, archfiles):
-    ft['content'] = filetype.content.lower()
+def move_archive_files(filetype, ingest_files):
 
-    stagedir = arch_files['stagedir'].abs
-    if not os.path.exists(stagedir):
-        os.makedirs(stagedir)
+    print(archfiles)
+    print(filetype)
+    # ft['content'] = filetype.content.lower()
 
-    for f in archfiles:
-        if not os.path.exists(f):
-            continue
-        ft['basename'] = os.path.basename(f)
-        tstart = re.search(r'(\d+)', str(ft['basename'])).group(1)
-        datestart = DateTime(tstart).date
-        ft['year'], ft['doy'] = re.search(r'(\d\d\d\d):(\d\d\d)', datestart).groups()
+    # stagedir = arch_files['stagedir'].abs
+    # if not os.path.exists(stagedir):
+    #     os.makedirs(stagedir)
 
-        archdir = arch_files['archdir'].abs
-        archfile = arch_files['archfile'].abs
+    # for f in archfiles:
+    #     if not os.path.exists(f):
+    #         continue
+    #     ft['basename'] = os.path.basename(f)
+    #     tstart = re.search(r'(\d+)', str(ft['basename'])).group(1)
+    #     datestart = DateTime(tstart).date
+    #     ft['year'], ft['doy'] = re.search(r'(\d\d\d\d):(\d\d\d)', datestart).groups()
 
-        if not os.path.exists(archdir):
-            os.makedirs(archdir)
+    #     archdir = arch_files['archdir'].abs
+    #     archfile = arch_files['archfile'].abs
 
-        if not os.path.exists(archfile):
-            logger.info('mv %s %s' % (os.path.abspath(f), archfile))
-            if not opt.dry_run:
-                if not opt.occ:
-                    shutil.copy2(f, stagedir)
-                shutil.move(f, archfile)
+    #     if not os.path.exists(archdir):
+    #         os.makedirs(archdir)
 
-        if os.path.exists(f):
-            logger.verbose('Unlinking %s' % os.path.abspath(f))
-            os.unlink(f)
+    #     if not os.path.exists(archfile):
+    #         logger.info('mv %s %s' % (os.path.abspath(f), archfile))
+    #         if not opt.dry_run:
+    #             if not opt.occ:
+    #                 shutil.copy2(f, stagedir)
+    #             shutil.move(f, archfile)
+
+    #     if os.path.exists(f):
+    #         logger.verbose('Unlinking %s' % os.path.abspath(f))
+    #         os.unlink(f)
 
 
 def get_archive_files(filetype):

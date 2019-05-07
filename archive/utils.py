@@ -4,6 +4,7 @@ Utilities for the engineering archive.
 """
 from __future__ import print_function, division, absolute_import
 
+import os
 import six
 from six.moves import zip
 import numpy as np
@@ -13,6 +14,13 @@ from Chandra.Time import DateTime
 # Cache the results of fetching 3 days of telemetry keyed by MSID
 FETCH_SIZES = {}
 
+def get_env_variable(var_name):
+
+    try:
+        return os.environ[var_name]
+    except:
+        error_msg = f'Set the {var_name} environment variable'
+        raise ValueError(error_msg)
 
 def get_fetch_size(msids, start, stop, stat=None, interpolate_dt=None, fast=True):
     """

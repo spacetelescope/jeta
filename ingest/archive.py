@@ -185,13 +185,13 @@ class DataProduct:
 
         file_length = 0
 
-        fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'values')
+        #fullpath = DataProduct.get_file_write_path(parent_directory , mnemonic, 'values')
+        fullpath = f'/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/values.h5'
 
         if os.path.exists(fullpath):
             h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="r")
             table = h5.root.data
             file_length = len(table)
-
             h5.close()
 
         return file_length
@@ -214,9 +214,9 @@ class DataProduct:
         return last_known_epoch
 
     @staticmethod
-    def touch_index(parent_directory, mnemonic, idx=None, epoch=None):
+    def touch_index(archive_root, mnemonic, idx=None, epoch=None):
 
-        fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'index')
+        fullpath = os.path.join(archive_root, 'tlm', mnemonic, 'index.h5')
 
         # if os.path.exists(parent_directory):
         #     DataProduct.create_archive_directory(parent_directory, mnemonic)
