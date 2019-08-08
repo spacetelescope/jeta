@@ -18,6 +18,7 @@ import re
 
 import numpy as np
 from astropy.io import ascii
+from astropy.time import Time
 import pyyaks.context
 import six
 from six.moves import cPickle as pickle
@@ -27,7 +28,7 @@ from . import file_defs
 from .units import Units
 from . import cache
 from . import remote_access
-from .version import __version__, __git_version__
+from jeta.version import __version__, __git_version__
 
 from Chandra.Time import DateTime
 
@@ -82,7 +83,7 @@ STATE_CODES = {
 CONTENT_TIME_RANGES = {}
 
 # Default source of data.
-DEFAULT_DATA_SOURCE = 'cxc'
+DEFAULT_DATA_SOURCE = 'jwst'
 
 
 class _DataSource(object):
@@ -91,7 +92,7 @@ class _DataSource(object):
     data_source(s) used for fetching telemetry.
     """
     _data_sources = (DEFAULT_DATA_SOURCE,)
-    _allowed = ('cxc', 'maude', 'test-drop-half')
+    _allowed = ('cxc', 'maude', 'test-drop-half', 'jwst')
 
     def __init__(self, *data_sources):
         self._new_data_sources = data_sources
@@ -150,8 +151,10 @@ class _DataSource(object):
         elif source == 'maude':
             import maude
             out = list(maude.MSIDS.keys())
+        elif source == 'jwst':
+            out = list(content.keys())
         else:
-            raise ValueError('source must be "cxc" or "msid"')
+            raise ValueError('source must be "cxc" or "msid" or jwst')
 
         return set(out)
 
@@ -320,6 +323,12 @@ logger = logging.getLogger('Ska.engarchive.fetch')
 logger.addHandler(NullHandler())
 logger.propagate = False
 
+# jwst_fetch_logger = logging.StreamHandler(sys.stdout)
+# jwst_fetch_logger.setLevel(logging.DEBUG)
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# jwst_fetch_logger.setFormatter(formatter)
+# logger.addHandler(jwst_fetch_logger)
+
 # Warn the user if ENG_ARCHIVE is set such that the data path is non-standard
 if os.getenv('ENG_ARCHIVE'):
     print('fetch: using ENG_ARCHIVE={} for archive path'
@@ -373,6 +382,7 @@ read_bad_times(os.path.join(DIR_PATH, 'msid_bad_times.dat'))
 
 
 def msid_glob(msid):
+
     """Get the archive MSIDs matching ``msid``.
 
     The function returns a tuple of (msids, MSIDs) where ``msids`` is a list of
@@ -400,6 +410,8 @@ def msid_glob(msid):
 
 
 def _msid_glob(msid, source):
+
+
     """Get the archive MSIDs matching ``msid``.
 
     The function returns a tuple of (msids, MSIDs) where ``msids`` is a list of
@@ -490,9 +502,9 @@ class MSID(object):
     (AOPCADMD).  For derived parameters the initial ``DP_`` is optional, for
     instance ``dpa_pow*`` (DP_DPA_POWER).
 
-    :param msid: name of MSID (case-insensitive)
-    :param start: start date of telemetry (Chandra.Time compatible)
-    :param stop: stop date of telemetry (current time if not supplied)
+    :param msid: a mnemonic (case-insensitive) as a string.
+    :param start: start date of telemetry. (YYYY:DOY)
+    :param stop: stop date of telemetry default: current time. (YYYY:DOY)
     :param filter_bad: automatically filter out bad values
     :param stat: return 5-minute or daily statistics ('5min' or 'daily')
 
@@ -502,13 +514,9 @@ class MSID(object):
     fetch = sys.modules[__name__]
 
     def __init__(self, msid, start=LAUNCH_DATE, stop=None, filter_bad=False, stat=None):
-        msids, MSIDs = msid_glob(msid)
-        if len(MSIDs) > 1:
-            raise ValueError('Multiple matches for {} in Eng Archive'
-                             .format(msid))
-        else:
-            self.msid = msids[0]
-            self.MSID = MSIDs[0]
+
+        self.msid = msid.lower()
+        self.MSID = msid.upper()
 
         # Capture the current module units
         self.units = Units(self.units['system'])
@@ -542,8 +550,8 @@ class MSID(object):
             self._get_data_over_intervals(intervals)
 
         # If requested filter out bad values and set self.bad = None
-        if filter_bad:
-            self.filter_bad()
+        # if filter_bad:
+        #     self.filter_bad()
 
     def __len__(self):
         return len(self.vals)
@@ -602,15 +610,25 @@ class MSID(object):
                     self.colnames = ['vals', 'times', 'bads']
                     args = (self.content, self.tstart, self.tstop, self.MSID, self.units['system'])
 
-                    if ('cxc' in data_source.sources() and
-                            self.MSID in data_source.get_msids('cxc')):
-                        # CACHE is normally True only when doing ingest processing.  Note
-                        # also that to support caching the get_msid_data_from_cxc_cached
-                        # method must be static.
-                        get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
-                                         else self._get_msid_data_from_cxc)
+                    if ('jwst' in data_source.sources()): #and self.MSID in data_source.get_msids('jwst')):
+
+                        print("INFO: Using JWST Data Sources")
+
+                        get_msid_data = self._get_msid_data_from_jwst
+                        # get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
+                        #                  else self._get_msid_data_from_cxc)
                         self.vals, self.times, self.bads = get_msid_data(*args)
-                        self.data_source['cxc'] = _get_start_stop_dates(self.times)
+                        # self.data_source['cxc'] = _get_start_stop_dates(self.times)
+
+                    # if ('cxc' in data_source.sources() and
+                    #         self.MSID in data_source.get_msids('cxc')):
+                    #     # CACHE is normally True only when doing ingest processing.  Note
+                    #     # also that to support caching the get_msid_data_from_cxc_cached
+                    #     # method must be static.
+                    #     get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
+                    #                      else self._get_msid_data_from_cxc)
+                    #     self.vals, self.times, self.bads = get_msid_data(*args)
+                    #     self.data_source['cxc'] = _get_start_stop_dates(self.times)
 
                     if 'test-drop-half' in data_source.sources() and hasattr(self, 'vals'):
                         # For testing purposes drop half the data off the end.  This assumes another
@@ -698,6 +716,112 @@ class MSID(object):
         files and cache recent results.  Caching is very beneficial for derived
         parameter updates but not desirable for normal fetch usage."""
         return MSID._get_msid_data_from_cxc(content, tstart, tstop, msid, unit_system)
+
+    @staticmethod
+    def _get_jwst_data(start, stop, msid):
+
+        import tables
+        ft['content'] = 'tlm'
+
+        """Do the actual work of getting time and values for an MSID from HDF5
+        files"""
+
+        # start_datetime =  Time(start, format='cxcsec', scale="utc").iso
+        # end_datetime = Time(stop, format='cxcsec', scale="utc").iso
+
+        # logger.info(f"Fetching telemetry data starting @{start_datetime} and ending @{end_datetime}")
+
+        start_jd = Time(start, format='cxcsec', scale="utc").jd
+        stop_jd = Time(stop, format='cxcsec', scale="utc").jd
+
+        values_filepath = msid_files['mnemonic_value'].abs
+        times_filepath = msid_files['mnemonic_times'].abs
+        index_filepath = msid_files['mnemonic_index'].abs
+
+        # Assume the index.h5 file is a table with 'row' and 'jd' columns
+        h5 = tables.open_file(index_filepath, 'r')
+        index = h5.root.epoch[:]  # read the whole thing into a numpy structured array
+        h5.close()
+
+        # Chop down to the required time interval, roughly.  The side='right'
+        # arg to np.searchsorted is a subtletry related to a query where
+        # start or stop is *exactly* the same as the index boundary, e.g. if
+        # you use quad-zero and user asks for a time with quad-zero, then
+        # I *THINK* this gives the right answer.  Well, 70/30 confidence there,
+        # you need to check.  Probably easiest with code tests at the end.
+
+        # Interval that starts *before* start_jd, making sure to not go below 0
+        idx0 = max(np.searchsorted(index['epoch'], start_jd, side='right') - 1, 0)
+
+        # Interval that starts *after* stop_jd
+        idx1 = np.searchsorted(index['epoch'], stop_jd, side='right')
+
+
+        if len(index) == idx1:
+
+            h5 = tables.open_file(values_filepath, 'r')
+            dt = np.dtype([ ('epoch','<f8'), ('index', '<u8')])
+            last_idx = np.array([(0, len(h5.root.data[0:-1]) )], dtype=dt)
+            index = np.append(index, last_idx)
+            h5.close()
+
+        else:
+
+            index = index[idx0:idx1 + 1]  # The +1 is so that the idx1 record is included
+
+        # Start and stop rows which are guaranteed to contain start, stop
+        row0 = index['index'][0]
+        row1 = index['index'][-1]
+
+        h5 = tables.open_file(values_filepath, 'r')
+
+        vals = h5.root.data[row0:row1]
+        h5.close()
+
+        h5 = tables.open_file(times_filepath, 'r')
+        dts = h5.root.time[row0:row1]
+        h5.close()
+
+        # Make the final time array now
+        jds = np.zeros_like(dts)
+
+        # Apply the delta times.  This is the meat of the computation and is really
+        # just a few lines.
+        for index0, index1 in zip(index[:-1], index[1:]):
+            r0 = index0['index'] - row0
+            r1 = index1['index'] - row0
+
+            jds[r0:r1] = index0['epoch'] + np.cumsum(dts[r0:r1])
+
+        # Final time filtering for exact user interval
+        idx0, idx1 = np.searchsorted(jds, [start_jd, stop_jd])
+
+        return jds[idx0:idx1], vals[idx0:idx1]
+
+    @staticmethod
+    def _get_msid_data_from_jwst(content, tstart, tstop, msid, unit_system):
+
+        """
+            Interface for JWST to the original Ska.engarchive system. Accepts the same
+            parameters and then passes them to the JWST data fetching function.
+        """
+
+        times, vals = MSID._get_jwst_data(tstart, tstop, msid)
+
+        # Covert to a time the original code expected
+        times = Time(times, format="jd").unix
+
+        # TODO: Remome from here; add type check and conversion into the ingest process.
+        try:
+            vals = np.float64(vals)
+        except Exception as e:
+            pass
+
+        # Currenly no concept of bads
+        bads = None
+
+        return (vals, times, bads)
+
 
     @staticmethod
     def _get_msid_data_from_cxc(content, tstart, tstop, msid, unit_system):
@@ -887,6 +1011,7 @@ class MSID(object):
         return Ska.tdb.msids[self.MSID]
 
     def interpolate(self, dt=None, start=None, stop=None, times=None):
+
         """Perform nearest-neighbor interpolation of the MSID to the specified
         time sequence.
 
@@ -917,6 +1042,7 @@ class MSID(object):
             ok = (times >= self.times[0]) & (times <= self.times[-1])
             times = times[ok]
         else:
+
             dt = 328.0 if dt is None else dt
             tstart = DateTime(start).secs if start else self.times[0]
             tstop = DateTime(stop).secs if stop else self.times[-1]
@@ -928,6 +1054,7 @@ class MSID(object):
             times = np.arange(tstart, tstop, dt)
 
         logger.info('Interpolating index for %s', self.msid)
+        print(f'Interpolating index for {self.msid}')
         indexes = Ska.Numpy.interpolate(np.arange(len(self.times)),
                                         self.times, times,
                                         method='nearest', sorted=True)
@@ -942,6 +1069,7 @@ class MSID(object):
         # interpolation times.
         self.times0 = self.times
         self.times = times
+
 
     def copy(self):
         from copy import deepcopy
@@ -1349,6 +1477,7 @@ class MSID(object):
         import matplotlib.pyplot as plt
         from Ska.Matplotlib import plot_cxctime
         vals = self.raw_vals if self.state_codes else self.vals
+
         plot_cxctime(self.times, vals, *args, state_codes=self.state_codes,
                      **kwargs)
         plt.margins(0.02, 0.05)
@@ -1499,6 +1628,9 @@ class MSIDset(collections.OrderedDict):
 
     def interpolate(self, dt=None, start=None, stop=None, filter_bad=True, times=None,
                     bad_union=False, copy=False):
+
+        # TODO: Examine more closely.
+
         """
         Perform nearest-neighbor interpolation of all MSID values in the set
         to a common time sequence.  The values are updated in-place.
@@ -1559,6 +1691,7 @@ class MSIDset(collections.OrderedDict):
         max_fetch_tstart = max(msid.times[0] for msid in msids)
         min_fetch_tstop = min(msid.times[-1] for msid in msids)
 
+
         if times is not None:
             if any(kwarg is not None for kwarg in (dt, start, stop)):
                 raise ValueError('If "times" keyword is set then "dt", "start", '
@@ -1569,14 +1702,19 @@ class MSIDset(collections.OrderedDict):
         else:
             # Get the nominal tstart / tstop range
             dt = 328.0 if dt is None else dt
+
             tstart = DateTime(start).secs if start else obj.tstart
             tstop = DateTime(stop).secs if stop else obj.tstop
 
             tstart = max(tstart, max_fetch_tstart)
             tstop = min(tstop, min_fetch_tstop)
+
             obj.times = np.arange((tstop - tstart) // dt + 1) * dt + tstart
 
+
+
         for msid in msids:
+
             if filter_bad and not bad_union:
                 msid.filter_bad()
             logger.info('Interpolating index for %s', msid.msid)
@@ -1592,6 +1730,7 @@ class MSIDset(collections.OrderedDict):
             # Make a new attribute times0 that stores the nearest neighbor
             # interpolated times.  Then set the MSID times to be the common
             # interpolation times.
+
             msid.times0 = msid.times
             msid.times = obj.times
 
@@ -1745,6 +1884,7 @@ class memoized(object):
 
 
 def get_time_range(msid, format=None):
+
     """
     Get the time range for the given ``msid``.
 
@@ -1752,33 +1892,62 @@ def get_time_range(msid, format=None):
     :param format: Output format (DateTime format, e.g. 'secs', 'date', 'greta')
     :returns: (tstart, tstop) in CXC seconds
     """
+
     MSID = msid.upper()
     with _cache_ft():
-        ft['content'] = content[MSID]
-        ft['msid'] = 'time'
-        filename = msid_files['msid'].abs
-        logger.info('Reading %s', filename)
 
-        @local_or_remote_function("Getting time range from Ska eng archive server...")
-        def get_time_data_from_server(filename):
-            import tables
-            open_file = getattr(tables, 'open_file', None) or tables.openFile
-            h5 = open_file(os.path.join(*filename))
-            tstart = h5.root.data[0]
-            tstop = h5.root.data[-1]
-            h5.close()
-            return tstart, tstop
+        content[msid] = ""
+        ft['content'] = 'tlm'
+        ft['msid'] = msid
 
-        if filename in CONTENT_TIME_RANGES:
-            tstart, tstop = CONTENT_TIME_RANGES[filename]
-        else:
-            tstart, tstop = get_time_data_from_server(_split_path(filename))
-            CONTENT_TIME_RANGES[filename] = (tstart, tstop)
+        times_filepath = msid_files['mnemonic_times'].abs
+        index_filepath = msid_files['mnemonic_index'].abs
 
-    if format is not None:
-        tstart = getattr(DateTime(tstart), format)
-        tstop = getattr(DateTime(tstop), format)
-    return tstart, tstop
+        logger.info('Reading %s', times_filepath)
+
+        import tables
+
+        times_h5 = tables.open_file(times_filepath)
+        index_h5 = tables.open_file(index_filepath)
+
+        sp_idx = int(index_h5.root.epoch[-1][1]) - 1
+
+        tstart = index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0])[0]
+        tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1]
+
+        index_h5.close()
+        times_h5.close()
+
+        if format == 'iso':
+            tstart = Time(tstart, format='jd').iso
+            tstop = Time(tstop, format='jd').iso
+
+        return tstart, tstop
+
+        ############################
+
+    #     @local_or_remote_function("Getting time range from Ska eng archive server...")
+    #     def get_time_data_from_server(filename):
+    #         import tables
+    #         open_file = getattr(tables, 'open_file', None) or tables.openFile
+    #         h5 = open_file(os.path.join(*filename))
+    #         tstart = h5.root.data[0]
+    #         tstop = h5.root.data[-1]
+    #         h5.close()
+    #         return tstart, tstop
+
+    #     if filename in CONTENT_TIME_RANGES:
+    #         tstart, tstop = CONTENT_TIME_RANGES[filename]
+    #     else:
+    #         tstart, tstop = get_time_data_from_server(_split_path(filename))
+    #         CONTENT_TIME_RANGES[filename] = (tstart, tstop)
+
+    # if format is not None:
+    #     tstart = getattr(DateTime(tstart), format)
+    #     tstop = getattr(DateTime(tstop), format)
+    # return tstart, tstop
+
+    # return ""
 
 
 def get_telem(msids, start=None, stop=None, sampling='full', unit_system='eng',

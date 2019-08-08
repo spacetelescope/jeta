@@ -13,7 +13,8 @@ import argparse
 import shutil
 import itertools
 from collections import OrderedDict, defaultdict
-
+import logging
+from datetime import datetime
 from astropy.time import Time
 from Chandra.Time import DateTime
 import Ska.File
@@ -31,7 +32,7 @@ import Ska.engarchive.fetch as fetch
 import Ska.engarchive.converters as converters
 import Ska.engarchive.file_defs as file_defs
 import Ska.engarchive.derived as derived
-#import Ska.arc5gl
+
 
 from jSka.ingest import process
 from jSka.ingest.archive import DataProduct
@@ -103,6 +104,7 @@ if opt.create:
     opt.update_stats = False
 
 ft = fetch.ft
+
 msid_files = pyyaks.context.ContextDict('update_archive.msid_files',
                                         basedir=opt.data_root)
 msid_files.update(file_defs.msid_files)
@@ -118,7 +120,7 @@ if opt.data_root:
 
 # Set up logging
 loglevel = pyyaks.logger.VERBOSE if opt.log_level is None else int(opt.log_level)
-logger = pyyaks.logger.get_logger(name='engarchive', level=loglevel,
+logger = pyyaks.logger.get_logger(name='Engineering Digest Engine', level=loglevel,
                                   format="%(asctime)s %(message)s")
 
 # Also adjust fetch logging if non-default log-level supplied (mostly for debug)
@@ -127,7 +129,13 @@ if opt.log_level is not None:
 
 archfiles_hdr_cols = ('tstart', 'tstop', 'startmjf', 'startmnf', 'stopmjf', 'stopmnf',
                       'tlmver', 'ascdsver', 'revision', 'date')
+def get_env_variable(var_name):
 
+    try:
+        return os.environ[var_name]
+    except:
+        error_msg = 'Set the {} environment variable'.format(var_name)
+        raise ValueError(error_msg)
 
 def get_colnames():
     """Get column names for the current content type (defined by ft['content'])"""
@@ -154,7 +162,11 @@ def create_content_dir():
             pickle.dump(empty, f)
 
     if not os.path.exists(msid_files['archfiles'].abs):
-        archfiles_def = open('archfiles_def.sql').read()
+
+        print(msid_files['archfiles'].abs)
+
+        archfiles_def = open(get_env_variable('ARCHIVE_DEFINITION_SOURCE')).read()
+
         filename = msid_files['archfiles'].abs
         logger.info('Creating db {}'.format(filename))
         db = Ska.DBI.DBI(dbi='sqlite', server=filename, autocommit=False)
@@ -185,7 +197,7 @@ def fix_state_code(state_code):
     return out
 
 
-def main():
+def run():
     """
     Perform one full update of the eng archive based on opt parameters.
     This may be called in a loop by the program-level main().
@@ -194,6 +206,7 @@ def main():
     logger.info('Update_archive file: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch module file: {}'.format(os.path.abspath(fetch.__file__)))
     logger.info('')
+    print(f'Starting Ingest @ {datetime.now()}')
 
     # Get the archive content filetypes
     filetypes = fetch.filetypes
@@ -243,6 +256,7 @@ def main():
                 msid = update_stats(colname, 'daily')
                 update_stats(colname, '5min', msid)
 
+        logger.info(f' Archive Update Process Complete. {datetime.now()}')
 
 def fix_misorders(filetype):
     """Fix problems in the eng archive where archive files were ingested out of
@@ -656,10 +670,10 @@ def append_h5_col_derived(dats, colname):
 def make_h5_col_file_tlm(dat, colname):
     """Make a new h5 table to hold column from ``dat``."""
     
-    DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
-    
+    # DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
+    DataProduct.touch_index(msid_files['msid'].abs, colname, dat[colname]['index']['index'], dat[colname]['index']['epoch'])
     DataProduct.create_values_hdf5(colname, dat, msid_files['msid'].abs)
-    DataProduct.create_times_hdf5(colname, dat, msid_files['msid'].abs)  
+    DataProduct.create_times_hdf5(colname, dat, msid_files['msid'].abs)
 
 
 def append_h5_col_tlm(dat, colname):
@@ -670,18 +684,11 @@ def append_h5_col_tlm(dat, colname):
 
     values_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='values')
     times_filepath = DataProduct.get_file_write_path(msid_files['msid'].abs, colname, h5type='times')
-    # print("SHHHHHAKAAAA BOOOM!!!!!")
-    print(values_filepath)
-    #raise ValueError('BA BOOM!!!!!!')
-  
+
     times = dat[colname]['times']
     values = dat[colname]['values']
 
     h5_values_file = tables.open_file(values_filepath, mode='a')
-    logger.verbose('Appending %d items to %s' % (len(values), values_filepath))
-
-    h5_times_file = tables.open_file(times_filepath, mode='a')
-    logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
 
     if not opt.dry_run:
         h5_times_file.root.time.append(times)
@@ -752,30 +759,9 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
         return None, None
 
     # Read archive file and accumulate data into dats list and header into headers dict
-    logger.info('Reading (%d / %d) %s' % (i, len(archfiles), filename))
+    logger.info('Reading (%d / %d) %s' % (i+1, len(archfiles), filename))
 
-    ingest = process.Ingest(f).start()
-
-    # dates = defaultdict(list)
-    # values = defaultdict(list)
-    # tstart = None
-
-    # for line in open(f, 'r'):
-    #     msid, date, value = line.split()
-    #     if tstart is None:
-    #         tstart = Time(date).jd
-    #     dates[msid].append(date)
-    #     values[msid].append(date)
-    # tstop = Time(date).jd  # last date in file
-
-    # dat = {}
-    # for msid in dates:
-    #     dat[msid] = {'times': Time(dates[msid], format='isot', in_subfmt='date_hms').jd,
-    #                  'values': np.array(values[msid])}
-
-    # print(ingest.data)
-    # print(ingest.tstart)
-    # print(ingest.tstop)
+    ingest = process.Ingest(f, msid_files['colnames'].abs).start()
 
     archfiles_row = dict(filename=f,
                          tstart=ingest.tstart,
@@ -784,7 +770,7 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
                          rowstop=row + 1,
                          date=Time.now().iso)
 
-    
+
     return ingest.data, archfiles_row
 
 
@@ -954,8 +940,7 @@ def update_msid_files(filetype, archfiles):
 
     # If colnames changed then give warning and update files.
     if colnames != old_colnames:
-        logger.warning('WARNING: updating %s because colnames changed: %s'
-                       % (msid_files['colnames'].abs, old_colnames ^ colnames))
+        logger.warning(f"WARNING: updating {msid_files['colnames'].abs} because colnames changed ...")
         if not opt.dry_run:
             pickle.dump(colnames, open(msid_files['colnames'].abs, 'wb'))
 
@@ -998,8 +983,15 @@ def move_archive_files(filetype, archfiles):
 def get_archive_files(filetype):
     """Get telemetry files"""
 
-    print("getting archive files")
 
-    files = sorted(glob.glob('stage/*.CSV'))
-    print(files)
+    staging_directory = get_env_variable('STAGING_DIRECTORY')
+    logger.info(f"Starting ingest file discovery in {staging_directory} ... ")
+
+    files = sorted(glob.glob(f"{staging_directory}*.CSV"))
+
+    logger.info(f"Discovered: {len(files)} in {staging_directory} ...")
+    logger.info(f"Files discovered: {files}")
+
+
     return files
+
