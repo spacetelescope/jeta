@@ -7,5 +7,5 @@ regular interval.
 """
 
 if __name__ == '__main__':
-    from archive import update
-    update.run()
+    from jeta.archive import update
+    update.begin()

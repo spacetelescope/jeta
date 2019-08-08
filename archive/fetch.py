@@ -15,6 +15,7 @@ import fnmatch
 import collections
 import warnings
 import re
+import json
 
 import numpy as np
 from astropy.io import ascii
@@ -187,6 +188,26 @@ class _DataSource(object):
 
 # Public interface is a "data_source" module attribute
 data_source = _DataSource
+
+
+def read_stats_file(mnemonic, interval):
+
+    import h5py
+
+    ft['msid'] = mnemonic
+    ft['interval'] = interval
+
+    filename = msid_files['stats'].abs
+
+    with h5py.File(filename, 'r') as h5:
+        stats = h5['data'][:].tolist()
+        min = h5['data']['min'].tolist()
+        mean = h5['data']['mean'].tolist()
+        max = h5['data']['max'].tolist()
+        tstart = h5['data']['index'].tolist()
+        h5.close()
+
+    return stats, (tstart, min, mean, max)
 
 
 def local_or_remote_function(remote_print_output):
@@ -652,12 +673,14 @@ class MSID(object):
         files"""
         filename = msid_files['stats'].abs
         logger.info('Opening %s', filename)
+        print(f"'Opening: {filename}")
 
         @local_or_remote_function("Getting stat data for " + self.MSID +
                                   " from Ska eng archive server...")
         def get_stat_data_from_server(filename, dt, tstart, tstop):
             import tables
             open_file = getattr(tables, 'open_file', None) or tables.openFile
+            print(os.path.join(*filename))
             h5 = open_file(os.path.join(*filename))
             table = h5.root.data
             times = (table.col('index') + 0.5) * dt
@@ -670,8 +693,10 @@ class MSID(object):
                                       self.dt, self.tstart, self.tstop)
         logger.info('Closed %s', filename)
 
+        print('Getting Here!!!!!!!!!!')
         self.bads = None
         self.times = times
+        print(times)
         self.colnames = ['times']
         for colname in table_rows.dtype.names:
             # Don't like the way columns were named in the stats tables.
@@ -1456,6 +1481,37 @@ class MSID(object):
         from .plot import MsidPlot
         self._iplot = MsidPlot(self, fmt, fmt_minmax, **plot_kwargs)
 
+    def get_telemetry_as_json(self):
+
+        minValue = min(self.vals)
+        maxValue = max(self.vals)
+
+        telemetry = {
+            'mnenmonic': {
+                'level': 1,
+                'minValue': minValue,
+                'maxValue': maxValue,
+                'datetimes': self.times,
+                'values': self.vals,
+            }
+        }
+
+        return json.dumps(telemetry)
+
+    def statistics_as_json(self, msid, interval):
+
+        import tables
+
+        ft['msid'] = msid
+        ft['interval'] = interval
+
+        filename = msid_files['stats'].abs
+
+        h5 = tables.open_file(filename)
+        table = h5.root.data
+
+        return table
+
     def plot(self, *args, **kwargs):
         """Plot the MSID ``vals`` using Ska.Matplotlib.plot_cxctime()
 
@@ -1913,14 +1969,19 @@ def get_time_range(msid, format=None):
         sp_idx = int(index_h5.root.epoch[-1][1]) - 1
 
         tstart = index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0])[0]
-        tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1]
+
+        try:
+            tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1]
+        except Exception as err:
+            tstop = None
 
         index_h5.close()
         times_h5.close()
 
         if format == 'iso':
             tstart = Time(tstart, format='jd').iso
-            tstop = Time(tstop, format='jd').iso
+            if tstop is not None:
+                tstop = Time(tstop, format='jd').iso
 
         return tstart, tstop
 

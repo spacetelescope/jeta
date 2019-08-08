@@ -1,6 +1,8 @@
 import abc
 
+import h5py
 import pandas as pd
+
 
 from ..core.exceptions import StrategyNotImplemented
 
@@ -16,7 +18,7 @@ class LoadStrategy(object):
         - Loading a HDF5 file using pytables
         - Loading a HDF5 file using h5py
 
-        NOTE: Currently only one strategy, loading a CSV file using pandas 
+        NOTE: Currently only one strategy, loading a CSV file using pandas
         is implemented.
     """
 
@@ -25,13 +27,17 @@ class LoadStrategy(object):
     def __init__(self, filepath):
 
         self.filepath = filepath
-       
+
     @abc.abstractmethod
     def execute(self):
         pass
 
 
 class LoadPandasCSVStrategy(LoadStrategy):
+
+    def __str__(self):
+
+        return "LoadPandasCSVStrategy: Ingest FOF (.csv) files using pandas read_csv."
 
     def __init__(self, filepath):
 
@@ -60,7 +66,19 @@ class LoadPyTablesHDF5Strategy(LoadStrategy):
 
 class LoadH5PYHDF5Strategy(LoadStrategy):
 
+    def __str__(self):
+
+        return "LoadH5PYHDF5Strategy: Ingest FOF (.h5) files using pandas h5py.File."
+
+    def __init__(self, filepath):
+
+        super(LoadH5PYHDF5Strategy, self).__init__(filepath)
+        self.filepath = filepath
+
     def execute(self):
-        # TODO: Add LOGGING
+
+        h5 = h5py.File(self.filepath)
+
         print("Loading HDF5 using h5py.")
-        raise StrategyNotImplemented('No implementation for loading an HDF5 file using h5py')
+
+        return h5

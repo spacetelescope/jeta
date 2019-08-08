@@ -1,3 +1,4 @@
+import os
 import sys
 import collections
 from datetime import datetime
@@ -10,6 +11,7 @@ import pandas as pd
 from astropy.time import Time
 
 from .archive import DataProduct
+from .archive import ROOT_DIR
 
 from .strategy import LoadPandasCSVStrategy
 from .strategy import LoadPythonCSVStrategy
@@ -51,6 +53,23 @@ class Ingest:
 
     tstart = None
     epoch_date = None
+
+    ####### Might move this
+    def create_archive_directories(self):
+
+        ingest_mnemonics = np.array(list(self.df.keys()))
+        existing_archive_directories = np.array([x[1] for x in os.walk(ROOT_DIR)][0])
+
+        directories_to_create = np.setdiff1d(ingest_mnemonics, existing_archive_directories)
+
+        print("INFO: creating archive directories ... ")
+
+        for archive_subdirectory in directories_to_create:
+
+            try:
+                os.makedirs(ROOT_DIR+"/"+archive_subdirectory)
+            except IOError as e:
+                raise IOError("Failed to create directory.")
 
     def get_delta_times(self, mnemonic, epoch=None):
 
@@ -122,6 +141,42 @@ class Ingest:
 
         return self.epoch_date
 
+    def parseHDF5(self):
+
+        print("INFO: ingesting mnemonics into memory ...")
+
+        for mnemonic in self.df:
+
+            # NOTE: If data is properly typed this decoding step may not be required,
+            # its possible that a different storage decision could be though
+
+            self.values[mnemonic] = [x.decode("utf-8") for x in self.df[mnemonic]['data']['value']]
+            self.times[mnemonic] =  [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']]
+
+        # FIXME: Added valid date here.
+        self.tstart = Time('1985-01-01 00:00:00.000', format='iso').jd
+        self.tstop = Time('1985-01-01 00:00:00.000', format='iso').jd
+
+        for mnemonic, value in self.values.items():
+
+            self.times[mnemonic] = sorted(self.times[mnemonic])
+
+            if self.time_to_quadtime(self.times[mnemonic][-1]) == self.time_to_quadtime(self.times[mnemonic][0]):
+                index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
+                epoch = self.times[mnemonic][0]
+                self.indices[mnemonic] = {'index': index, 'epoch': self.time_to_quadtime(epoch)}
+            else:
+                pass
+
+            self.data[mnemonic] = {
+                'times': self.get_delta_times(mnemonic, epoch),
+                'values': np.array(self.values[mnemonic]),
+                'index': self.indices[mnemonic],
+                'parent_directory': f"{ROOT_DIR}/{mnemonic}"
+            }
+
+        return self
+
     def partition(self):
 
         self.values = collections.defaultdict(list)
@@ -175,22 +230,28 @@ class Ingest:
         # self.set_min_entry_date(self.df.iloc[0][properties.TIME_COLUMN])
         # self.set_max_entry_date(self.df.iloc[-1][properties.TIME_COLUMN])
 
+        self.create_archive_directories()
 
         # Sort the data into buckets, this will have to be another strategy
         # since the format of the data will be completely different depending on the
         # file type ingested. For now flat csv is assumed.
-        self.partition()
+        if self.strategy == 'pandas':
+            self.partition()
+        else:
+            self.parseHDF5()
 
 
         # Create the HDF5 file(s) archive
         # self.archive()
-
+        # raise ValueError('Done in Error.')
         return self
 
-    def __init__(self, input_file, output_path, input_path=properties.INGEST_DIR):
+    def __init__(self, input_file, output_path, strategy='pandas', input_path=properties.INGEST_DIR):
 
+        self.strategy = strategy
         self.input_path=Path(properties.INGEST_DIR)
         self.input_file=input_file
         self.output_path = output_path
         self.full_input_path=self.input_path.joinpath(self.input_file)
-        self._source_import_method = self.load_strategy['pandas'](self.full_input_path)
+        self._source_import_method = self.load_strategy[strategy](self.full_input_path)
+        print(f"Initialized Ingest Strategy: {self._source_import_method}")

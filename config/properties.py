@@ -1,5 +1,5 @@
 import os
-from jSka.core.exceptions import ImproperlyConfigured
+from jeta.core.exceptions import ImproperlyConfigured
 
 def get_env_variable(var_name):
 
