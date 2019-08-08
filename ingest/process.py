@@ -54,6 +54,7 @@ class Ingest:
     tstart = None
     epoch_date = None
 
+    ####### Might move this
     def create_archive_directories(self):
 
         ingest_mnemonics = np.array(list(self.df.keys()))
@@ -152,6 +153,7 @@ class Ingest:
             self.values[mnemonic] = [x.decode("utf-8") for x in self.df[mnemonic]['data']['value']]
             self.times[mnemonic] =  [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']]
 
+        # FIXME: Added valid date here.
         self.tstart = Time('1985-01-01 00:00:00.000', format='iso').jd
         self.tstop = Time('1985-01-01 00:00:00.000', format='iso').jd
 

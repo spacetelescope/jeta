@@ -19,7 +19,7 @@ SKA = os.environ.get('SKA') or '/proj/sot/ska'
 # Root directories for MSID files.  msid_root is prime, others are backups.
 # NOTE: msid_root(s) used ONLY in one-off or legacy code, not in update_archive.py or
 # transfer_stage.py
-msid_root = os.path.join(SKA, 'data', 'eng_archive')
+msid_root = os.path.join(SKA, 'data', 'jeta')
 msid_roots = [msid_root]
 
 msid_files = {
@@ -32,8 +32,8 @@ msid_files = {
     'colnames_all': 'data/{{ft.content}}/colnames_all.pickle',
     'msid':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
     'data':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
-    'statsdir':     'data/{{ft.content}}/{{ft.interval}}/',
-    'stats':        'data/{{ft.content}}/{{ft.interval}}/{{ft.msid | upper}}.h5',
+    'statsdir':     'data/{{ft.content}}/stats/{{ft.interval}}/',
+    'stats':        'data/tlm/stats/{{ft.interval}}/{{ft.msid | upper }}.h5',
     'mnemonic_index': 'data/{{ft.content}}/{{ft.msid | upper}}/index.h5',
     'mnemonic_value': 'data/{{ft.content}}/{{ft.msid | upper}}/values.h5',
     'mnemonic_times': 'data/{{ft.content}}/{{ft.msid | upper}}/times.h5'

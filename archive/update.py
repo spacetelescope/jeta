@@ -26,7 +26,6 @@ import pyyaks.logger
 import pyyaks.context
 import astropy.io.fits as pyfits
 import tables
-import tables3_api
 import numpy as np
 import scipy.stats.mstats
 
@@ -34,7 +33,6 @@ import jeta.archive.fetch as fetch
 import jeta.archive.converters as converters
 import jeta.archive.file_defs as file_defs
 import jeta.archive.derived as derived
-#import Ska.arc5gl
 
 from jeta.ingest import process
 from jeta.ingest.archive import DataProduct
@@ -479,12 +477,14 @@ def calc_stats_vals(msid, rows, indexes, interval):
 
 
 def update_stats(colname, interval, msid=None):
+
     dt = {'5min': 328,
           'daily': 86400}[interval]
 
     ft['msid'] = colname
     ft['interval'] = interval
     stats_file = msid_files['stats'].abs
+
     logger.info('Updating stats file %s', stats_file)
 
     if not os.path.exists(msid_files['statsdir'].abs):
@@ -510,7 +510,9 @@ def update_stats(colname, interval, msid=None):
         time0 = max(DateTime(opt.date_now).secs - opt.max_lookback_time * 86400,
                     index0 * dt - 500)
         time1 = DateTime(opt.date_now).secs
-        msid = fetch.MSID(colname, time0, time1, filter_bad=True)
+        print(f"{time0} , {time1}")
+
+        msid = fetch.MSID(colname, time0, time1, filter_bad=False)
 
     if len(msid.times) > 0:
         if index0 == INDEX0:
@@ -534,7 +536,7 @@ def update_stats(colname, interval, msid=None):
                         logger.info('  Adding %d records', len(vals_stats))
                     except tables.NoSuchNodeError:
                         logger.info('  Creating table with %d records ...', len(vals_stats))
-                        stats.createTable(stats.root, 'data', vals_stats,
+                        stats.create_table(stats.root, 'data', vals_stats,
                                           "{} sampling".format(interval), expectedrows=2e7)
                     stats.root.data.flush()
             else:
