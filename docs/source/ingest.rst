@@ -8,7 +8,7 @@ Ingest Process
 Classes Index
 =============
 
-.. autoclass:: DataProduct
+.. autoclass::
    :show-inheritance:
    :members:
 

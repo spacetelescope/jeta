@@ -15,3 +15,15 @@ The engineering telemetry archive consists of:
   - Daily statistics: min, max, mean, sampled value, standard deviation, percentiles (1,
     5, 16, 50, 84, 95, 99), number of samples.
 * A python module to retrieve telemetry values.
+
+running jeta with celery:
+
+redis need to run first
+
+# The worker to run tasks
+celery -A jeta.ingest.controller worker --loglevel=info
+
+# The default monitoring interface for tasks
+celery -A jeta.ingest.controller flower --loglevel=info
+
+#

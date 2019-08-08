@@ -1,8 +1,7 @@
 import os
-import numpy as np
-
 from pathlib import Path
 
+import numpy as np
 import tables
 import h5py
 
@@ -11,6 +10,7 @@ import tables3_api
 
 import pyyaks.logger
 
+ROOT_DIR =  "/Users/dkauffman/Projects/jSka/jeta/data/tlm"
 
 loglevel = pyyaks.logger.VERBOSE
 logger = pyyaks.logger.get_logger(name='jskaarchive', level=loglevel,
@@ -97,7 +97,7 @@ class DataProduct:
         :returns: h5, fullpath: a reference to the h5 file object and the path on disk
         """
 
-        fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='values')
+        #fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='values')
 
         if not os.path.exists(fullpath):
 
@@ -139,7 +139,7 @@ class DataProduct:
     @staticmethod
     def create_times_hdf5(mnemonic, data, fullpath):
 
-        fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='times')
+        #fullpath = DataProduct.get_file_write_path(fullpath, mnemonic, h5type='times')
 
         if not os.path.exists(fullpath):
             """
@@ -182,13 +182,13 @@ class DataProduct:
 
         file_length = 0
 
-        fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'values')
+        #fullpath = DataProduct.get_file_write_path(parent_directory , mnemonic, 'values')
+        fullpath = f'/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/values.h5'
 
         if os.path.exists(fullpath):
             h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="r")
             table = h5.root.data
             file_length = len(table)
-
             h5.close()
 
         return file_length
@@ -211,12 +211,12 @@ class DataProduct:
         return last_known_epoch
 
     @staticmethod
-    def touch_index(parent_directory, mnemonic, idx=None, epoch=None):
+    def touch_index(archive_root, mnemonic, idx=None, epoch=None):
 
-        fullpath = DataProduct.get_file_write_path(parent_directory, mnemonic, 'index')
+        fullpath = os.path.join(archive_root, 'tlm', mnemonic, 'index.h5')
 
-        if os.path.exists(parent_directory):
-            DataProduct.create_archive_directory(parent_directory, mnemonic)
+        # if os.path.exists(parent_directory):
+        #     DataProduct.create_archive_directory(parent_directory, mnemonic)
 
         filters = tables.Filters(complevel=5, complib='zlib')
         h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="a", filters=filters)
