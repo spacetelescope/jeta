@@ -14,9 +14,7 @@ import shutil
 import itertools
 from collections import OrderedDict, defaultdict
 import logging
-
 from datetime import datetime
-
 from astropy.time import Time
 from Chandra.Time import DateTime
 import Ska.File
@@ -34,7 +32,7 @@ import Ska.engarchive.fetch as fetch
 import Ska.engarchive.converters as converters
 import Ska.engarchive.file_defs as file_defs
 import Ska.engarchive.derived as derived
-#import Ska.arc5gl
+
 
 from jSka.ingest import process
 from jSka.ingest.archive import DataProduct
@@ -671,7 +669,7 @@ def append_h5_col_derived(dats, colname):
 
 def make_h5_col_file_tlm(dat, colname):
     """Make a new h5 table to hold column from ``dat``."""
-
+    
     # DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
     DataProduct.touch_index(msid_files['msid'].abs, colname, dat[colname]['index']['index'], dat[colname]['index']['epoch'])
     DataProduct.create_values_hdf5(colname, dat, msid_files['msid'].abs)
@@ -691,10 +689,6 @@ def append_h5_col_tlm(dat, colname):
     values = dat[colname]['values']
 
     h5_values_file = tables.open_file(values_filepath, mode='a')
-    #logger.verbose('Appending %d items to %s' % (len(values), values_filepath))
-
-    h5_times_file = tables.open_file(times_filepath, mode='a')
-    #logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
 
     if not opt.dry_run:
         h5_times_file.root.time.append(times)
@@ -867,7 +861,7 @@ def update_msid_files(filetype, archfiles):
     make_h5_col_file = make_h5_col_file_derived if content_is_derived else make_h5_col_file_tlm
     append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
     #append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
-
+    
 
     for i, f in enumerate(archfiles):
         get_data = (read_derived if content_is_derived else read_archfile)
@@ -879,7 +873,7 @@ def update_msid_files(filetype, archfiles):
         # define the column names now.
         if opt.create and not colnames:
             colnames = set(get_dat_colnames(dat))
-
+ 
         # Ensure that the time gap between the end of the last ingested archive
         # file and the start of this one is less than opt.max_gap (or
         # filetype-based defaults).  If this fails then break out of the
@@ -989,6 +983,7 @@ def move_archive_files(filetype, archfiles):
 def get_archive_files(filetype):
     """Get telemetry files"""
 
+
     staging_directory = get_env_variable('STAGING_DIRECTORY')
     logger.info(f"Starting ingest file discovery in {staging_directory} ... ")
 
@@ -998,5 +993,5 @@ def get_archive_files(filetype):
     logger.info(f"Files discovered: {files}")
 
 
-    print(files)
     return files
+
