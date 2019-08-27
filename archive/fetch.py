@@ -25,10 +25,10 @@ import six
 from six.moves import cPickle as pickle
 from six.moves import zip
 
-from . import file_defs
-from .units import Units
-from . import cache
-from . import remote_access
+from jeta.archive import file_defs
+from jeta.archive.units import Units
+from jeta.archive import cache
+from jeta.archive import remote_access
 from jeta.version import __version__, __git_version__
 
 from Chandra.Time import DateTime
@@ -340,7 +340,7 @@ class NullHandler(logging.Handler):
     def emit(self, record):
         pass
 
-logger = logging.getLogger('Ska.engarchive.fetch')
+logger = logging.getLogger('jeta.archive.fetch')
 logger.addHandler(NullHandler())
 logger.propagate = False
 
@@ -673,17 +673,29 @@ class MSID(object):
         files"""
         filename = msid_files['stats'].abs
         logger.info('Opening %s', filename)
-        print(f"'Opening: {filename}")
 
         @local_or_remote_function("Getting stat data for " + self.MSID +
                                   " from Ska eng archive server...")
         def get_stat_data_from_server(filename, dt, tstart, tstop):
+            """
+            This nested function reads the HDF5 file and calculates the range to slice
+
+            :param filename: HDF5 file containing the stats
+            :param dt: 328 or 86400 for 5min or daily respectively
+            :param tstart: start of range as cxcsec
+            :param tstop:  end of slice range as cxcsex
+            """
+            # TODO: switch to use Astropy.Time
+            logger.info(f"FETCH: Telemetry data range {tstart} to {tstop}")
+
             import tables
             open_file = getattr(tables, 'open_file', None) or tables.openFile
             print(os.path.join(*filename))
             h5 = open_file(os.path.join(*filename))
             table = h5.root.data
             times = (table.col('index') + 0.5) * dt
+            # These times are stored as unix times.
+            times = Time(times, format="unix").cxcsec
             row0, row1 = np.searchsorted(times, [tstart, tstop])
             table_rows = table[row0:row1]  # returns np.ndarray (structured array)
             h5.close()
@@ -693,10 +705,8 @@ class MSID(object):
                                       self.dt, self.tstart, self.tstop)
         logger.info('Closed %s', filename)
 
-        print('Getting Here!!!!!!!!!!')
         self.bads = None
         self.times = times
-        print(times)
         self.colnames = ['times']
         for colname in table_rows.dtype.names:
             # Don't like the way columns were named in the stats tables.
@@ -751,11 +761,6 @@ class MSID(object):
         """Do the actual work of getting time and values for an MSID from HDF5
         files"""
 
-        # start_datetime =  Time(start, format='cxcsec', scale="utc").iso
-        # end_datetime = Time(stop, format='cxcsec', scale="utc").iso
-
-        # logger.info(f"Fetching telemetry data starting @{start_datetime} and ending @{end_datetime}")
-
         start_jd = Time(start, format='cxcsec', scale="utc").jd
         stop_jd = Time(stop, format='cxcsec', scale="utc").jd
 
@@ -780,7 +785,6 @@ class MSID(object):
 
         # Interval that starts *after* stop_jd
         idx1 = np.searchsorted(index['epoch'], stop_jd, side='right')
-
 
         if len(index) == idx1:
 
