@@ -1,14 +1,20 @@
+# MacOSX
+.DS_Store
+
+# Testing
 test/plot*.png
 test/eng_archive
 test/*.tar.gz
 test/regr_vals.*
+.pytest_cache/*
+
+# Project
 build
 data
 dist
 doc/_build
 www
 MANIFEST
-*.pyc
 *~
 *.log
 *.fits.gz
@@ -21,6 +27,10 @@ dev_utils/event_filter_1.png
 dev_utils/event_filter_2.png
 dev_utils/l0_5icd.pdf
 dev_utils/memleak.py
-.DS_Store
-.vscode/
 recovery
+
+# Python
+*.pyc
+
+# vscode
+.vscode/
