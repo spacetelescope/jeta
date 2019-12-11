@@ -190,26 +190,6 @@ class _DataSource(object):
 data_source = _DataSource
 
 
-def read_stats_file(mnemonic, interval):
-
-    import h5py
-
-    ft['msid'] = mnemonic
-    ft['interval'] = interval
-
-    filename = msid_files['stats'].abs
-
-    with h5py.File(filename, 'r') as h5:
-        stats = h5['data'][:].tolist()
-        min = h5['data']['min'].tolist()
-        mean = h5['data']['mean'].tolist()
-        max = h5['data']['max'].tolist()
-        tstart = h5['data']['index'].tolist()
-        h5.close()
-
-    return stats, (tstart, min, mean, max)
-
-
 def local_or_remote_function(remote_print_output):
     """
     Decorator maker so that a function gets run either locally or remotely
