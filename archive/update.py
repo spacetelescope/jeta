@@ -23,20 +23,20 @@ import Ska.Numpy
 import pyyaks.logger
 import pyyaks.context
 import astropy.io.fits as pyfits
+
+import h5py
 import tables
 import numpy as np
 import scipy.stats.mstats
 
-
 import jeta.archive.fetch as fetch
-import jeta.archive.converters as converters
 import jeta.archive.file_defs as file_defs
 import jeta.archive.derived as derived
 
 from jeta.ingest import process
-from jeta.ingest.archive import DataProduct
 
 working_filename = None
+
 
 def get_options(args=None):
     parser = argparse.ArgumentParser()
@@ -94,6 +94,7 @@ def get_options(args=None):
                         help="Logging level")
     return parser.parse_args(args)
 
+
 # Configure fetch.MSID to cache recent results for performance in
 # derived parameter updates.
 fetch.CACHE = True
@@ -126,8 +127,21 @@ logger = pyyaks.logger.get_logger(name='Engineering Digest Engine', level=loglev
 if opt.log_level is not None:
     fetch.add_logging_handler(level=int(opt.log_level))
 
-archfiles_hdr_cols = ('tstart', 'tstop', 'startmjf', 'startmnf', 'stopmjf', 'stopmnf',
-                      'tlmver', 'ascdsver', 'revision', 'date')
+
+archfiles_hdr_cols = (
+    'tstart',
+    'tstop',
+    'startmjf',
+    'startmnf',
+    'stopmjf',
+    'stopmnf',
+    'tlmver',
+    'ascdsver',
+    'revision',
+    'date'
+)
+
+
 def get_env_variable(var_name):
 
     try:
@@ -144,6 +158,36 @@ def get_colnames():
     return colnames
 
 
+def create_archive_mnemonics_file():
+
+    empty = set()
+    if not os.path.exists(msid_files['colnames'].abs):
+        with open(msid_files['colnames'].abs, 'wb') as mnemonics_file:
+            pickle.dump(empty, mnemonics_file)
+
+
+def create_meta_database():
+
+    # TODO: Log instead of print
+    print(f"Opening Archive Database File: {msid_files['archfiles'].abs} ...")
+
+    if not os.path.exists(msid_files['archfiles'].abs):
+        filename = msid_files['archfiles'].abs
+        archive_definition_source = open(
+                    get_env_variable('ARCHIVE_DEFINITION_SOURCE')
+                ).read()
+        logger.info('Creating db {}'.format(filename))
+        import sqlite3
+        cursor = sqlite3.connect(filename).cursor()
+        cursor.executescript(archive_definition_source)
+
+
+def create_ingest_file_archive():
+
+    if not os.path.exists(msid_files['processed_files_directory'].abs):
+        os.makedirs(msid_files['processed_files_directory'].abs)
+
+
 def create_content_dir():
 
     """
@@ -158,22 +202,9 @@ def create_content_dir():
         logger.info('Making directory {}'.format(dirname))
         os.makedirs(dirname)
 
-    empty = set()
-    if not os.path.exists(msid_files['colnames'].abs):
-        with open(msid_files['colnames'].abs, 'wb') as f:
-            pickle.dump(empty, f)
-
-    if not os.path.exists(msid_files['archfiles'].abs):
-
-        print(msid_files['archfiles'].abs)
-
-        archfiles_def = open(get_env_variable('ARCHIVE_DEFINITION_SOURCE')).read()
-
-        filename = msid_files['archfiles'].abs
-        logger.info('Creating db {}'.format(filename))
-        db = Ska.DBI.DBI(dbi='sqlite', server=filename, autocommit=False)
-        db.execute(archfiles_def)
-        db.commit()
+    create_meta_database()
+    create_archive_mnemonics_file()
+    create_ingest_file_archive()
 
 
 _fix_state_code_cache = {}
@@ -206,10 +237,10 @@ def begin():
     This may be called in a loop by the program-level main().
     """
     logger.info('Run time options: \n{}'.format(opt))
-    logger.info('Update_archive file: {}'.format(os.path.abspath(__file__)))
-    logger.info('Fetch module file: {}'.format(os.path.abspath(fetch.__file__)))
-    logger.info('')
-    logger.info(f'Begun Ingest @ {datetime.now()}')
+    logger.info('Update Module: {}'.format(os.path.abspath(__file__)))
+    logger.info('Fetch Module: {}'.format(os.path.abspath(fetch.__file__)))
+    logger.info('========================================')
+    logger.info(f'Begun The Ingest Has @ {datetime.now()}')
 
     # Get the archive content filetypes
     filetypes = fetch.filetypes
@@ -227,6 +258,7 @@ def begin():
         if opt.create:
             create_content_dir()
 
+
         colnames = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
                     if x not in fetch.IGNORE_COLNAMES]
 
@@ -234,12 +266,15 @@ def begin():
             logger.info('No archfiles.db3 for %s - skipping' % ft['content'])
             continue
 
+        # TODO: Improve log messsage
         logger.info('Processing %s content type', ft['content'])
 
+        # TODO: Test Truncate Option
         if opt.truncate:
             truncate_archive(filetype, opt.truncate)
             continue
 
+        # TODO: Test Update Full Option
         if opt.update_full:
             if filetype['instrum'] == 'DERIVED':
                 update_derived(filetype)
@@ -261,6 +296,7 @@ def begin():
                 update_stats(colname, '5min', msid)
 
         logger.info(f' INFO: Archive Update Process Complete.')
+
 
 def fix_misorders(filetype):
     """Fix problems in the eng archive where archive files were ingested out of
@@ -609,18 +645,20 @@ def update_derived(filetype):
     for index0, index1 in zip(indexes[:-1], indexes[1:]):
         archfiles.append('{}:{}:{}'.format(filetype['content'], index0, index1))
         if len(archfiles) == max_archfiles or index1 == indexes[-1]:
-            update_msid_files(filetype, archfiles)
-            logger.verbose('update_msid_files(filetype={}, archfiles={})'
+            update_telemetry_archive(filetype, archfiles)
+            logger.verbose('update_telemetry_archive(filetype={}, archfiles={})'
                            .format(str(filetype), archfiles))
             archfiles = []
 
 
 def update_archive(filetype):
+    """ Function to start the archive telemetry update using staged files
+    """
 
-    archfiles = get_archive_files(filetype)
+    ingest_files = get_archive_files(filetype)
 
-    if archfiles:
-        processed_ingest_files = update_telemetry(filetype, archfiles)
+    if ingest_files:
+        processed_ingest_files = update_telemetry_archive(filetype, ingest_files)
         move_archive_files(filetype, processed_ingest_files)
 
 
@@ -675,25 +713,50 @@ def append_h5_col_derived(dats, colname):
     return data_len
 
 
+def init_mnemonic_times_file():
+
+    with h5py.File(msid_files['mnemonic_times'].abs) as h5:
+        h5.create_dataset('time', shape=(0, ),  maxshape=(None,), dtype=np.float64, chunks=True, compression="lzf")
+        h5.close()
+
+
+def init_mnemonic_values_file():
+
+    with h5py.File(msid_files['mnemonic_value'].abs) as h5:
+        h5.create_dataset(
+            'data',
+            shape=(0, ),
+            maxshape=(None,),
+            dtype="S21",
+            chunks=True,
+            compression="lzf"
+        )
+        h5.close()
+
+
+def init_mnemonic_index_file(idx=None, epoch=None):
+
+    compound_datatype = np.dtype([
+        ('epoch', np.float64),
+        ('index', np.uint64),
+    ])
+
+    with h5py.File(msid_files['mnemonic_index'].abs, mode='a', driver="core", backing_store=True) as h5:
+        dset = h5.create_dataset('epoch', shape=(1,), compression="gzip", dtype=compound_datatype, chunks=True, maxshape=(None,))
+        mnenmonic_idx = np.array([(epoch, idx)], dtype=[('epoch', 'f8'), ('index', np.uint64)])
+        dset[:] = mnenmonic_idx
+        h5.close()
+
+
 def make_h5_col_file_tlm(dat, colname):
     """Make a new h5 table to hold column from ``dat``."""
-
-    # DataProduct.create_archive_directory(msid_files['msid'].abs, colname)
-    DataProduct.touch_index(msid_files['msid'].abs, colname, dat[colname]['index']['index'], dat[colname]['index']['epoch'])
-
-    DataProduct.create_values_hdf5(colname, dat, msid_files['mnemonic_value'].abs)
-    DataProduct.create_times_hdf5(colname, dat, msid_files['mnemonic_times'].abs)
-
-
-def append_mnemonic_times(mnemonic, times):
-    pass
-
-
-def append_mnemonic_values(mnemonic, values):
-    pass
+    init_mnemonic_index_file(dat[colname]['index']['index'], dat[colname]['index']['epoch'])
+    init_mnemonic_values_file()
+    init_mnemonic_times_file()
 
 
 def append_h5_col_tlm(dat, colname):
+
     """Append new values to an HDF5 MSID data table.
     :param dats: List of pyfits HDU data objects
     :param colname: column name
@@ -702,13 +765,11 @@ def append_h5_col_tlm(dat, colname):
     times = dat[colname]['times']
     values = dat[colname]['values']
 
-
     h5_values_file = tables.open_file(str(msid_files['mnemonic_value'].abs), mode='a')
-    #logger.verbose('Appending %d items to %s' % (len(values), values_filepath))
+    logger.verbose('Appending %d items to %s' % (len(values), str(msid_files['mnemonic_value'].abs)))
 
     h5_times_file = tables.open_file(str(msid_files['mnemonic_times'].abs), mode='a')
-    #logger.verbose('Appending %d items to %s' % (len(times), times_filepath))
-
+    logger.verbose('Appending %d items to %s' % (len(times), str(msid_files['mnemonic_times'].abs)))
 
     if not opt.dry_run:
 
@@ -732,7 +793,11 @@ def truncate_archive(filetype, date):
     year, doy = date[0:4], date[5:8]
 
     # Setup db handle with autocommit=False so that error along the way aborts insert transactions
-    db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs, autocommit=False)
+    db = Ska.DBI.DBI(
+        dbi='sqlite',
+        server=msid_files['archfiles'].abs,
+        autocommit=False
+    )
 
     # Get the earliest row number from the archfiles table where year>=year and doy=>doy
     out = db.fetchall('SELECT rowstart FROM archfiles '
@@ -766,16 +831,6 @@ def truncate_archive(filetype, date):
         db.commit()
     logger.verbose(cmd)
 
-def is_file_already_in_db(ingest_file_path, db):
-
-    filename = os.path.basename(ingest_file_path)
-    if db.fetchall('SELECT filename FROM archfiles WHERE filename=?', (filename,)):
-        logger.verbose('File %s already in archfiles - unlinking and skipping' % filename)
-        os.unlink(ingest_file_path)
-        return True
-
-def process_ingest_file(idx, ingest_file_path, filetype, row, colnames, list_of_ingest_files, db):
-    """
 
 def is_file_already_in_db(ingest_file_path, db):
 
@@ -785,60 +840,6 @@ def is_file_already_in_db(ingest_file_path, db):
         os.unlink(ingest_file_path)
         return True
 
-
-def process_ingest_file(idx, ingest_file_path, filetype, row, colnames, list_of_ingest_files, db):
-    """
-
-    """
-
-    # Check if filename is already in archfiles.  If so then abort further processing.
-    filename = os.path.basename(ingest_file_path)
-    if db.fetchall('SELECT filename FROM archfiles WHERE filename=?', (filename,)):
-        logger.verbose('File %s already in archfiles - unlinking and skipping' % filename)
-        os.unlink(ingest_file_path)
-        return None, None
-
-    # Read archive file and accumulate data into dats list and header into headers dict
-    logger.info('Processing (%d / %d) %s' % (idx+1, len(list_of_ingest_files), filename))
-
-    ingest = process.Ingest(ingest_file_path, msid_files['colnames'].abs, strategy='pandas').start()
-
-    archfiles_row = dict(filename=ingest_file_path,
-                         tstart=ingest.tstart,
-                         tstop=ingest.tstop,
-                         rowstart=row,
-                         rowstop=row + 1,
-                         date=Time.now().iso)
-
-
-    return ingest.data, archfiles_row
-
-# def read_archfile(i, f, filetype, row, colnames, archfiles, db):
-#     """Read filename ``f`` with index ``i`` (position within list of filenames).  The
-#     file has type ``filetype`` and will be added to MSID file at row index ``row``.
-#     ``colnames`` is the list of column names for the content type (not used here).
-#     """
-#     # Check if filename is already in archfiles.  If so then abort further processing.
-#     filename = os.path.basename(f)
-#     if db.fetchall('SELECT filename FROM archfiles WHERE filename=?', (filename,)):
-#         logger.verbose('File %s already in archfiles - unlinking and skipping' % f)
-#         os.unlink(f)
-#         return None, None
-
-#     # Read archive file and accumulate data into dats list and header into headers dict
-#     logger.info('Reading (%d / %d) %s' % (i+1, len(archfiles), filename))
-
-#     ingest = process.Ingest(f, msid_files['colnames'].abs).start()
-
-#     archfiles_row = dict(filename=f,
-#                          tstart=ingest.tstart,
-#                          tstop=ingest.tstop,
-#                          rowstart=row,
-#                          rowstop=row + 1,
-#                          date=Time.now().iso)
-
-
-#     return ingest.data, archfiles_row
 
 def read_derived(i, filename, filetype, row, colnames, archfiles, db):
     """Read derived data using eng_archive and derived computation classes.
@@ -906,7 +907,24 @@ def get_dat_colnames(dat):
     """Iteratable over dat colnames"""
     return dat if isinstance(dat, dict) else dat.dtype.names
 
+
+def get_last_database_row_number():
+
+    # TODO: re-write database interaction using python sqlite3
+    # Setup db handle with autocommit=False so that error along the way aborts insert transactions
+    db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs, autocommit=False)
+
+    # Get the last row number from the archfiles table
+    out = db.fetchone('SELECT max(rowstop) FROM archfiles')
+    row = out['max(rowstop)'] or 0
+    last_archfile = db.fetchone('SELECT * FROM archfiles where rowstop=?', (row,))
+
+    return last_archfile, row
+
+
 def select_ingest_strategy(filepath):
+    """Returns a file processing strategy based on file extension.
+    """
 
     strategy_map = {
 
@@ -916,27 +934,18 @@ def select_ingest_strategy(filepath):
         'hdf5': 'h5py',
     }
 
-    print(filepath[-3:])
-
     return strategy_map[filepath[-3:]]
 
-def update_telemetry(filetype, ingest_file_list):
 
+def update_telemetry_archive(filetype, ingest_file_list):
+
+    # TODO: Replace with logging
     print(f"INFO: Updating Telemetry Archive With New Data ... ")
 
+    processed_ingest_files = []
     colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
-
     old_colnames = colnames.copy()
-
-    # Setup db handle with autocommit=False so that error along the way aborts insert transactions
-    db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs, autocommit=False)
-
-    # Get the last row number from the archfiles table
-    out = db.fetchone('SELECT max(rowstop) FROM archfiles')
-    row = out['max(rowstop)'] or 0
-    last_archfile = db.fetchone('SELECT * FROM archfiles where rowstop=?', (row,))
-
-    archfiles_processed = []
+    last_archfile, row = get_last_database_row_number()
 
     content_is_derived = (filetype['instrum'] == 'DERIVED')
     make_h5_col_file = make_h5_col_file_derived if content_is_derived else make_h5_col_file_tlm
@@ -996,9 +1005,26 @@ def update_telemetry(filetype, ingest_file_list):
         # leave files either in a tmp dir (HEAD) or in the stage dir (OCC).
         # In the latter case this allows for successful processing later when the
         # gap gets filled.
-        archfiles_processed.append(ingest_file_path)
+
+        processed_ingest_files.append(ingest_file_path)
+
+        # TODO: Mitigate potential SQL Injection
         if not opt.dry_run:
-            db.insert(archfiles_row, 'archfiles')
+            import sqlite3
+            sql = (
+                f"INSERT INTO archfiles "
+                f"(filename, tstart, tstop, rowstart, rowstop, date) "
+                f"VALUES (\"{archfiles_row['filename']}\","
+                f"{archfiles_row['tstart']},"
+                f"{archfiles_row['tstop']},"
+                f"{archfiles_row['rowstart']},"
+                f"{archfiles_row['rowstop']},"
+                f"\"{archfiles_row['date']}\")"
+            )
+            conn = sqlite3.connect(msid_files['archfiles'].abs)
+            conn.cursor().execute(sql)
+            conn.commit()
+            conn.close()
 
         # Update the running list of column names.
         colnames.update(name for name in get_dat_colnames(ingest.data))
@@ -1007,15 +1033,21 @@ def update_telemetry(filetype, ingest_file_list):
 
         logger.verbose('Writing accumulated column data to h5 file at ' + time.ctime())
         processed_cols = set()
+
         for colname in colnames:
             ft['msid'] = colname
-            if not os.path.exists(msid_files['msid'].abs):
+            if (
+                not os.path.exists(msid_files['mnemonic_index'].abs) or
+                not os.path.exists(msid_files['mnemonic_value'].abs) or
+                not os.path.exists(msid_files['mnemonic_times'].abs)
+            ):
                 make_h5_col_file(ingest.data, colname)
                 if not opt.create:
                     # New MSID was found for this content type.  This must be associated with
                     # an update to the TDB.  Skip for the moment to ensure that other MSIDs
                     # are fully processed.
                     continue
+
             append_h5_col(ingest.data, colname)
             processed_cols.add(colname)
 
@@ -1027,7 +1059,8 @@ def update_telemetry(filetype, ingest_file_list):
     # Assuming everything worked now commit the db inserts that signify the
     # new archive files have been processed
     if not opt.dry_run:
-        db.commit()
+        pass
+        # db.commit()
 
     # If colnames changed then give warning and update files.
     if colnames != old_colnames:
@@ -1035,284 +1068,25 @@ def update_telemetry(filetype, ingest_file_list):
         if not opt.dry_run:
             pickle.dump(colnames, open(msid_files['colnames'].abs, 'wb'))
 
-    return archfiles_processed
+    return processed_ingest_files
 
-def select_ingest_strategy(filepath):
 
-    strategy_map = {
+def move_archive_files(filetype, processed_ingest_files):
 
-        'CSV': 'pandas',
-        'csv': 'pandas',
-        '.h5': 'h5py',
-        'hdf5': 'h5py',
-    }
+    import tarfile
 
-    print(filepath[-3:])
+    staging_directory = get_env_variable('STAGING_DIRECTORY')
+    os.chdir(staging_directory)
 
-    return strategy_map[filepath[-3:]]
+    tarfile_name = f"stage_{int(DateTime().secs)}.tar"
+    tar = tarfile.open(tarfile_name, mode='w')
 
+    for ingest_file in processed_ingest_files:
+        tar.add(ingest_file)
 
-def update_telemetry(filetype, ingest_file_list):
-
-    print(f"INFO: Updating Telemetry Archive With New Data ... ")
-
-    colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
-
-    old_colnames = colnames.copy()
-
-    # Setup db handle with autocommit=False so that error along the way aborts insert transactions
-    db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs, autocommit=False)
-
-    # Get the last row number from the archfiles table
-    out = db.fetchone('SELECT max(rowstop) FROM archfiles')
-    row = out['max(rowstop)'] or 0
-    last_archfile = db.fetchone('SELECT * FROM archfiles where rowstop=?', (row,))
-
-    archfiles_processed = []
-
-    content_is_derived = (filetype['instrum'] == 'DERIVED')
-    make_h5_col_file = make_h5_col_file_derived if content_is_derived else make_h5_col_file_tlm
-    append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
-
-    for idx, ingest_file_path in enumerate(ingest_file_list):
-
-        strategy = select_ingest_strategy(ingest_file_path)
-
-        ingest = process.Ingest(ingest_file_path, msid_files['colnames'].abs, strategy=strategy).start()
-
-        archfiles_row = dict(filename=ingest_file_path,
-                         tstart=ingest.tstart,
-                         tstop=ingest.tstop,
-                         rowstart=row,
-                         rowstop=row + 1,
-                         date=Time.now().iso)
-
-        # dat, archfiles_row = get_data(idx, ingest_file, filetype, row, colnames, ingest_file_list, db)
-
-        if ingest.data is None:
-            continue
-
-        # If creating new content type and there are no existing colnames, then
-        # define the column names now.
-        if opt.create and not colnames:
-            colnames = set(get_dat_colnames(ingest.data))
-
-        # Ensure that the time gap between the end of the last ingested archive
-        # file and the start of this one is less than opt.max_gap (or
-        # filetype-based defaults).  If this fails then break out of the
-        # archfiles processing but continue on to ingest any previously
-        # successful archfiles
-        if last_archfile is None:
-            time_gap = 0
-        else:
-            time_gap = archfiles_row['tstart'] - last_archfile['tstop']
-        max_gap = opt.max_gap
-        if max_gap is None:
-            if filetype['instrum'] in ['DERIVED']:
-                max_gap = 601
-            else:
-                max_gap = 32.9
-
-        if time_gap > max_gap:
-            logger.warning('WARNING: found gap of %.2f secs between archfiles %s and %s',
-                           time_gap, last_archfile['filename'], archfiles_row['filename'])
-        elif time_gap < 0:
-            raise ValueError('overlapping archive files')
-
-        # Update the last_archfile values.
-        last_archfile = archfiles_row
-
-        # Mark the archfile as ingested in the database and add to list for
-        # subsequent relocation into arch_files archive.  In the case of a gap
-        # where ingest is stopped before all archfiles are processed, this will
-        # leave files either in a tmp dir (HEAD) or in the stage dir (OCC).
-        # In the latter case this allows for successful processing later when the
-        # gap gets filled.
-        archfiles_processed.append(ingest_file_path)
-        if not opt.dry_run:
-            db.insert(archfiles_row, 'archfiles')
-
-        # Update the running list of column names.
-        colnames.update(name for name in get_dat_colnames(ingest.data))
-
-        row += len(ingest.data) if content_is_derived else 1
-
-        logger.verbose('Writing accumulated column data to h5 file at ' + time.ctime())
-        processed_cols = set()
-        for colname in colnames:
-            ft['msid'] = colname
-            if not os.path.exists(msid_files['msid'].abs):
-                make_h5_col_file(ingest.data, colname)
-                if not opt.create:
-                    # New MSID was found for this content type.  This must be associated with
-                    # an update to the TDB.  Skip for the moment to ensure that other MSIDs
-                    # are fully processed.
-                    continue
-            append_h5_col(ingest.data, colname)
-            processed_cols.add(colname)
-
-        # Process any new MSIDs (this is extremely rare)
-        for colname in colnames - processed_cols:
-            ft['msid'] = colname
-            append_h5_col(ingest.data, colname)
-
-    # Assuming everything worked now commit the db inserts that signify the
-    # new archive files have been processed
-    if not opt.dry_run:
-        db.commit()
-
-    # If colnames changed then give warning and update files.
-    if colnames != old_colnames:
-        logger.warning(f"WARNING: updating {msid_files['colnames'].abs} because colnames changed ...")
-        if not opt.dry_run:
-            pickle.dump(colnames, open(msid_files['colnames'].abs, 'wb'))
-
-    return archfiles_processed
-
-
-def update_msid_files(filetype, archfiles):
-
-    print(f"Updating....")
-
-    colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
-
-    old_colnames = colnames.copy()
-
-    # Setup db handle with autocommit=False so that error along the way aborts insert transactions
-    db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs, autocommit=False)
-
-    # Get the last row number from the archfiles table
-    out = db.fetchone('SELECT max(rowstop) FROM archfiles')
-    row = out['max(rowstop)'] or 0
-    last_archfile = db.fetchone('SELECT * FROM archfiles where rowstop=?', (row,))
-
-    archfiles_processed = []
-
-    content_is_derived = (filetype['instrum'] == 'DERIVED')
-    make_h5_col_file = make_h5_col_file_derived if content_is_derived else make_h5_col_file_tlm
-    append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
-    #append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
-
-
-    for i, f in enumerate(archfiles):
-        # get_data = (read_derived if content_is_derived else read_archfile)
-        get_data = (read_derived if content_is_derived else process_ingest_file)
-        dat, archfiles_row = get_data(i, f, filetype, row, colnames, archfiles, db)
-        if dat is None:
-            continue
-
-        # If creating new content type and there are no existing colnames, then
-        # define the column names now.
-        if opt.create and not colnames:
-            colnames = set(get_dat_colnames(dat))
-
-        # Ensure that the time gap between the end of the last ingested archive
-        # file and the start of this one is less than opt.max_gap (or
-        # filetype-based defaults).  If this fails then break out of the
-        # archfiles processing but continue on to ingest any previously
-        # successful archfiles
-        if last_archfile is None:
-            time_gap = 0
-        else:
-            time_gap = archfiles_row['tstart'] - last_archfile['tstop']
-        max_gap = opt.max_gap
-        if max_gap is None:
-            if filetype['instrum'] in ['DERIVED']:
-                max_gap = 601
-            else:
-                max_gap = 32.9
-
-        if time_gap > max_gap:
-            logger.warning('WARNING: found gap of %.2f secs between archfiles %s and %s',
-                           time_gap, last_archfile['filename'], archfiles_row['filename'])
-        elif time_gap < 0:
-            raise ValueError('overlapping archive files')
-
-        # Update the last_archfile values.
-        last_archfile = archfiles_row
-
-        # Mark the archfile as ingested in the database and add to list for
-        # subsequent relocation into arch_files archive.  In the case of a gap
-        # where ingest is stopped before all archfiles are processed, this will
-        # leave files either in a tmp dir (HEAD) or in the stage dir (OCC).
-        # In the latter case this allows for successful processing later when the
-        # gap gets filled.
-        archfiles_processed.append(f)
-        if not opt.dry_run:
-            db.insert(archfiles_row, 'archfiles')
-
-        # Update the running list of column names.
-        colnames.update(name for name in get_dat_colnames(dat))
-
-        row += len(dat) if content_is_derived else 1
-
-        logger.verbose('Writing accumulated column data to h5 file at ' + time.ctime())
-        processed_cols = set()
-        for colname in colnames:
-            ft['msid'] = colname
-            if not os.path.exists(msid_files['msid'].abs):
-                make_h5_col_file(dat, colname)
-                if not opt.create:
-                    # New MSID was found for this content type.  This must be associated with
-                    # an update to the TDB.  Skip for the moment to ensure that other MSIDs
-                    # are fully processed.
-                    continue
-            append_h5_col(dat, colname) # actual call to update data
-            processed_cols.add(colname)
-
-        # Process any new MSIDs (this is extremely rare)
-        for colname in colnames - processed_cols:
-            ft['msid'] = colname
-            append_h5_col(dat, colname)
-
-    # Assuming everything worked now commit the db inserts that signify the
-    # new archive files have been processed
-    if not opt.dry_run:
-        db.commit()
-
-    # If colnames changed then give warning and update files.
-    if colnames != old_colnames:
-        logger.warning(f"WARNING: updating {msid_files['colnames'].abs} because colnames changed ...")
-        if not opt.dry_run:
-            pickle.dump(colnames, open(msid_files['colnames'].abs, 'wb'))
-
-    return archfiles_processed
-
-
-def move_archive_files(filetype, ingest_files):
-
-    print(archfiles)
-    print(filetype)
-    # ft['content'] = filetype.content.lower()
-
-    # stagedir = arch_files['stagedir'].abs
-    # if not os.path.exists(stagedir):
-    #     os.makedirs(stagedir)
-
-    # for f in archfiles:
-    #     if not os.path.exists(f):
-    #         continue
-    #     ft['basename'] = os.path.basename(f)
-    #     tstart = re.search(r'(\d+)', str(ft['basename'])).group(1)
-    #     datestart = DateTime(tstart).date
-    #     ft['year'], ft['doy'] = re.search(r'(\d\d\d\d):(\d\d\d)', datestart).groups()
-
-    #     archdir = arch_files['archdir'].abs
-    #     archfile = arch_files['archfile'].abs
-
-    #     if not os.path.exists(archdir):
-    #         os.makedirs(archdir)
-
-    #     if not os.path.exists(archfile):
-    #         logger.info('mv %s %s' % (os.path.abspath(f), archfile))
-    #         if not opt.dry_run:
-    #             if not opt.occ:
-    #                 shutil.copy2(f, stagedir)
-    #             shutil.move(f, archfile)
-
-    #     if os.path.exists(f):
-    #         logger.verbose('Unlinking %s' % os.path.abspath(f))
-    #         os.unlink(f)
+    tar.close()
+    # os.rename(tarfile_name, f"{msid_files['processed_files_directory'].abs}/{tarfile_name}")
+    # os.remove(tarfile_name)
 
 
 def get_archive_files(filetype):
@@ -1323,7 +1097,7 @@ def get_archive_files(filetype):
 
     staging_directory = get_env_variable('STAGING_DIRECTORY')
 
-    logger.info(f"Starting ingest file discovery in {staging_directory} ... ")
+    logger.info(f"Starting legacy ingest file discovery in {staging_directory} ... ")
 
     for file_type in supported_file_types:
 
@@ -1333,3 +1107,7 @@ def get_archive_files(filetype):
     logger.info(f"Files discovered: {files}")
 
     return files
+
+
+if __name__ == "__main__":
+    main()

@@ -30,10 +30,11 @@ msid_files = {
     'archfiles':    'data/{{ft.content}}/archfiles.db3',
     'colnames':     'data/{{ft.content}}/colnames.pickle',
     'colnames_all': 'data/{{ft.content}}/colnames_all.pickle',
-    'msid':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
+    'msid':         'data/{{ft.content}}/{{ft.msid | upper}}',
     'data':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
     'statsdir':     'data/{{ft.content}}/stats/{{ft.interval}}/',
     'stats':        'data/tlm/stats/{{ft.interval}}/{{ft.msid | upper }}.h5',
+    'processed_files_directory': 'data/{{ft.content}}/processed_files',
     'mnemonic_index': 'data/{{ft.content}}/{{ft.msid | upper}}/index.h5',
     'mnemonic_value': 'data/{{ft.content}}/{{ft.msid | upper}}/values.h5',
     'mnemonic_times': 'data/{{ft.content}}/{{ft.msid | upper}}/times.h5'

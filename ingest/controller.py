@@ -11,7 +11,6 @@ import tables
 import numpy as np
 
 
-
 from celery import Task
 from celery import Celery
 from celery import group
@@ -29,12 +28,13 @@ from jeta.ingest.archive import DataProduct
 
 from jeta.archive.controller import Utilities
 
+# FIXME: Path handing management, maybe just use pyyaks of jinja2 directy
 archive_root = get_env_variable('TELEMETRY_ARCHIVE')
 archive_data_area = 'tlm'
 archive_stating_area = get_env_variable('STAGING_DIRECTORY')
 archive_recovery_area = 'recovery'
 
-init_index_file = DataProduct.touch_index
+init_index_file = DataProduct.init_mnemonic_index_file
 init_values_file = DataProduct.create_values_hdf5
 init_times_file = DataProduct.create_times_hdf5
 
@@ -47,6 +47,7 @@ def _execute_ingest_task(ingest_file_list):
     for idx, ingest_filepath in enumerate(ingest_file_list):
 
         ingest = _load_data_into_memory(ingest_filepath)
+        print(f'Loaded data from {ingest_filepath} starting processing')
         _update_mnemonic_index_file(ingest)
         _initialze_mnemonic_filesets(ingest)
         _execute_append_data_subtasks(ingest)
@@ -90,8 +91,9 @@ def get_mnemonic_init_list(ingest):
     mnemomics_with_filesets = cursor.execute('SELECT mnemonic FROM initialized_mnemonics;')
     try:
         mnemomics_with_filesets = list(mnemomics_with_filesets.fetchall())
-    except:
-        pass
+    except Exception as err:
+        print(err.args[0])
+        raise
     mnemonics_without_filesets = np.setdiff1d(list(ingest.data.keys()), mnemomics_with_filesets, assume_unique=True)
 
     conn.close()
@@ -101,6 +103,7 @@ def get_mnemonic_init_list(ingest):
 
 def init_mnemonic_fileset(mnemonic, ingest):
 
+    # FIXME: Replace hard coded paths with template
     init_values_file(mnemonic, ingest.data, f"/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/values.h5")
     init_times_file(mnemonic, ingest.data, f"/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/times.h5")
 
@@ -185,25 +188,34 @@ def get_ingest_status(task_id):
 @app.task
 def execute():
 
-        list_of_ingest_files = Utilities.get_list_of_staged_files()
-        response = {
-            'ingest_start_time': str(datetime.now()),
-            'task_id': None,
-            'list_of_ingest_files': list_of_ingest_files,
-        }
+    # Initialize the archive with manifest files.
+    Utilities.prepare_archive_on_disk()
 
-        async_result = _execute_ingest_task.delay(list_of_ingest_files)
+    # Get a list of the files to ingest into the archive.
+    list_of_ingest_files = Utilities.get_list_of_staged_files()
 
-        response['task_id'] = async_result.task_id
+    """ Build an initial response to the calling function.
 
-        return response
+        The response includes the start of the ingest process
+        The task id to track ingest status
+        and the list of files being ingested.
+    """
+    response = {
+        'ingest_start_time': str(datetime.now()),
+        'task_id': None,
+        'list_of_ingest_files': list_of_ingest_files,
+    }
+
+    # Start an async task
+    async_result = _execute_ingest_task.delay(list_of_ingest_files)
+
+    response['task_id'] = async_result.task_id
+
+    return response
 
 
 @app.task
 def _execute_automated_ingest():
-
     from jeta.config.celery import app
-    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     print(app.conf.CELERYBEAT_SCHEDULE)
-    Utilities.prepare_archive_on_disk()
     execute()

@@ -4,6 +4,8 @@ import glob
 import json
 import sqlite3
 
+import pickle
+
 from jeta.archive.utils import get_env_variable
 
 archive_root=get_env_variable('TELEMETRY_ARCHIVE')
@@ -21,7 +23,7 @@ class Utilities:
         supported_file_types = ['h5']
         staging_directory = get_env_variable('STAGING_DIRECTORY')
 
-        print(f"Starting ingest file discovery in {staging_directory} ... ")
+        print(f"Starting celery ingest file discovery in {staging_directory} ... ")
 
         for file_type in supported_file_types:
 
@@ -34,9 +36,19 @@ class Utilities:
 
     @staticmethod
     def prepare_archive_on_disk():
+        # FIXME: break this out into discrete testable functions
+        print("Initializing archive ...")
         # create the telemetry data area inside the arhcive root
         telemetry_archive = os.path.join(archive_root, archive_data_area)
         os.makedirs(telemetry_archive, exist_ok=True)
+        print(f'Using {telemetry_archive}')
+
+        # create pickle file with list of mnemonics
+        empty = set()
+        mnemonics_file = os.path.join(telemetry_archive, 'colnames.pickle')
+        if not os.path.exists(mnemonics_file):
+            with open(mnemonics_file, 'wb') as mnemonics_file:
+                pickle.dump(empty, mnemonics_file)
 
         # Init meta database
         with open(get_env_variable('ARCHIVE_DEFINITION_SOURCE')) as sql_file:

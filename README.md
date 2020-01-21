@@ -26,4 +26,5 @@ celery -A jeta.ingest.controller worker --loglevel=info
 # The default monitoring interface for tasks
 celery -A jeta.ingest.controller flower --loglevel=info
 
-#
+# Initialize the archive
+python run.py --create
