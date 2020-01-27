@@ -30,15 +30,15 @@ services:
       #   target: /etc/krb5.conf
       #   read_only: "true"
     ports:
-      - "${HOST_PORT}:2010"
+      - "${HOST_PORT}:2020"
     environment:
       - "WORKERS=${WORKERS}"
-      - "WEB_ROOT=${WEB_ROOT}"
-      - "KEYTAB_FILE=${KEYTAB_FILE}"
-      - "SECRET_KEY=${SECRET_KEY}"
-      - "DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
-networks:
-  default:
-    ipam:
-      config:
-        - subnet: ${NETWORK_SUBNET}
+      # - "WEB_ROOT=${WEB_ROOT}"
+      # - "KEYTAB_FILE=${KEYTAB_FILE}"
+      # - "SECRET_KEY=${SECRET_KEY}"
+      # - "DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
+# networks:
+#   default:
+#     ipam:
+#       config:
+#         - subnet: ${NETWORK_SUBNET}
