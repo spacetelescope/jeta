@@ -35,7 +35,7 @@ class Ingest:
     headers = None
 
     # The delta times collection
-    delta_times =  collections.defaultdict(list)
+    delta_times = collections.defaultdict(list)
 
     # This dictionary contains references to different file loading strategies
     load_strategy = {
@@ -141,7 +141,8 @@ class Ingest:
 
         return self.epoch_date
 
-    def parseHDF5(self):
+    # TODO: Add benchmark decorator
+    def process_hdf5_ingest_file(self):
 
         print("INFO: ingesting mnemonics into memory ...")
 
@@ -150,12 +151,16 @@ class Ingest:
             # NOTE: If data is properly typed this decoding step may not be required,
             # its possible that a different storage decision could be though
 
-            self.values[mnemonic] = [x.decode("utf-8") for x in self.df[mnemonic]['data']['value']]
-            self.times[mnemonic] =  [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']]
+            # out_times = self.df[mnemonic]['data']['date']
+            # self.values[mnemonic] = self.df[mnemonic]['data']['value'][()]
+            # self.times[mnemonic] = [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']
 
-        # FIXME: Added valid date here.
-        self.tstart = Time('1985-01-01 00:00:00.000', format='iso').jd
-        self.tstop = Time('1985-01-01 00:00:00.000', format='iso').jd
+            self.values[mnemonic] = [x.decode("utf-8") for x in self.df[mnemonic]['data']['value']]
+            self.times[mnemonic] = [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']]
+
+        import operator
+        self.tstart = Time(self.times[min(self.times.items(), key=operator.itemgetter(1))[0]][0], format='iso').jd
+        self.tstop = Time(self.times[max(self.times.items(), key=operator.itemgetter(1))[0]][-1], format='iso').jd
 
         for mnemonic, value in self.values.items():
 
@@ -166,6 +171,7 @@ class Ingest:
                 epoch = self.times[mnemonic][0]
                 self.indices[mnemonic] = {'index': index, 'epoch': self.time_to_quadtime(epoch)}
             else:
+                # This case is reserved for data that is ingested out of sequence.
                 pass
 
             self.data[mnemonic] = {
@@ -238,7 +244,7 @@ class Ingest:
         if self.strategy == 'pandas':
             self.partition()
         else:
-            self.parseHDF5()
+            self.process_hdf5_ingest_file()
 
 
         # Create the HDF5 file(s) archive
@@ -246,10 +252,10 @@ class Ingest:
         # raise ValueError('Done in Error.')
         return self
 
-    def __init__(self, input_file, output_path, strategy='pandas', input_path=properties.INGEST_DIR):
+    def __init__(self, input_file, output_path, strategy='pandas', input_path=properties.STAGING_DIRECTORY):
 
         self.strategy = strategy
-        self.input_path=Path(properties.INGEST_DIR)
+        self.input_path=Path(properties.STAGING_DIRECTORY)
         self.input_file=input_file
         self.output_path = output_path
         self.full_input_path=self.input_path.joinpath(self.input_file)

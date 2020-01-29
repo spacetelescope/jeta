@@ -42,7 +42,7 @@ CACHE = False
 SKA = os.getenv('SKA') or '/proj/sot/ska'
 ENG_ARCHIVE = os.getenv('ENG_ARCHIVE') or SKA + '/data/eng_archive'
 IGNORE_COLNAMES = ('TIME', 'MJF', 'MNF', 'TLM_FMT')
-DIR_PATH = os.path.dirname(os.path.abspath(__file__))
+DIR_PATH = os.environ['JETA_SCRIPTS']
 
 # Dates near the start of 2000 that demarcates the split between the 1999 data
 # and post-2000 data.  The 1999 data goes out to at least 2000:005:13:00:00,
@@ -188,26 +188,6 @@ class _DataSource(object):
 
 # Public interface is a "data_source" module attribute
 data_source = _DataSource
-
-
-def read_stats_file(mnemonic, interval):
-
-    import h5py
-
-    ft['msid'] = mnemonic
-    ft['interval'] = interval
-
-    filename = msid_files['stats'].abs
-
-    with h5py.File(filename, 'r') as h5:
-        stats = h5['data'][:].tolist()
-        min = h5['data']['min'].tolist()
-        mean = h5['data']['mean'].tolist()
-        max = h5['data']['max'].tolist()
-        tstart = h5['data']['index'].tolist()
-        h5.close()
-
-    return stats, (tstart, min, mean, max)
 
 
 def local_or_remote_function(remote_print_output):
@@ -1977,7 +1957,8 @@ def get_time_range(msid, format=None):
         try:
             tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1]
         except Exception as err:
-            tstop = None
+            tstop = tstart
+            #raise
 
         index_h5.close()
         times_h5.close()
@@ -1987,32 +1968,12 @@ def get_time_range(msid, format=None):
             if tstop is not None:
                 tstop = Time(tstop, format='jd').iso
 
+        if format == 'date':
+            tstart = Time(tstart, format='jd').yday
+            if tstop is not None:
+                tstop = Time(tstop, format='jd', out_subfmt='date_hms').yday
+
         return tstart, tstop
-
-        ############################
-
-    #     @local_or_remote_function("Getting time range from Ska eng archive server...")
-    #     def get_time_data_from_server(filename):
-    #         import tables
-    #         open_file = getattr(tables, 'open_file', None) or tables.openFile
-    #         h5 = open_file(os.path.join(*filename))
-    #         tstart = h5.root.data[0]
-    #         tstop = h5.root.data[-1]
-    #         h5.close()
-    #         return tstart, tstop
-
-    #     if filename in CONTENT_TIME_RANGES:
-    #         tstart, tstop = CONTENT_TIME_RANGES[filename]
-    #     else:
-    #         tstart, tstop = get_time_data_from_server(_split_path(filename))
-    #         CONTENT_TIME_RANGES[filename] = (tstart, tstop)
-
-    # if format is not None:
-    #     tstart = getattr(DateTime(tstart), format)
-    #     tstop = getattr(DateTime(tstop), format)
-    # return tstart, tstop
-
-    # return ""
 
 
 def get_telem(msids, start=None, stop=None, sampling='full', unit_system='eng',

@@ -1,4 +1,12 @@
-CREATE TABLE archfiles (
+CREATE TABLE IF NOT EXISTS initialized_mnemonics (
+
+  mnemonic        text not null,
+  initialized     int,
+
+  CONSTRAINT pk_initialized_mnemonics PRIMARY KEY (mnemonic)
+);
+
+CREATE TABLE IF NOT EXISTS archfiles (
   filename        text not null,
   filetime        int,
   year            int,
@@ -14,4 +22,4 @@ CREATE TABLE archfiles (
   CONSTRAINT pk_archfiles PRIMARY KEY (filename)
 );
 
-CREATE INDEX idx_archfiles_filetime ON archfiles (filetime);
+CREATE INDEX IF NOT EXISTS idx_archfiles_filetime ON archfiles (filetime);

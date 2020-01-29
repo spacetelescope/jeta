@@ -10,7 +10,7 @@ import tables3_api
 
 import pyyaks.logger
 
-ROOT_DIR =  "/Users/dkauffman/Projects/jSka/jeta/data/tlm"
+ROOT_DIR = f"{os.environ['TELEMETRY_ARCHIVE']}tlm"
 
 loglevel = pyyaks.logger.VERBOSE
 logger = pyyaks.logger.get_logger(name='jskaarchive', level=loglevel,
@@ -53,6 +53,7 @@ class DataProduct:
 
         return str(filedir+"/"+mnemonic)
 
+
     @staticmethod
     def get_file_write_path(fullpath, mnemonic, h5type=None):
 
@@ -85,6 +86,7 @@ class DataProduct:
             raise ValueError('Error: Invalid filetype. Must be values, times or index.')
 
         return filepath
+
 
     @staticmethod
     def create_values_hdf5(mnemonic, data, fullpath):
@@ -136,6 +138,7 @@ class DataProduct:
 
             return h5, fullpath
 
+
     @staticmethod
     def create_times_hdf5(mnemonic, data, fullpath):
 
@@ -173,17 +176,12 @@ class DataProduct:
 
 
     @staticmethod
-    def get_index_file_length(mnemonic):
-        pass
-
-
-    @staticmethod
     def get_archive_file_length(parent_directory, mnemonic):
 
         file_length = 0
 
         #fullpath = DataProduct.get_file_write_path(parent_directory , mnemonic, 'values')
-        fullpath = f'/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/values.h5'
+        fullpath = f'{os.environ["TELEMETRY_ARCHIVE"]}tlm/{mnemonic}/values.h5'
 
         if os.path.exists(fullpath):
             h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="r")
@@ -211,7 +209,7 @@ class DataProduct:
         return last_known_epoch
 
     @staticmethod
-    def touch_index(archive_root, mnemonic, idx=None, epoch=None):
+    def init_mnemonic_index_file(archive_root, mnemonic, idx=None, epoch=None):
 
         fullpath = os.path.join(archive_root, 'tlm', mnemonic, 'index.h5')
 
@@ -225,7 +223,7 @@ class DataProduct:
 
             try:
                 table = h5.create_table(h5.root, 'epoch', Epoch)
-            except:
+            except Exception as err:
                 table = h5.root.epoch
             finally:
                 table.row['index'] = idx

@@ -57,7 +57,7 @@ logger.propagate = False
 
 # This is effectively a singleton class
 SYSTEMS = set(('cxc', 'eng', 'sci'))
-module_dir = os.path.dirname(__file__)
+module_dir = os.environ['JETA_SCRIPTS']  # os.path.dirname(__file__)
 
 units = {}
 units['system'] = 'cxc'

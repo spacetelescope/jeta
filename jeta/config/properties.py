@@ -10,9 +10,9 @@ def get_env_variable(var_name):
         raise ImproperlyConfigured(message)
 
 
-INGEST_DIR=get_env_variable('JSKA_INGEST_DIR')
-ARCHIVE_DIR=get_env_variable('JSKA_ARCHIVE_DIR')
+STAGING_DIRECTORY=get_env_variable('STAGING_DIRECTORY')
 
+# FOF file columns from which to parse data.
 NAME_COLUMN=get_env_variable('NAME_COLUMN')
 TIME_COLUMN=get_env_variable('TIME_COLUMN')
 VALUE_COLUMN=get_env_variable('VALUE_COLUMN')
