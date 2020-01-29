@@ -42,7 +42,7 @@ CACHE = False
 SKA = os.getenv('SKA') or '/proj/sot/ska'
 ENG_ARCHIVE = os.getenv('ENG_ARCHIVE') or SKA + '/data/eng_archive'
 IGNORE_COLNAMES = ('TIME', 'MJF', 'MNF', 'TLM_FMT')
-DIR_PATH = os.path.dirname(os.path.abspath(__file__))
+DIR_PATH = os.environ['JETA_SCRIPTS']
 
 # Dates near the start of 2000 that demarcates the split between the 1999 data
 # and post-2000 data.  The 1999 data goes out to at least 2000:005:13:00:00,

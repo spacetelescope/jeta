@@ -10,35 +10,17 @@ services:
         ARG_VERSION_PATCH: ${VERSION_PATCH}
         ARG_RELEASE: ${RELEASE}
     restart: always
-    # image: bytesalad.stsci.edu/dms-containers/omnitools:${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}-${RELEASE}
     volumes:
-      - type: bind
-        source: ${KEYTAB_FILE}
-        target: ${KEYTAB_FILE}
-        read_only: "true"
       - type: bind
         source: ${TELEMETRY_ARCHIVE}
         target: /srv/telemetry/archive/
       - type: bind
-        source: ${TELEMETRY_ARCHIVE}
+        source: ${STAGING_DIRECTORY}
         target: /srv/telemetry/staging/
-      # - type: bind
-      #   source: ${DEFAULT_DATABASE_FILE}
-      #   target: /srv/api/raven/db.sqlite3
-      # - type: bind
-      #   source: ${KRB5_CONF}
-      #   target: /etc/krb5.conf
-      #   read_only: "true"
-    ports:
-      - "${HOST_PORT}:2020"
     environment:
       - "WORKERS=${WORKERS}"
-      # - "WEB_ROOT=${WEB_ROOT}"
-      # - "KEYTAB_FILE=${KEYTAB_FILE}"
-      # - "SECRET_KEY=${SECRET_KEY}"
-      # - "DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}"
-# networks:
-#   default:
-#     ipam:
-#       config:
-#         - subnet: ${NETWORK_SUBNET}
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${NETWORK_SUBNET}

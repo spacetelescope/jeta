@@ -29,6 +29,7 @@ dev_utils/l0_5icd.pdf
 dev_utils/memleak.py
 recovery
 .env
+jeta.egg-info
 
 # Python
 *.pyc

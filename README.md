@@ -28,3 +28,5 @@ celery -A jeta.ingest.controller flower --loglevel=info
 
 # Initialize the archive
 python run.py --create
+
+docker-compose run jska

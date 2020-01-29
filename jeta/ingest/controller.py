@@ -57,13 +57,13 @@ def _execute_ingest_task(ingest_file_list):
 def _append_data_to_jeta_archive(mnemonic, data, times):
 
         try:
-            h5 = tables.open_file(f"/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/times.h5", mode='a')
+            h5 = tables.open_file(f"{os.environ['TELEMETRY_ARCHIVE']}tlm/{mnemonic}/times.h5", mode='a')
             times_array = np.array(times, dtype='f8')
             h5.root.time.append(times_array)
 
             h5.close()
 
-            h5 = tables.open_file(f"/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/values.h5", mode='a')
+            h5 = tables.open_file(f"{os.environ['TELEMETRY_ARCHIVE']}tlm/{mnemonic}/values.h5", mode='a')
             eu_values_array = np.array(data, dtype='U8')
             h5.root.data.append(eu_values_array)
 
@@ -104,8 +104,8 @@ def get_mnemonic_init_list(ingest):
 def init_mnemonic_fileset(mnemonic, ingest):
 
     # FIXME: Replace hard coded paths with template
-    init_values_file(mnemonic, ingest.data, f"/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/values.h5")
-    init_times_file(mnemonic, ingest.data, f"/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/times.h5")
+    init_values_file(mnemonic, ingest.data, f"{os.environ['TELEMETRY_ARCHIVE']}tlm/{mnemonic}/values.h5")
+    init_times_file(mnemonic, ingest.data, f"{os.environ['TELEMETRY_ARCHIVE']}tlm/{mnemonic}/times.h5")
 
 
 def record_mnemonic_as_initialized(mnemonic):

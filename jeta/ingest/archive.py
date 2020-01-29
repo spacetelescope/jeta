@@ -10,7 +10,7 @@ import tables3_api
 
 import pyyaks.logger
 
-ROOT_DIR =  "/Users/dkauffman/Projects/jSka/jeta/data/tlm"
+ROOT_DIR = f"{os.environ['TELEMETRY_ARCHIVE']}tlm"
 
 loglevel = pyyaks.logger.VERBOSE
 logger = pyyaks.logger.get_logger(name='jskaarchive', level=loglevel,
@@ -181,7 +181,7 @@ class DataProduct:
         file_length = 0
 
         #fullpath = DataProduct.get_file_write_path(parent_directory , mnemonic, 'values')
-        fullpath = f'/Users/dkauffman/Projects/jSka/jeta/data/tlm/{mnemonic}/values.h5'
+        fullpath = f'{os.environ["TELEMETRY_ARCHIVE"]}tlm/{mnemonic}/values.h5'
 
         if os.path.exists(fullpath):
             h5 = tables.open_file(str(fullpath), driver="H5FD_CORE", mode="r")
