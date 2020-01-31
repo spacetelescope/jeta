@@ -4,7 +4,7 @@ import h5py
 import pandas as pd
 
 
-from ..core.exceptions import StrategyNotImplemented
+from jeta.core.exceptions import StrategyNotImplemented
 
 
 class LoadStrategy(object):
