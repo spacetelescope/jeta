@@ -124,7 +124,7 @@ PyYAML==5.1
 pyzmq==17.0.0
 Quaternion==3.4.1
 redis==2.10.6
-requests==2.19.1
+requests==2.20.0
 retrying==1.3.3
 rtcat-sphinx-theme==0.1.1
 scipy==1.1.0
