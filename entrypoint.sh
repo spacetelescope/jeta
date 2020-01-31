@@ -21,6 +21,13 @@ cd /srv/jeta/code/;
 source activate ska3;
 python setup.py install
 
+cd /srv/jeta/api
+pip install -r requirements.txt
+
+cd /srv/jeta/requirements
+# TODO: Make this variable.
+pip install -r production.txt
+
 # ---------------------------------------------------------------------------
 # configure supervisor
 #-------------------------------------------------------------------------------
@@ -30,11 +37,20 @@ nodaemon=true
 logfile=/tmp/supervisord.log
 pidfile=/tmp/supervisord.pid
 
+[program:jeta]
+directory=/srv/jeta/api
+command=gunicorn --pid /srv/jeta/raven.pid --bind 0.0.0.0:9232 -w 2 -e DJANGO_SETTINGS_MODULE="config.settings.base" --access-logfile - --error-logfile - --log-level trace config.wsgi:application
+stdout_logfile=/srv/jeta/log/raven.log
+stdout_logfile_maxbytes=0
+stderr_logfile=/srv/jeta/log/raven.err
+stderr_logfile_maxbytes=0
+
+END
 
 #-------------------------------------------------------------------------------
 # Cleanup stale Web API data and start supervisord
 #-------------------------------------------------------------------------------
-# rm -f /srv/api/raven/raven.pid
+rm -f /srv/jeta/raven.pid
 # python manage.py collectstatic --no-input --link --clear
 if test -t 0; then
     /usr/bin/supervisord -c /etc/supervisord.conf &
@@ -47,6 +63,6 @@ else
     /usr/bin/supervisord -c /etc/supervisord.conf
 fi
 
-END
+
 
 tail -f /dev/null

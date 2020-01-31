@@ -9,6 +9,9 @@ services:
         ARG_VERSION_MINOR: ${VERSION_MINOR}
         ARG_VERSION_PATCH: ${VERSION_PATCH}
         ARG_RELEASE: ${RELEASE}
+        ARG_NAME_COLUMN: ${NAME_COLUMN}
+        ARG_TIME_COLUMN: ${TIME_COLUMN}
+        ARG_VALUE_COLUMN: ${VALUE_COLUMN}
     restart: always
     volumes:
       - type: bind
@@ -17,6 +20,8 @@ services:
       - type: bind
         source: ${STAGING_DIRECTORY}
         target: /srv/telemetry/staging/
+    ports:
+      - "9232:9232"
     environment:
       - "WORKERS=${WORKERS}"
 networks:
