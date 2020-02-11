@@ -21,6 +21,7 @@ setup(
         'jeta.ingest',
         'jeta.tests',
         ]),
+    py_modules=['jeta.archive.version'],
     scripts=[
         'scripts/sql/create.archive.meta.sql'
     ],

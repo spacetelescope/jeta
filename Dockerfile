@@ -1,6 +1,8 @@
-FROM debian
+FROM debian:10
+LABEL author='David Kauffman <dkauffman@stsci.edu>'
 
 # Conda Setup Environment Variables
+ENV DISPLAY=${ARG_DISPLAY}
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV CONDA_ROOT=/opt/conda
 ENV SKA_ENV=ska3
@@ -14,9 +16,12 @@ ARG ARG_VALUE_COLUMN
 ENV NAME_COLUMN=${NAME_COLUMN}
 ENV TIME_COLUMN=${TIME_COLUMN}
 ENV VALUE_COLUMN=${VALUE_COLUMN}
+ENV QT_QPA_PLATFORM=offscreen
+ENV MPLBACKEND=Qt5Agg
+#
 
 # Raven Variables
-ENV RAVEN_SECRET_KEY=tukghb97t86tuvg9768idtucgkjvhl7tiftukvu76idtut6oe57dlf
+ENV RAVEN_SECRET_KEY=${ARG_RAVEN_SECRET_KEY}
 
 # Archive Environment Variables
 ENV ENG_ARCHIVE=/srv/telemetry/archive
@@ -35,7 +40,13 @@ RUN set -x \
         curl \
         supervisor \
         ipython \
+        python3-matplotlib \
+        libqt5gui5 \
+        python3-pyqt4 \
+        npm \
+        nodejs \
     && apt-get clean
+
 
 # Install required version of conda for the ska3 build script
 RUN set -x \
@@ -46,15 +57,16 @@ RUN set -x \
     && echo 'export PATH='${CONDA_ROOT}'/bin:$PATH' >>/etc/profile
 
 # Install ska3
-# Warning: this URL is out of our control
+# Warning: this URL is out of our control https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda/linux-64/repodata.json
 RUN set -x \
-    && conda create -n ${SKA_ENV} -c http://cxc.cfa.harvard.edu/mta/ASPECT/ska3-conda --yes ska3-flight
+    && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight
 
 # Create project directories
 RUN set -x \
     && mkdir -p /srv/jeta/code \
     && mkdir -p /srv/jeta/log \
-    && mkdir -p /srv/jeta/api
+    && mkdir -p /srv/jeta/api \
+    && mkdir -p /srv/jeta/jupyter
 
 # Create dummy log file for testing
 RUN touch /srv/jeta/log/tail.log;
@@ -76,7 +88,18 @@ RUN set -x \
 
 # Set CWD to service root directory (useful with attaching shell)
 WORKDIR /srv/jeta/
+
 # Expose the port for raven
 EXPOSE 9293
+
+# jupyter notebook
+EXPOSE 2150
+
+# jupyterlab
+EXPOSE 2151
+
+# jupyterhub
+EXPOSE 8080
+
 
 ENTRYPOINT ["/entrypoint.sh"]
