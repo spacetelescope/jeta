@@ -32,9 +32,6 @@ pip install -r production.txt
 set -x &&  touch /etc/profile.d/jska_login.sh;
 set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/ska3/lib/fonts;
 
-#
-# set -x && npm install -g configurable-http-proxys;
-
 
 echo "source activate ska3;" >> /etc/profile.d/jska_login.sh;
 

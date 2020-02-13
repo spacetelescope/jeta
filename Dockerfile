@@ -11,6 +11,7 @@ ENV PATH=${CONDA_ROOT}/env/${SKA_ENV}/bin:${CONDA_ROOT}/bin:${PATH}
 ARG ARG_NAME_COLUMN
 ARG ARG_TIME_COLUMN
 ARG ARG_VALUE_COLUMN
+ARG ARG_RAVEN_SECRET_KEY
 
 # Special Test Case Variables
 ENV NAME_COLUMN=${NAME_COLUMN}
@@ -47,6 +48,7 @@ RUN set -x \
         nodejs \
     && apt-get clean
 
+RUN set -x && npm install -g configurable-http-proxy
 
 # Install required version of conda for the ska3 build script
 RUN set -x \
@@ -66,7 +68,7 @@ RUN set -x \
     && mkdir -p /srv/jeta/code \
     && mkdir -p /srv/jeta/log \
     && mkdir -p /srv/jeta/api \
-    && mkdir -p /srv/jeta/jupyter
+    && mkdir -p /srv/jupyter
 
 # Create dummy log file for testing
 RUN touch /srv/jeta/log/tail.log;

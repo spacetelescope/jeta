@@ -14,7 +14,7 @@ services:
         ARG_TIME_COLUMN: ${TIME_COLUMN}
         ARG_VALUE_COLUMN: ${VALUE_COLUMN}
         ARG_DISPLAY: host.docker.internal:0
-        ARG_RAVEN_SECRET_KEY: ${ARG_RAVEN_SECRET_KEY}
+        ARG_RAVEN_SECRET_KEY: ${RAVEN_SECRET_KEY}
     restart: always
     volumes:
       - type: bind
