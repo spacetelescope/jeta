@@ -85,7 +85,7 @@ numexpr==2.6.5
 numpy==1.14.5
 packaging==18.0
 pandas==0.23.1
-paramiko==2.4.1
+paramiko==2.4.2
 parso==0.2.1
 pbr==5.4.3
 pexpect==4.6.0
