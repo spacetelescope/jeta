@@ -1,9 +1,10 @@
-version: '3.2'
+version: '3.4'
 
 services:
   jska:
     build:
       context: .
+      # target: prod
       args:
         ARG_VERSION_MAJOR: ${VERSION_MAJOR}
         ARG_VERSION_MINOR: ${VERSION_MINOR}
@@ -12,6 +13,8 @@ services:
         ARG_NAME_COLUMN: ${NAME_COLUMN}
         ARG_TIME_COLUMN: ${TIME_COLUMN}
         ARG_VALUE_COLUMN: ${VALUE_COLUMN}
+        ARG_DISPLAY: host.docker.internal:0
+        ARG_RAVEN_SECRET_KEY: ${RAVEN_SECRET_KEY}
     restart: always
     volumes:
       - type: bind
@@ -22,6 +25,8 @@ services:
         target: /srv/telemetry/staging/
     ports:
       - "9232:9232"
+      - "2150:2150"
+      - "2151:2151"
     environment:
       - "WORKERS=${WORKERS}"
 networks:
