@@ -30,9 +30,11 @@ dev_utils/memleak.py
 recovery
 .env
 jeta.egg-info
+linux_deploy.sh
 
 # Python
 *.pyc
 
 # vscode
 .vscode/
+
