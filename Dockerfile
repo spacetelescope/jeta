@@ -19,7 +19,6 @@ ENV TIME_COLUMN=${TIME_COLUMN}
 ENV VALUE_COLUMN=${VALUE_COLUMN}
 ENV QT_QPA_PLATFORM=offscreen
 ENV MPLBACKEND=Qt5Agg
-#
 
 # Raven Variables
 ENV RAVEN_SECRET_KEY=${ARG_RAVEN_SECRET_KEY}
@@ -42,6 +41,7 @@ RUN set -x \
         supervisor \
         ipython \
         python3-matplotlib \
+        python3-pip \
         libqt5gui5 \
         python3-pyqt4 \
         npm \
@@ -49,6 +49,8 @@ RUN set -x \
     && apt-get clean
 
 RUN set -x && npm install -g configurable-http-proxy
+
+RUN set -x && pip3 install jupyterhub jupyterlab ipywidgets
 
 # Install required version of conda for the ska3 build script
 RUN set -x \
@@ -67,8 +69,20 @@ RUN set -x \
 RUN set -x \
     && mkdir -p /srv/jeta/code \
     && mkdir -p /srv/jeta/log \
-    && mkdir -p /srv/jeta/api \
-    && mkdir -p /srv/jupyter
+    && mkdir -p /srv/jeta/api
+
+# Create JupyterHub JupyterLab Directories
+RUN set -x \
+        && mkdir -p /opt/jupyterhub/etc/jupyterhub/ \
+        && mkdir -p /opt/jupyterhub/etc/systemd \
+        && mkdir -p /srv/jeta/jupyter \
+        && mkdir -p /srv/jupyterhub
+
+
+RUN set -x && cd /srv/jupyterhub \
+    && jupyterhub --generate-config;
+
+RUN echo "c.Spawner.default_url = '/lab'" >> /srv/jupyterhub/jupyterhub_config.py;
 
 # Create dummy log file for testing
 RUN touch /srv/jeta/log/tail.log;
@@ -101,7 +115,7 @@ EXPOSE 2150
 EXPOSE 2151
 
 # jupyterhub
-EXPOSE 8080
+EXPOSE 8000
 
 
 ENTRYPOINT ["/entrypoint.sh"]

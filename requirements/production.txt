@@ -14,4 +14,4 @@ jupyter
 jupyterlab
 jupyterhub
 pympl
-
+ipywidgets

@@ -33,6 +33,8 @@ set -x &&  touch /etc/profile.d/jska_login.sh;
 set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/ska3/lib/fonts;
 
 
+
+
 echo "source activate ska3;" >> /etc/profile.d/jska_login.sh;
 
 # ---------------------------------------------------------------------------
@@ -69,12 +71,13 @@ stderr_logfile=/srv/jeta/log/jupyterlab.err
 stderr_logfile_maxbytes=0
 
 [program:jupyterhub]
-directory=/srv/jeta/jupyter
-command=jupyter lab --no-browser --ip=0.0.0.0 --port=8080 --allow-root --NotebookApp.token='' --NotebookApp.password=''
+directory=/srv/jupyterhub
+command=jupyterhub -f /srv/jupyterhub/jupyterhub_config.py --no-browser --ip=0.0.0.0 --port=8000 --allow-root --NotebookApp.token='' --NotebookApp.password=''
 stdout_logfile=/srv/jeta/log/jupyterhub.log
 stdout_logfile_maxbytes=0
 stderr_logfile=/srv/jeta/log/jupyterhub.err
 stderr_logfile_maxbytes=0
+WantedBy=multi-user.target
 
 
 END
