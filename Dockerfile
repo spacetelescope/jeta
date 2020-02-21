@@ -48,9 +48,6 @@ RUN set -x \
         nodejs \
     && apt-get clean
 
-RUN set -x && npm install -g configurable-http-proxy
-
-RUN set -x && pip3 install jupyterhub jupyterlab ipywidgets
 
 # Install required version of conda for the ska3 build script
 RUN set -x \
@@ -72,20 +69,11 @@ RUN set -x \
     && mkdir -p /srv/jeta/api
 
 # Create JupyterHub JupyterLab Directories
-RUN set -x \
-        && mkdir -p /opt/jupyterhub/etc/jupyterhub/ \
-        && mkdir -p /opt/jupyterhub/etc/systemd \
-        && mkdir -p /srv/jeta/jupyter \
-        && mkdir -p /srv/jupyterhub
-
-
-RUN set -x && cd /srv/jupyterhub \
-    && jupyterhub --generate-config;
-
-RUN echo "c.Spawner.default_url = '/lab'" >> /srv/jupyterhub/jupyterhub_config.py;
-
-# Create dummy log file for testing
-RUN touch /srv/jeta/log/tail.log;
+# RUN set -x \
+#         && mkdir -p /opt/jupyterhub/etc/jupyterhub/ \
+#         && mkdir -p /opt/jupyterhub/etc/systemd \
+#         && mkdir -p /srv/jeta/jupyter \
+#         && mkdir -p /srv/jupyterhub
 
 # Copy source code into container
 COPY jeta /srv/jeta/code/jeta
@@ -108,14 +96,8 @@ WORKDIR /srv/jeta/
 # Expose the port for raven
 EXPOSE 9293
 
-# jupyter notebook
-EXPOSE 2150
-
-# jupyterlab
-EXPOSE 2151
-
 # jupyterhub
-EXPOSE 8000
+EXPOSE 5050
 
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -23,10 +23,12 @@ services:
       - type: bind
         source: ${STAGING_DIRECTORY}
         target: /srv/telemetry/staging/
+      - type: bind
+        source: ${JUPYTERHUB_CONFIG_DIRECTORY}
+        target: /srv/jupyterhub/config/
     ports:
       - "9232:9232"
-      - "2150:2150"
-      - "2151:2151"
+      - "5050:5050"
     environment:
       - "WORKERS=${WORKERS}"
 networks:
