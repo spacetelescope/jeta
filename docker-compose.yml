@@ -29,6 +29,9 @@ services:
       - type: bind
         source: ${JUPYTERHUB_LOG_DIRECTORY}
         target: /srv/jeta/log/
+      - type: bind
+        source: ${JUPYTERHUB_USER_SPACE}
+        target: /home
     ports:
       - "9232:9232"
       - "5050:5050"
