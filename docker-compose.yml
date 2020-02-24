@@ -26,6 +26,9 @@ services:
       - type: bind
         source: ${JUPYTERHUB_CONFIG_DIRECTORY}
         target: /srv/jupyterhub/config/
+      - type: bind
+        source: ${JUPYTERHUB_LOG_DIRECTORY}
+        target: /srv/jeta/log/
     ports:
       - "9232:9232"
       - "5050:5050"
