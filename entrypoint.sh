@@ -29,6 +29,7 @@ set -x && pip install jupyterhub;
 set -x && pip install jhub_remote_user_authenticator;
 set -x && conda install -c conda-forge configurable-http-proxy;
 set -x && conda install notebook;
+set -x && conda install -c conda-forge jupyterlab;
 # set -x && conda install ipywidgets;
 
 # set -x && cd /srv/jupyterhub/config && yes Y | jupyterhub --generate-config
