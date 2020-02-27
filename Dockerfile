@@ -1,4 +1,5 @@
-FROM debian:10
+#FROM debian:10
+FROM jupyterhub/jupyterhub
 LABEL author='David Kauffman <dkauffman@stsci.edu>'
 
 # Conda Setup Environment Variables
@@ -31,6 +32,7 @@ ENV STAGING_DIRECTORY="${ENG_ARCHIVE}/stage/"
 # JETA Environment Variables
 ENV JETA_SCRIPTS=/srv/jeta/code/scripts
 ENV ARCHIVE_DEFINITION_SOURCE="${JETA_SCRIPTS}/sql/create.archive.meta.sql"
+
 
 # Install core system packages
 RUN set -x \
