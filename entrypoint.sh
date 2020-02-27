@@ -19,6 +19,7 @@ echo "INFO: initializing user packages..."
 
 cd /srv/jeta/code/;
 source activate ska3;
+set -x && conda install -c conda-forge jupyterlab;
 python setup.py install
 
 cd /srv/jeta/api
