@@ -19,7 +19,6 @@ echo "INFO: initializing user packages..."
 
 cd /srv/jeta/code/;
 source activate ska3;
-set -x && conda install -c conda-forge jupyterlab;
 python setup.py install
 
 cd /srv/jeta/api
@@ -31,6 +30,10 @@ set -x && pip install jhub_remote_user_authenticator;
 set -x && conda install -c conda-forge configurable-http-proxy;
 set -x && conda install notebook;
 set -x && conda install -c conda-forge jupyterlab;
+
+set -x && jupyter serverextension enable --py jupyterlab --sys-prefix
+set -x && jupyter labextension install @jupyterlab/hub-extension
+set -x && jupyter lab build
 # set -x && conda install ipywidgets;
 
 # set -x && cd /srv/jupyterhub/config && yes Y | jupyterhub --generate-config
