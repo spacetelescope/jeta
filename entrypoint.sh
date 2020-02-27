@@ -31,9 +31,6 @@ set -x && conda install -c conda-forge configurable-http-proxy;
 set -x && conda install notebook;
 set -x && conda install -c conda-forge jupyterlab;
 
-set -x && jupyter serverextension enable --py jupyterlab --sys-prefix
-set -x && jupyter labextension install @jupyterlab/hub-extension
-set -x && jupyter lab build
 # set -x && conda install ipywidgets;
 
 # set -x && cd /srv/jupyterhub/config && yes Y | jupyterhub --generate-config
