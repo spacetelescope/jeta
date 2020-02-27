@@ -113,6 +113,9 @@ fi
 source deactivate
 
 pip install jhub_remote_user_authenticator;
+pip install notebook;
+pip install jupyterlab;
+
 #pip install jupyterhub-dummyauthenticator;
 
 cd /srv/jupyterhub;
