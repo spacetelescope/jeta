@@ -14,7 +14,7 @@
 ## jupyterlab
 ## jupyterhub
 ## pympl
-## ipywidgets
+ipywidgets
 
 alembic==1.4.0
 appnope==0.1.0

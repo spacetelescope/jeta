@@ -29,6 +29,7 @@ set -x && conda install -c conda-forge configurable-http-proxy;
 set -x && pip install jupyterhub==1.1.0
 set -x && pip install jupyterlab==1.2.6
 set -x && jupyter labextension install -y @jupyterlab/hub-extension
+set -x && jupyter labextension install -y @jupyter-widgets/jupyterlab-manager
 set -x && jupyter lab build
 
 set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/ska3/lib/fonts;
