@@ -1,11 +1,12 @@
-#FROM debian:10
-FROM jupyterhub/jupyterhub
+FROM debian:10
+# FROM jupyterhub/jupyterhub
 LABEL author='David Kauffman <dkauffman@stsci.edu>'
 
 # Conda Setup Environment Variables
 ENV DISPLAY=${ARG_DISPLAY}
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV CONDA_ROOT=/opt/conda
+# ENV CONDA_ROOT=/usr/local/
 ENV SKA_ENV=ska3
 ENV PATH=${CONDA_ROOT}/env/${SKA_ENV}/bin:${CONDA_ROOT}/bin:${PATH}
 
@@ -32,7 +33,6 @@ ENV STAGING_DIRECTORY="${ENG_ARCHIVE}/stage/"
 # JETA Environment Variables
 ENV JETA_SCRIPTS=/srv/jeta/code/scripts
 ENV ARCHIVE_DEFINITION_SOURCE="${JETA_SCRIPTS}/sql/create.archive.meta.sql"
-
 
 # Install core system packages
 RUN set -x \
@@ -63,6 +63,7 @@ RUN set -x \
 # Warning: this URL is out of our control https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda/linux-64/repodata.json
 RUN set -x \
     && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight
+    # && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight
 
 # Create project directories
 RUN set -x \
