@@ -229,11 +229,10 @@ def main():
     Perform one full update of the eng archive based on opt parameters.
     This may be called in a loop by the program-level main().
     """
-    logger.info('Run time options: \n{}'.format(opt))
+    logger.info('Runtime options: \n{}'.format(opt))
     logger.info('Update Module: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch Module: {}'.format(os.path.abspath(fetch.__file__)))
-    logger.info('========================================')
-    logger.info(f'Begun The Ingest Has @ {datetime.now()}')
+    logger.info('Syncing telemetry archive ...')
 
     # Get the archive content filetypes
     # Ex. filetypes = [('TELEM', 'TLM')]
@@ -292,7 +291,7 @@ def main():
                 msid = update_stats(colname, 'daily')
                 update_stats(colname, '5min', msid)
 
-        logger.info(f' INFO: Archive Update Process Complete.')
+        logger.info(f'SUCCESS: Telemetry Archive Sync Complete.')
 
 
 def fix_misorders(filetype):
@@ -1093,6 +1092,7 @@ def move_archive_files(filetype, processed_ingest_files):
 
     for ingest_file in processed_ingest_files:
         tar.add(ingest_file)
+        os.remove(ingest_file)
 
     tar.close()
     os.rename(tarfile_name, f"{msid_files['processed_files_directory'].abs}/{tarfile_name}")
@@ -1105,11 +1105,11 @@ def get_archive_files(filetype):
     files = []
 
     staging_directory = get_env_variable('STAGING_DIRECTORY')
-    logger.info(f"Starting legacy ingest file discovery in {staging_directory} ... ")
+    logger.info(f"Starting legacy file discovery in {staging_directory} ... ")
     files.extend(sorted(glob.glob(f"{staging_directory}*.{opt.ingest_file_format}")))
 
-    logger.info(f"Discovered: {len(files)} in {staging_directory} ...")
-    logger.info(f"Files discovered: {files}")
+    logger.info(f"{len(files)} file(s) staged in {staging_directory} ...")
+    # logger.info(f"Files discovered: {files}")
 
     return files
 

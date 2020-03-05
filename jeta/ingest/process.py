@@ -11,7 +11,6 @@ import pandas as pd
 from astropy.time import Time
 
 from .archive import DataProduct
-from .archive import ROOT_MNEMONIC_DIRECTORY
 
 from .strategy import LoadPandasCSVStrategy
 from .strategy import LoadPythonCSVStrategy
@@ -160,8 +159,8 @@ class Ingest:
             self.data[mnemonic] = {
                 'times': self.get_delta_times(mnemonic, epoch),
                 'values': np.array(self.values[mnemonic]),
-                'index': self.indices[mnemonic],
-                'parent_directory': f"{ROOT_MNEMONIC_DIRECTORY}/{mnemonic}"
+                'index': self.indices[mnemonic]
+                # 'parent_directory': f"{ROOT_MNEMONIC_DIRECTORY}/{mnemonic}"
             }
 
         return self
