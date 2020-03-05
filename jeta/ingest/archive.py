@@ -10,16 +10,16 @@ import tables3_api
 
 import pyyaks.logger
 
-ROOT_DIR = f"{os.environ['TELEMETRY_ARCHIVE']}tlm"
-
 loglevel = pyyaks.logger.VERBOSE
 logger = pyyaks.logger.get_logger(name='jskaarchive', level=loglevel,
                                   format="%(asctime)s %(message)s")
+
 
 class Epoch(IsDescription):
 
     index = UInt64Col()
     epoch = Float64Col()
+
 
 class DataProduct:
 

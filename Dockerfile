@@ -28,7 +28,7 @@ ENV RAVEN_SECRET_KEY=${ARG_RAVEN_SECRET_KEY}
 # Archive Environment Variables
 ENV ENG_ARCHIVE=/srv/telemetry/archive
 ENV TELEMETRY_ARCHIVE="${ENG_ARCHIVE}/data/"
-ENV STAGING_DIRECTORY="${ENG_ARCHIVE}/stage/"
+ENV STAGING_DIRECTORY="${ENG_ARCHIVE}/staging/"
 
 # JETA Environment Variables
 ENV JETA_SCRIPTS=/srv/jeta/code/scripts

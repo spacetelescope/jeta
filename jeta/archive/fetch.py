@@ -29,6 +29,7 @@ from jeta.archive import file_defs
 from jeta.archive.units import Units
 from jeta.archive import cache
 from jeta.archive import remote_access
+from jeta.archive.utils import get_env_variable
 from jeta.version import __version__, __git_version__
 
 from Chandra.Time import DateTime
@@ -39,10 +40,11 @@ UNITS = Units(system='cxc')
 # Module-level control of whether MSID.fetch will cache the last 30 results
 CACHE = False
 
-SKA = os.getenv('SKA') or '/proj/sot/ska'
-ENG_ARCHIVE = os.getenv('ENG_ARCHIVE') or SKA + '/data/eng_archive'
+ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
+JETA_SCRIPTS = get_env_variable('JETA_SCRIPTS')
+
 IGNORE_COLNAMES = ('TIME', 'MJF', 'MNF', 'TLM_FMT')
-DIR_PATH = os.environ['JETA_SCRIPTS']
+
 
 # Dates near the start of 2000 that demarcates the split between the 1999 data
 # and post-2000 data.  The 1999 data goes out to at least 2000:005:13:00:00,
@@ -275,7 +277,7 @@ msid_files.update(file_defs.msid_files)
 # Module-level values defining available content types and column (MSID) names.
 # Then convert from astropy Table to recarray for API stability.
 # Note that filetypes.as_array().view(np.recarray) does not quite work...
-filetypes = ascii.read(os.path.join(DIR_PATH, 'filetypes.dat'))
+filetypes = ascii.read(os.path.join(JETA_SCRIPTS, 'filetypes.dat'))
 filetypes_arr = filetypes.as_array()
 filetypes = np.recarray(len(filetypes_arr), dtype=filetypes_arr.dtype)
 filetypes[()] = filetypes_arr
@@ -379,7 +381,7 @@ def read_bad_times(table):
 
 # Set up bad times dict
 msid_bad_times = dict()
-read_bad_times(os.path.join(DIR_PATH, 'msid_bad_times.dat'))
+read_bad_times(os.path.join(JETA_SCRIPTS, 'msid_bad_times.dat'))
 
 
 def msid_glob(msid):
