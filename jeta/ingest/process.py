@@ -62,14 +62,6 @@ class Ingest:
 
             return np.diff(np.insert(jd_times, 0, self.time_to_quadtime(epoch)))
 
-    def init_times(self, row):
-
-        if self.tstart is None:
-
-            start_time = row[properties.TIME_COLUMN].replace("/", "-")
-            self.epoch_date = start_time[:11]+"00:00:00.000"
-            self.tstart = Time(start_time).jd
-
     def set_ingest_path(self, ingest_path):
 
         self.input_path = ingest_path
@@ -123,29 +115,20 @@ class Ingest:
 
         return self.epoch_date
 
-    # TODO: Add benchmark decorator
-    def process_hdf5_ingest_file(self):
-
-        print("INFO: ingesting mnemonics into memory ...")
-
-        for mnemonic in self.df:
-
-            # NOTE: If data is properly typed this decoding step may not be required,
-            # its possible that a different storage decision could be though
-
-            # out_times = self.df[mnemonic]['data']['date']
-            # self.values[mnemonic] = self.df[mnemonic]['data']['value'][()]
-            # self.times[mnemonic] = [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']
-
-            self.values[mnemonic] = [x.decode("utf-8") for x in self.df[mnemonic]['data']['value']]
-            self.times[mnemonic] = [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']]
-
+    def derive_ingest_file_start_end_times(self):
         import operator
         self.tstart = Time(self.times[min(self.times.items(), key=operator.itemgetter(1))[0]][0], format='iso').jd
         self.tstop = Time(self.times[max(self.times.items(), key=operator.itemgetter(1))[0]][-1], format='iso').jd
 
-        for mnemonic, value in self.values.items():
+    # TODO: Add benchmark decorator
+    def process_hdf5_ingest_file(self):
 
+        for mnemonic in self.df:
+            self.values[mnemonic] = [x.decode("utf-8") for x in self.df[mnemonic]['data']['value']]
+            self.times[mnemonic] = [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']]
+        self.derive_ingest_file_start_end_times()
+
+        for mnemonic, value in self.values.items():
             self.times[mnemonic] = sorted(self.times[mnemonic])
 
             if self.time_to_quadtime(self.times[mnemonic][-1]) == self.time_to_quadtime(self.times[mnemonic][0]):
@@ -160,7 +143,6 @@ class Ingest:
                 'times': self.get_delta_times(mnemonic, epoch),
                 'values': np.array(self.values[mnemonic]),
                 'index': self.indices[mnemonic]
-                # 'parent_directory': f"{ROOT_MNEMONIC_DIRECTORY}/{mnemonic}"
             }
 
         return self
@@ -168,51 +150,47 @@ class Ingest:
     def partition(self):
 
         self.values = collections.defaultdict(list)
-        self.times =  collections.defaultdict(list)
+        self.times = collections.defaultdict(list)
         self.indices = collections.defaultdict(dict)
 
         for idx, row in self.df.iterrows():
 
             mnemonic = row[properties.NAME_COLUMN]
-
-            self.init_times(row)
-
             date = str(row[properties.TIME_COLUMN]).replace("/", "-")
-
             value = row[properties.VALUE_COLUMN]
 
             self.values[mnemonic].append(value)
             self.times[mnemonic].append(str(date))
 
-        self.tstop = Time(date, format='iso').jd
-
+        self.derive_ingest_file_start_end_times()
 
         for mnemonic, value in self.values.items():
 
             self.times[mnemonic] = sorted(self.times[mnemonic])
-
-            parent_directory = DataProduct.create_archive_directory(self.output_path, mnemonic)
 
             if self.time_to_quadtime(self.times[mnemonic][-1]) == self.time_to_quadtime(self.times[mnemonic][0]):
                 index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
                 epoch = self.times[mnemonic][0]
                 self.indices[mnemonic] = {'index': index, 'epoch': self.time_to_quadtime(epoch)}
             else:
+                # This else case is reserved for the instance that data is ingest
+                # out of sequence
                 pass
 
             self.data[mnemonic] = {
                 'times': self.get_delta_times(mnemonic, epoch),
                 'values': np.array(self.values[mnemonic]),
                 'index': self.indices[mnemonic],
-                'parent_directory': parent_directory
             }
 
         return self
 
     def start(self):
 
+        print("INFO: ingesting mnemonics into memory ...")
         self.df = self._source_import_method.execute()
 
+        print("INFO: ingesting mnemonics into memory ...")
         if self.strategy == 'pandas':
             self.partition()
         else:
