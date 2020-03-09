@@ -541,8 +541,10 @@ def update_stats(colname, interval, msid=None):
         time0 = max(DateTime(opt.date_now).secs - opt.max_lookback_time * 86400,
                     index0 * dt - 500)
         time1 = DateTime(opt.date_now).secs
-        print(f"{time0} , {time1}")
+        # print("START/STOP")
+        # print(f"{Time(time0, format='unix').yday} , {Time(time1, format='unix').yday}")
 
+        time0, time1 = fetch.get_time_range(colname, format='date')
         msid = fetch.MSID(colname, time0, time1, filter_bad=False)
 
     if len(msid.times) > 0:
