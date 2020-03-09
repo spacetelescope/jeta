@@ -26,9 +26,9 @@ ENV MPLBACKEND=Qt5Agg
 ENV RAVEN_SECRET_KEY=${ARG_RAVEN_SECRET_KEY}
 
 # Archive Environment Variables
-ENV ENG_ARCHIVE=/srv/telemetry/archive
-ENV TELEMETRY_ARCHIVE="${ENG_ARCHIVE}/data/"
-ENV STAGING_DIRECTORY="${ENG_ARCHIVE}/staging/"
+ENV ENG_ARCHIVE=/srv/telemetry/
+ENV TELEMETRY_ARCHIVE="/srv/telemetry/archive/"
+ENV STAGING_DIRECTORY="/srv/telemetry/staging/"
 
 # JETA Environment Variables
 ENV JETA_SCRIPTS=/srv/jeta/code/scripts

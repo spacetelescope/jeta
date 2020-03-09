@@ -279,14 +279,14 @@ def main():
 
         if opt.update_stats:
             for colname in colnames:
-                if opt.state_codes_only:
+                # if opt.state_codes_only:
                     # Check if colname has a state code in the TDB or if it is in the
                     # special-case fetch.STATE_CODES dict (e.g. simdiag or simmrg telem).
-                    try:
-                        Ska.tdb.msids[colname].Tsc['STATE_CODE']
-                    except Exception:
-                        if not colname.upper() in fetch.STATE_CODES:
-                            continue
+                    # try:
+                    #     Ska.tdb.msids[colname].Tsc['STATE_CODE']
+                    # except Exception:
+                    #     if not colname.upper() in fetch.STATE_CODES:
+                    #         continue
 
                 msid = update_stats(colname, 'daily')
                 update_stats(colname, '5min', msid)
