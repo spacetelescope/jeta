@@ -156,11 +156,11 @@ class Ingest:
         for idx, row in self.df.iterrows():
 
             mnemonic = row[properties.NAME_COLUMN]
-            date = str(row[properties.TIME_COLUMN]).replace("/", "-")
+            date = str(row[properties.TIME_COLUMN]).decode("utf-8").replace("/", "-")
             value = row[properties.VALUE_COLUMN]
 
             self.values[mnemonic].append(value)
-            self.times[mnemonic].append(str(date))
+            self.times[mnemonic].append(date)
 
         self.derive_ingest_file_start_end_times()
 

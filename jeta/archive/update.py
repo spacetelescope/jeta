@@ -1106,7 +1106,8 @@ def get_archive_files(filetype):
 
     staging_directory = get_env_variable('STAGING_DIRECTORY')
     logger.info(f"Starting legacy file discovery in {staging_directory} ... ")
-    files.extend(sorted(glob.glob(f"{staging_directory}*.{opt.ingest_file_format}")))
+    files.extend(sorted(glob.glob(f"{staging_directory}*.{opt.ingest_file_format.lower()}")))
+    files.extend(sorted(glob.glob(f"{staging_directory}*.{opt.ingest_file_format.upper()}")))
 
     logger.info(f"{len(files)} file(s) staged in {staging_directory} ...")
     # logger.info(f"Files discovered: {files}")
