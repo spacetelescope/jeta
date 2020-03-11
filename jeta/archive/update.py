@@ -131,7 +131,7 @@ if opt.data_root:
 
 # Set up logging
 loglevel = pyyaks.logger.VERBOSE if opt.log_level is None else int(opt.log_level)
-logger = pyyaks.logger.get_logger(name='Engineering Digest Engine', level=loglevel,
+logger = pyyaks.logger.get_logger(filename='/var/log/jeta.update.log', name='JETA Logger', level=loglevel,
                                   format="%(asctime)s %(message)s")
 
 # Also adjust fetch logging if non-default log-level supplied (mostly for debug)
@@ -538,13 +538,11 @@ def update_stats(colname, interval, msid=None):
     # up to date then do not look back beyond a certain point.
     if msid is None:
         # fetch telemetry plus a little extra
+
         time0 = max(DateTime(opt.date_now).secs - opt.max_lookback_time * 86400,
                     index0 * dt - 500)
         time1 = DateTime(opt.date_now).secs
-        # print("START/STOP")
-        # print(f"{Time(time0, format='unix').yday} , {Time(time1, format='unix').yday}")
 
-        time0, time1 = fetch.get_time_range(colname, format='date')
         msid = fetch.MSID(colname, time0, time1, filter_bad=False)
 
     if len(msid.times) > 0:
@@ -714,7 +712,7 @@ def append_h5_col_derived(dats, colname):
 def init_mnemonic_times_file():
 
     with h5py.File(msid_files['mnemonic_times'].abs) as h5:
-        h5.create_dataset('time', shape=(0, ),  maxshape=(None,), dtype=np.float64, chunks=True, compression="lzf")
+        h5.create_dataset('time', shape=(0, ),  maxshape=(None,), dtype=np.float64, chunks=True, compression="gzip")
         h5.close()
 
 
@@ -727,7 +725,7 @@ def init_mnemonic_values_file():
             maxshape=(None,),
             dtype="S21",
             chunks=True,
-            compression="lzf"
+            compression="gzip"
         )
         h5.close()
 
@@ -738,9 +736,6 @@ def init_mnemonic_index_file(idx=None, epoch=None):
         ('epoch', np.float64),
         ('index', np.uint64),
     ])
-
-
-    print(msid_files['mnemonic_index'].abs)
 
     with h5py.File(msid_files['mnemonic_index'].abs, mode='a', driver="core", backing_store=True) as h5:
         dset = h5.create_dataset('epoch', shape=(1,), compression="gzip", dtype=compound_datatype, chunks=True, maxshape=(None,))
@@ -1085,6 +1080,7 @@ def update_telemetry_archive(filetype, ingest_file_list):
 def move_archive_files(filetype, processed_ingest_files):
 
     import tarfile
+    import shutil
 
     staging_directory = get_env_variable('STAGING_DIRECTORY')
     os.chdir(staging_directory)
@@ -1097,7 +1093,7 @@ def move_archive_files(filetype, processed_ingest_files):
         os.remove(ingest_file)
 
     tar.close()
-    os.rename(tarfile_name, f"{msid_files['processed_files_directory'].abs}/{tarfile_name}")
+    shutil.move(tarfile_name, f"{msid_files['processed_files_directory'].abs}/{tarfile_name}")
 
 
 def get_archive_files(filetype):
@@ -1112,10 +1108,8 @@ def get_archive_files(filetype):
     files.extend(sorted(glob.glob(f"{staging_directory}*.{opt.ingest_file_format.upper()}")))
 
     logger.info(f"{len(files)} file(s) staged in {staging_directory} ...")
-    # logger.info(f"Files discovered: {files}")
 
     return files
-
 
 if __name__ == "__main__":
     main()

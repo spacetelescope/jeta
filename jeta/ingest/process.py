@@ -10,6 +10,11 @@ import pandas as pd
 
 from astropy.time import Time
 
+import pyyaks.logger
+import pyyaks.context
+
+from jeta.archive.utils import get_env_variable
+
 from .archive import DataProduct
 
 from .strategy import LoadPandasCSVStrategy
@@ -19,6 +24,14 @@ from .strategy import LoadH5PYHDF5Strategy
 
 from ..config import properties
 
+ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
+
+loglevel = pyyaks.logger.WARNING
+logger = pyyaks.logger.get_logger(
+    filename='/var/log/jeta.process.log',
+    name='JETA Logger', level=loglevel,
+    format="%(asctime)s %(message)s"
+)
 
 
 class Ingest:
@@ -147,7 +160,8 @@ class Ingest:
 
         return self
 
-    def partition(self):
+    # TODO: Add benchmark decorator
+    def prcoess_csv_ingest_file(self):
 
         self.values = collections.defaultdict(list)
         self.times = collections.defaultdict(list)
@@ -187,14 +201,23 @@ class Ingest:
 
     def start(self):
 
-        print("INFO: ingesting mnemonics into memory ...")
+        logger.warning(f'Reading {self.df} into memory.')
         self.df = self._source_import_method.execute()
 
-        print("INFO: ingesting mnemonics into memory ...")
-        if self.strategy == 'pandas':
-            self.partition()
-        else:
-            self.process_hdf5_ingest_file()
+        logger.warning(f'Processing {self.df} using {self.strategy} | {self._source_import_method}.')
+        try:
+            process_method = {
+                'pandas': self.prcoess_csv_ingest_file,
+                'h5py': self.process_hdf5_ingest_file,
+            }[self.strategy]
+            process_method()
+        except Exception:
+            raise
+
+        # if self.strategy == 'pandas':
+        #     self.prcoess_csv_ingest_file()
+        # else:
+        #     self.process_hdf5_ingest_file()
 
         return self
 
@@ -206,4 +229,5 @@ class Ingest:
         self.output_path = output_path
         self.full_input_path = self.input_path.joinpath(self.input_file)
         self._source_import_method = self.load_strategy[strategy](self.full_input_path)
-        print(f"Initialized Ingest Strategy: {self._source_import_method}")
+        logger.info(f"Initialized Ingest Strategy: {self._source_import_method}")
+
