@@ -25,9 +25,10 @@ flake8==3.7.7
 selenium==3.141.0
 
 # Django (Web API)
-Django==1.11
+Django==2.2
 django-celery-results==1.0.4
 djangorestframework==3.9.0
+djangorestframework-simplejwt==4.4.0
 
 
 certifi==2019.11.28
