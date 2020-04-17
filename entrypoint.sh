@@ -25,6 +25,16 @@ cd /srv/jeta/api
 cd /srv/jeta/requirements
 pip install -r production.txt
 
+cd /srv/jeta/api
+
+set -x && python manage.py makemigrations && python manage.py migrate;
+
+cat <<END | python manage.py shell
+from django.contrib.auth.models import User
+if not User.objects.filter(username='svc_jska').exists():
+    User.objects.create_superuser('svc_jska', 'no-reply@stsci.edu', 'svc_jska')
+END
+
 set -x && conda install -c conda-forge configurable-http-proxy;
 set -x && pip install jupyterhub==1.1.0
 set -x && pip install jupyterlab==1.2.6

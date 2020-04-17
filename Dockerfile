@@ -48,12 +48,13 @@ RUN set -x \
         python3-pyqt4 \
         npm \
         nodejs \
+        wget \
     && apt-get clean
 
 
 # Install required version of conda for the ska3 build script
 RUN set -x \
-    && curl -O https://repo.continuum.io/miniconda/Miniconda3-4.3.21-Linux-x86_64.sh \
+    && wget https://repo.continuum.io/miniconda/Miniconda3-4.3.21-Linux-x86_64.sh \
     && ls -la /opt \
     && bash ./Miniconda3-4.3.21-Linux-x86_64.sh -f -b -p ${CONDA_ROOT} \
     && rm -f Miniconda3-4.3.21-Linux-x86_64.sh \
@@ -97,7 +98,7 @@ RUN set -x \
 WORKDIR /srv/jeta/
 
 # Expose the port for raven
-EXPOSE 9293
+EXPOSE 9232
 
 # jupyterhub
 EXPOSE 5050
