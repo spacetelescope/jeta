@@ -7,6 +7,7 @@ import re
 import os
 import glob
 import time
+import sqlite3
 from six.moves import cPickle as pickle
 from six.moves import zip
 import argparse
@@ -17,6 +18,9 @@ import logging
 from datetime import datetime
 from astropy.time import Time
 from Chandra.Time import DateTime
+
+from jeta.archive.utils import get_env_variable
+
 import Ska.File
 import Ska.DBI
 import Ska.Numpy
@@ -36,7 +40,6 @@ import jeta.archive.derived as derived
 from jeta.ingest import process
 
 working_filename = None
-
 
 def get_options(args=None):
     parser = argparse.ArgumentParser()
@@ -92,8 +95,16 @@ def get_options(args=None):
                         help="Content type to process [match regex] (default = all)")
     parser.add_argument("--log-level",
                         help="Logging level")
+    parser.add_argument("--ingest-file-format",
+                        default='h5',
+                        choices={"h5", "csv"},
+                        help=("Select the format of the ingest file type \
+                             as either hdf5 or csv (default = h5)"))
+
     return parser.parse_args(args)
 
+
+ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 
 # Configure fetch.MSID to cache recent results for performance in
 # derived parameter updates.
@@ -106,10 +117,10 @@ if opt.create:
 ft = fetch.ft
 
 msid_files = pyyaks.context.ContextDict('update_archive.msid_files',
-                                        basedir=opt.data_root)
+                                        basedir=ENG_ARCHIVE)
 msid_files.update(file_defs.msid_files)
 arch_files = pyyaks.context.ContextDict('update_archive.arch_files',
-                                        basedir=opt.data_root)
+                                        basedir=ENG_ARCHIVE)
 arch_files.update(file_defs.arch_files)
 
 # Set up fetch so it will first try to read from opt.data_root if that is
@@ -120,7 +131,7 @@ if opt.data_root:
 
 # Set up logging
 loglevel = pyyaks.logger.VERBOSE if opt.log_level is None else int(opt.log_level)
-logger = pyyaks.logger.get_logger(name='Engineering Digest Engine', level=loglevel,
+logger = pyyaks.logger.get_logger(filename='/var/log/jeta.update.log', name='JETA Logger', level=loglevel,
                                   format="%(asctime)s %(message)s")
 
 # Also adjust fetch logging if non-default log-level supplied (mostly for debug)
@@ -142,15 +153,6 @@ archfiles_hdr_cols = (
 )
 
 
-def get_env_variable(var_name):
-
-    try:
-        return os.environ[var_name]
-    except:
-        error_msg = 'Set the {} environment variable'.format(var_name)
-        raise ValueError(error_msg)
-
-
 def get_colnames():
     """Get column names for the current content type (defined by ft['content'])"""
     colnames = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
@@ -166,20 +168,23 @@ def create_archive_mnemonics_file():
             pickle.dump(empty, mnemonics_file)
 
 
-def create_meta_database():
-
-    # TODO: Log instead of print
-    print(f"Opening Archive Database File: {msid_files['archfiles'].abs} ...")
+def create_archive_meta_info_database():
 
     if not os.path.exists(msid_files['archfiles'].abs):
-        filename = msid_files['archfiles'].abs
-        archive_definition_source = open(
-                    get_env_variable('ARCHIVE_DEFINITION_SOURCE')
-                ).read()
-        logger.info('Creating db {}'.format(filename))
-        import sqlite3
-        cursor = sqlite3.connect(filename).cursor()
-        cursor.executescript(archive_definition_source)
+        try:
+            conn = sqlite3.connect(msid_files['archfiles'].abs)
+            archive_definition_source = open(
+                        get_env_variable('ARCHIVE_DEFINITION_SOURCE')
+            ).read()
+
+            logger.info('Creating db {}'.format(msid_files['archfiles'].abs))
+
+            cursor = conn.cursor()
+            cursor.executescript(archive_definition_source)
+            conn.close()
+
+        except Exception as err:
+            raise
 
 
 def create_ingest_file_archive():
@@ -190,21 +195,9 @@ def create_ingest_file_archive():
 
 def create_content_dir():
 
-    """
-    Make empty files for colnames.pkl and archfiles.db3
-    for the current content type ft['content'].
-    This only works within the development (git) directory in conjunction
-    with the --create option.
-    """
-    dirname = msid_files['contentdir'].abs
-
-    if not os.path.exists(dirname):
-        logger.info('Making directory {}'.format(dirname))
-        os.makedirs(dirname)
-
-    create_meta_database()
-    create_archive_mnemonics_file()
-    create_ingest_file_archive()
+    if not os.path.exists(msid_files['contentdir'].abs):
+        logger.info('Making directory {}'.format(msid_files['contentdir'].abs))
+        os.makedirs(msid_files['contentdir'].abs)
 
 
 _fix_state_code_cache = {}
@@ -230,20 +223,21 @@ def fix_state_code(state_code):
     return out
 
 
-def begin():
+def main():
     """ This method begins the telemetry archive update process.
 
     Perform one full update of the eng archive based on opt parameters.
     This may be called in a loop by the program-level main().
     """
-    logger.info('Run time options: \n{}'.format(opt))
+    logger.info('Runtime options: \n{}'.format(opt))
     logger.info('Update Module: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch Module: {}'.format(os.path.abspath(fetch.__file__)))
-    logger.info('========================================')
-    logger.info(f'Begun The Ingest Has @ {datetime.now()}')
+    logger.info('Syncing telemetry archive ...')
 
     # Get the archive content filetypes
+    # Ex. filetypes = [('TELEM', 'TLM')]
     filetypes = fetch.filetypes
+
 
     # if opt.content:
     #     contents = [x.upper() for x in opt.content]
@@ -257,13 +251,15 @@ def begin():
 
         if opt.create:
             create_content_dir()
-
+            create_archive_meta_info_database()
+            create_archive_mnemonics_file()
+            create_ingest_file_archive()
 
         colnames = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
                     if x not in fetch.IGNORE_COLNAMES]
 
-        if not os.path.exists(fetch.msid_files['archfiles'].abs):
-            logger.info('No archfiles.db3 for %s - skipping' % ft['content'])
+        if not os.path.exists(msid_files['archfiles'].abs):
+            logger.info(f'No {msid_files["archfiles"].abs} for %s - skipping' % ft['content'])
             continue
 
         # TODO: Improve log messsage
@@ -283,19 +279,19 @@ def begin():
 
         if opt.update_stats:
             for colname in colnames:
-                if opt.state_codes_only:
+                # if opt.state_codes_only:
                     # Check if colname has a state code in the TDB or if it is in the
                     # special-case fetch.STATE_CODES dict (e.g. simdiag or simmrg telem).
-                    try:
-                        Ska.tdb.msids[colname].Tsc['STATE_CODE']
-                    except Exception:
-                        if not colname.upper() in fetch.STATE_CODES:
-                            continue
+                    # try:
+                    #     Ska.tdb.msids[colname].Tsc['STATE_CODE']
+                    # except Exception:
+                    #     if not colname.upper() in fetch.STATE_CODES:
+                    #         continue
 
                 msid = update_stats(colname, 'daily')
                 update_stats(colname, '5min', msid)
 
-        logger.info(f' INFO: Archive Update Process Complete.')
+        logger.info(f'SUCCESS: Telemetry Archive Sync Complete.')
 
 
 def fix_misorders(filetype):
@@ -542,10 +538,10 @@ def update_stats(colname, interval, msid=None):
     # up to date then do not look back beyond a certain point.
     if msid is None:
         # fetch telemetry plus a little extra
+
         time0 = max(DateTime(opt.date_now).secs - opt.max_lookback_time * 86400,
                     index0 * dt - 500)
         time1 = DateTime(opt.date_now).secs
-        print(f"{time0} , {time1}")
 
         msid = fetch.MSID(colname, time0, time1, filter_bad=False)
 
@@ -716,7 +712,7 @@ def append_h5_col_derived(dats, colname):
 def init_mnemonic_times_file():
 
     with h5py.File(msid_files['mnemonic_times'].abs) as h5:
-        h5.create_dataset('time', shape=(0, ),  maxshape=(None,), dtype=np.float64, chunks=True, compression="lzf")
+        h5.create_dataset('time', shape=(0, ),  maxshape=(None,), dtype=np.float64, chunks=True, compression="gzip")
         h5.close()
 
 
@@ -729,7 +725,7 @@ def init_mnemonic_values_file():
             maxshape=(None,),
             dtype="S21",
             chunks=True,
-            compression="lzf"
+            compression="gzip"
         )
         h5.close()
 
@@ -748,8 +744,18 @@ def init_mnemonic_index_file(idx=None, epoch=None):
         h5.close()
 
 
+def create_mnemonic_directory(colname):
+
+    if not os.path.exists(msid_files['msid'].abs):
+        os.makedirs(msid_files['msid'].abs)
+
+
 def make_h5_col_file_tlm(dat, colname):
     """Make a new h5 table to hold column from ``dat``."""
+
+    # Create a directory with the mnenomic id in the archive.
+    create_mnemonic_directory(colname)
+
     init_mnemonic_index_file(dat[colname]['index']['index'], dat[colname]['index']['epoch'])
     init_mnemonic_values_file()
     init_mnemonic_times_file()
@@ -1064,7 +1070,7 @@ def update_telemetry_archive(filetype, ingest_file_list):
 
     # If colnames changed then give warning and update files.
     if colnames != old_colnames:
-        logger.warning(f"WARNING: updating {msid_files['colnames'].abs} because colnames changed ...")
+        logger.warning(f"WARNING: updating {msid_files['colnames'].abs} because mnemonic names changed ...")
         if not opt.dry_run:
             pickle.dump(colnames, open(msid_files['colnames'].abs, 'wb'))
 
@@ -1074,6 +1080,7 @@ def update_telemetry_archive(filetype, ingest_file_list):
 def move_archive_files(filetype, processed_ingest_files):
 
     import tarfile
+    import shutil
 
     staging_directory = get_env_variable('STAGING_DIRECTORY')
     os.chdir(staging_directory)
@@ -1083,31 +1090,26 @@ def move_archive_files(filetype, processed_ingest_files):
 
     for ingest_file in processed_ingest_files:
         tar.add(ingest_file)
+        os.remove(ingest_file)
 
     tar.close()
-    # os.rename(tarfile_name, f"{msid_files['processed_files_directory'].abs}/{tarfile_name}")
-    # os.remove(tarfile_name)
+    shutil.move(tarfile_name, f"{msid_files['processed_files_directory'].abs}/{tarfile_name}")
 
 
 def get_archive_files(filetype):
-    """Get telemetry files"""
+    """Get list of files to ingest by examining the file staging area
+    """
 
     files = []
-    supported_file_types = ['h5', 'CSV']
 
     staging_directory = get_env_variable('STAGING_DIRECTORY')
+    logger.info(f"Starting legacy file discovery in {staging_directory} ... ")
+    files.extend(sorted(glob.glob(f"{staging_directory}*.{opt.ingest_file_format.lower()}")))
+    files.extend(sorted(glob.glob(f"{staging_directory}*.{opt.ingest_file_format.upper()}")))
 
-    logger.info(f"Starting legacy ingest file discovery in {staging_directory} ... ")
-
-    for file_type in supported_file_types:
-
-        files.extend(sorted(glob.glob(f"{staging_directory}*.{file_type}")))
-
-    logger.info(f"Discovered: {len(files)} in {staging_directory} ...")
-    logger.info(f"Files discovered: {files}")
+    logger.info(f"{len(files)} file(s) staged in {staging_directory} ...")
 
     return files
-
 
 if __name__ == "__main__":
     main()

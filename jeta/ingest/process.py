@@ -10,8 +10,12 @@ import pandas as pd
 
 from astropy.time import Time
 
+import pyyaks.logger
+import pyyaks.context
+
+from jeta.archive.utils import get_env_variable
+
 from .archive import DataProduct
-from .archive import ROOT_DIR
 
 from .strategy import LoadPandasCSVStrategy
 from .strategy import LoadPythonCSVStrategy
@@ -20,6 +24,14 @@ from .strategy import LoadH5PYHDF5Strategy
 
 from ..config import properties
 
+ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
+
+loglevel = pyyaks.logger.WARNING
+logger = pyyaks.logger.get_logger(
+    filename='/var/log/jeta.process.log',
+    name='JETA Logger', level=loglevel,
+    format="%(asctime)s %(message)s"
+)
 
 
 class Ingest:
@@ -48,28 +60,11 @@ class Ingest:
     data = {}
 
     values = collections.defaultdict(list)
-    times =  collections.defaultdict(list)
+    times = collections.defaultdict(list)
     indices = collections.defaultdict(dict)
 
     tstart = None
     epoch_date = None
-
-    ####### Might move this
-    def create_archive_directories(self):
-
-        ingest_mnemonics = np.array(list(self.df.keys()))
-        existing_archive_directories = np.array([x[1] for x in os.walk(ROOT_DIR)][0])
-
-        directories_to_create = np.setdiff1d(ingest_mnemonics, existing_archive_directories)
-
-        print("INFO: creating archive directories ... ")
-
-        for archive_subdirectory in directories_to_create:
-
-            try:
-                os.makedirs(ROOT_DIR+"/"+archive_subdirectory)
-            except IOError as e:
-                raise IOError("Failed to create directory.")
 
     def get_delta_times(self, mnemonic, epoch=None):
 
@@ -79,14 +74,6 @@ class Ingest:
             jd_times = Time(self.times[mnemonic], format='iso', in_subfmt='date_hms').jd
 
             return np.diff(np.insert(jd_times, 0, self.time_to_quadtime(epoch)))
-
-    def init_times(self, row):
-
-        if self.tstart is None:
-
-            start_time = row[properties.TIME_COLUMN].replace("/", "-")
-            self.epoch_date = start_time[:11]+"00:00:00.000"
-            self.tstart = Time(start_time).jd
 
     def set_ingest_path(self, ingest_path):
 
@@ -141,29 +128,20 @@ class Ingest:
 
         return self.epoch_date
 
-    # TODO: Add benchmark decorator
-    def process_hdf5_ingest_file(self):
-
-        print("INFO: ingesting mnemonics into memory ...")
-
-        for mnemonic in self.df:
-
-            # NOTE: If data is properly typed this decoding step may not be required,
-            # its possible that a different storage decision could be though
-
-            # out_times = self.df[mnemonic]['data']['date']
-            # self.values[mnemonic] = self.df[mnemonic]['data']['value'][()]
-            # self.times[mnemonic] = [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']
-
-            self.values[mnemonic] = [x.decode("utf-8") for x in self.df[mnemonic]['data']['value']]
-            self.times[mnemonic] = [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']]
-
+    def derive_ingest_file_start_end_times(self):
         import operator
         self.tstart = Time(self.times[min(self.times.items(), key=operator.itemgetter(1))[0]][0], format='iso').jd
         self.tstop = Time(self.times[max(self.times.items(), key=operator.itemgetter(1))[0]][-1], format='iso').jd
 
-        for mnemonic, value in self.values.items():
+    # TODO: Add benchmark decorator
+    def process_hdf5_ingest_file(self):
 
+        for mnemonic in self.df:
+            self.values[mnemonic] = [x.decode("utf-8") for x in self.df[mnemonic]['data']['value']]
+            self.times[mnemonic] = [x.decode("utf-8").replace("/", "-") for x in self.df[mnemonic]['data']['date']]
+        self.derive_ingest_file_start_end_times()
+
+        for mnemonic, value in self.values.items():
             self.times[mnemonic] = sorted(self.times[mnemonic])
 
             if self.time_to_quadtime(self.times[mnemonic][-1]) == self.time_to_quadtime(self.times[mnemonic][0]):
@@ -177,87 +155,79 @@ class Ingest:
             self.data[mnemonic] = {
                 'times': self.get_delta_times(mnemonic, epoch),
                 'values': np.array(self.values[mnemonic]),
-                'index': self.indices[mnemonic],
-                'parent_directory': f"{ROOT_DIR}/{mnemonic}"
+                'index': self.indices[mnemonic]
             }
 
         return self
 
-    def partition(self):
+    # TODO: Add benchmark decorator
+    def prcoess_csv_ingest_file(self):
 
         self.values = collections.defaultdict(list)
-        self.times =  collections.defaultdict(list)
+        self.times = collections.defaultdict(list)
         self.indices = collections.defaultdict(dict)
 
         for idx, row in self.df.iterrows():
 
             mnemonic = row[properties.NAME_COLUMN]
-
-            self.init_times(row)
-
-            date = str(row[properties.TIME_COLUMN]).replace("/", "-")
-
+            date = str(row[properties.TIME_COLUMN]).decode("utf-8").replace("/", "-")
             value = row[properties.VALUE_COLUMN]
 
             self.values[mnemonic].append(value)
-            self.times[mnemonic].append(str(date))
+            self.times[mnemonic].append(date)
 
-        self.tstop = Time(date, format='iso').jd
-
+        self.derive_ingest_file_start_end_times()
 
         for mnemonic, value in self.values.items():
 
             self.times[mnemonic] = sorted(self.times[mnemonic])
-
-            parent_directory = DataProduct.create_archive_directory(self.output_path, mnemonic)
 
             if self.time_to_quadtime(self.times[mnemonic][-1]) == self.time_to_quadtime(self.times[mnemonic][0]):
                 index = DataProduct.get_archive_file_length(self.output_path, mnemonic)
                 epoch = self.times[mnemonic][0]
                 self.indices[mnemonic] = {'index': index, 'epoch': self.time_to_quadtime(epoch)}
             else:
+                # This else case is reserved for the instance that data is ingest
+                # out of sequence
                 pass
 
             self.data[mnemonic] = {
                 'times': self.get_delta_times(mnemonic, epoch),
                 'values': np.array(self.values[mnemonic]),
                 'index': self.indices[mnemonic],
-                'parent_directory': parent_directory
             }
 
         return self
 
     def start(self):
 
-        # load data into Dataframe from some source
+        logger.warning(f'Reading {self.df} into memory.')
         self.df = self._source_import_method.execute()
 
-        # This wont work because date/times are not in order
-        # self.set_min_entry_date(self.df.iloc[0][properties.TIME_COLUMN])
-        # self.set_max_entry_date(self.df.iloc[-1][properties.TIME_COLUMN])
+        logger.warning(f'Processing {self.df} using {self.strategy} | {self._source_import_method}.')
+        try:
+            process_method = {
+                'pandas': self.prcoess_csv_ingest_file,
+                'h5py': self.process_hdf5_ingest_file,
+            }[self.strategy]
+            process_method()
+        except Exception:
+            raise
 
-        self.create_archive_directories()
+        # if self.strategy == 'pandas':
+        #     self.prcoess_csv_ingest_file()
+        # else:
+        #     self.process_hdf5_ingest_file()
 
-        # Sort the data into buckets, this will have to be another strategy
-        # since the format of the data will be completely different depending on the
-        # file type ingested. For now flat csv is assumed.
-        if self.strategy == 'pandas':
-            self.partition()
-        else:
-            self.process_hdf5_ingest_file()
-
-
-        # Create the HDF5 file(s) archive
-        # self.archive()
-        # raise ValueError('Done in Error.')
         return self
 
     def __init__(self, input_file, output_path, strategy='pandas', input_path=properties.STAGING_DIRECTORY):
 
         self.strategy = strategy
-        self.input_path=Path(properties.STAGING_DIRECTORY)
-        self.input_file=input_file
+        self.input_path = Path(properties.STAGING_DIRECTORY)
+        self.input_file = input_file
         self.output_path = output_path
-        self.full_input_path=self.input_path.joinpath(self.input_file)
+        self.full_input_path = self.input_path.joinpath(self.input_file)
         self._source_import_method = self.load_strategy[strategy](self.full_input_path)
-        print(f"Initialized Ingest Strategy: {self._source_import_method}")
+        logger.info(f"Initialized Ingest Strategy: {self._source_import_method}")
+

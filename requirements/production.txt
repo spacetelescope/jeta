@@ -80,8 +80,10 @@ wcwidth==0.1.8
 webencodings==0.5.1
 zipp==3.0.0
 
-Django==1.11.22
+Django==2.2
 djangorestframework==3.9.0
+djangorestframework-simplejwt==4.4.0
+
 
 # flake8==3.7.7
 # pytest==4.0.1

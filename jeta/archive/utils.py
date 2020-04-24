@@ -5,14 +5,51 @@ Utilities for the engineering archive.
 from __future__ import print_function, division, absolute_import
 
 import os
+import time
 import six
 from six.moves import zip
+from functools import wraps
 import numpy as np
 from Chandra.Time import DateTime
 
 
 # Cache the results of fetching 3 days of telemetry keyed by MSID
 FETCH_SIZES = {}
+
+
+def timeit_wrapper(func):
+    """
+    Alternatively, you can use time.perf_counter()
+    with is effected by system load
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.process_time()
+        func_return_val = func(*args, **kwargs)
+        end = time.perf_counter()
+        print('{0:<10}.{1:<8} : {2:<8}'.format(func.__module__, func.__name__, end - start))
+        return func_return_val
+    return wrapper
+
+
+def create_archive_directories(self):
+
+    pass
+
+    # ingest_mnemonics = np.array(list(self.df.keys()))
+    # existing_archive_directories = np.array([x[1] for x in os.walk(ROOT_MNEMONIC_DIRECTORY)][0])
+
+    # directories_to_create = np.setdiff1d(ingest_mnemonics, existing_archive_directories)
+
+    # print("INFO: creating archive directories ... ")
+
+    # for archive_subdirectory in directories_to_create:
+
+    #     try:
+    #         os.makedirs(ROOT_MNEMONIC_DIRECTORY+"/"+archive_subdirectory)
+    #     except IOError as e:
+    #         raise IOError("Failed to create directory.")
+
 
 def get_env_variable(var_name):
 

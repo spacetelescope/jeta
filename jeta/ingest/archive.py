@@ -10,16 +10,16 @@ import tables3_api
 
 import pyyaks.logger
 
-ROOT_DIR = f"{os.environ['TELEMETRY_ARCHIVE']}tlm"
-
 loglevel = pyyaks.logger.VERBOSE
 logger = pyyaks.logger.get_logger(name='jskaarchive', level=loglevel,
                                   format="%(asctime)s %(message)s")
+
 
 class Epoch(IsDescription):
 
     index = UInt64Col()
     epoch = Float64Col()
+
 
 class DataProduct:
 
@@ -180,7 +180,6 @@ class DataProduct:
 
         file_length = 0
 
-        #fullpath = DataProduct.get_file_write_path(parent_directory , mnemonic, 'values')
         fullpath = f'{os.environ["TELEMETRY_ARCHIVE"]}tlm/{mnemonic}/values.h5'
 
         if os.path.exists(fullpath):

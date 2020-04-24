@@ -10,6 +10,7 @@ ENV CONDA_ROOT=/opt/conda
 ENV SKA_ENV=ska3
 ENV PATH=${CONDA_ROOT}/env/${SKA_ENV}/bin:${CONDA_ROOT}/bin:${PATH}
 
+
 ARG ARG_NAME_COLUMN
 ARG ARG_TIME_COLUMN
 ARG ARG_VALUE_COLUMN
@@ -26,9 +27,9 @@ ENV MPLBACKEND=Qt5Agg
 ENV RAVEN_SECRET_KEY=${ARG_RAVEN_SECRET_KEY}
 
 # Archive Environment Variables
-ENV ENG_ARCHIVE=/srv/telemetry/archive
-ENV TELEMETRY_ARCHIVE="${ENG_ARCHIVE}/data/"
-ENV STAGING_DIRECTORY="${ENG_ARCHIVE}/stage/"
+ENV ENG_ARCHIVE=/srv/telemetry/
+ENV TELEMETRY_ARCHIVE=/srv/telemetry/archive/
+ENV STAGING_DIRECTORY=/srv/telemetry/staging/
 
 # JETA Environment Variables
 ENV JETA_SCRIPTS=/srv/jeta/code/scripts
@@ -48,12 +49,13 @@ RUN set -x \
         python3-pyqt4 \
         npm \
         nodejs \
+        wget \
     && apt-get clean
 
 
 # Install required version of conda for the ska3 build script
 RUN set -x \
-    && curl -O https://repo.continuum.io/miniconda/Miniconda3-4.3.21-Linux-x86_64.sh \
+    && wget https://repo.continuum.io/miniconda/Miniconda3-4.3.21-Linux-x86_64.sh \
     && ls -la /opt \
     && bash ./Miniconda3-4.3.21-Linux-x86_64.sh -f -b -p ${CONDA_ROOT} \
     && rm -f Miniconda3-4.3.21-Linux-x86_64.sh \
@@ -97,7 +99,7 @@ RUN set -x \
 WORKDIR /srv/jeta/
 
 # Expose the port for raven
-EXPOSE 9293
+EXPOSE 9232
 
 # jupyterhub
 EXPOSE 5050
