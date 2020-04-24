@@ -81,7 +81,7 @@ webencodings==0.5.1
 zipp==3.0.0
 
 Django==2.2
-djangorestframework==3.9.0
+djangorestframework==3.9.1
 djangorestframework-simplejwt==4.4.0
 
 
