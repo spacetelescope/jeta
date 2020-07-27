@@ -96,7 +96,7 @@ https://github.com/spacetelescope/style-guides
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [THELMA](https://github.com/ddkauffman/thelma).
+Project adhears to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). for versioning.
 
 ## Acronyms
 
@@ -111,7 +111,3 @@ N/A
 * Amanda Arvai
 * Tom Aldcroft
 * Jean Connelly
-
-
-
-```
