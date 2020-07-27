@@ -1022,7 +1022,6 @@ class MSID(object):
         return Ska.tdb.msids[self.MSID]
 
     def interpolate(self, dt=None, start=None, stop=None, times=None):
-
         """Perform nearest-neighbor interpolation of the MSID to the specified
         time sequence.
 
@@ -1670,9 +1669,6 @@ class MSIDset(collections.OrderedDict):
 
     def interpolate(self, dt=None, start=None, stop=None, filter_bad=True, times=None,
                     bad_union=False, copy=False):
-
-        # TODO: Examine more closely.
-
         """
         Perform nearest-neighbor interpolation of all MSID values in the set
         to a common time sequence.  The values are updated in-place.
@@ -1733,7 +1729,6 @@ class MSIDset(collections.OrderedDict):
         max_fetch_tstart = max(msid.times[0] for msid in msids)
         min_fetch_tstop = min(msid.times[-1] for msid in msids)
 
-
         if times is not None:
             if any(kwarg is not None for kwarg in (dt, start, stop)):
                 raise ValueError('If "times" keyword is set then "dt", "start", '
@@ -1745,15 +1740,13 @@ class MSIDset(collections.OrderedDict):
             # Get the nominal tstart / tstop range
             dt = 328.0 if dt is None else dt
 
-            tstart = DateTime(start).secs if start else obj.tstart
-            tstop = DateTime(stop).secs if stop else obj.tstop
+            tstart = DateTime(start).secs if start else Time(obj.tstart, format="cxcsec").unix
+            tstop = DateTime(stop).secs if stop else Time(obj.tstop, format="cxcsec").unix
 
             tstart = max(tstart, max_fetch_tstart)
             tstop = min(tstop, min_fetch_tstop)
 
             obj.times = np.arange((tstop - tstart) // dt + 1) * dt + tstart
-
-
 
         for msid in msids:
 
