@@ -5,9 +5,9 @@ from setuptools import setup, find_packages
 
 setup(
     name='jeta',
-    version='2.0.0-rc',
+    version='1.0.1',
     description='Modules supporting JWST engineering telemetry archive.',
-    license='MIT',
+    license='BSD 3-Clause',
     long_description="",
     author='David Kauffman',
     author_email='dkauffman@stsci.edu',
@@ -26,7 +26,7 @@ setup(
         'scripts/sql/create.archive.meta.sql'
     ],
     classifiers=[
-        'Development Status :: v2.0.0 - Release Candidate',
-        'License :: MIT license',
+        'Development Status :: v1.0.1',
+        'License :: BSD 3-Clause',
     ]
 )
