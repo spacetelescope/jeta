@@ -79,6 +79,13 @@ else
     /usr/bin/supervisord -c /etc/supervisord.conf &
 fi
 
+# Sync Docker home directories with Jupyterhub user spaces.
+cd /home/
+array=(*)
+for dir in "${array[@]}"; do echo "Syncing for $dir"; id -u $dir &>/dev/null || useradd $dir; chown $dir:$dir $dir; done
+
+# Start Jupyterhub with custom configuration
 jupyterhub -f /srv/jupyterhub/config/jupyterhub_config.py;
 
+# Keep the container running
 tail -f /dev/null
