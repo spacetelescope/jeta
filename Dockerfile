@@ -1,6 +1,6 @@
 FROM debian:10
 # FROM jupyterhub/jupyterhub
-LABEL author='David Kauffman <dkauffman@stsci.edu>'
+LABEL author='David Kauffman <dkauffman@stsci.edu>' Version="1.0.2"
 
 # Conda Setup Environment Variables
 ENV DISPLAY=${ARG_DISPLAY}
