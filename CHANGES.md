@@ -12,6 +12,6 @@ Initial release
 ### Fixed
 - MSISet interpolate method returning empty list.
 
-## [1.0.2] - 2020-07-27
+## [1.0.2] - 2020-07-28
 ### Fixed
 - Issue with syncing home dirs during re-deployment.
