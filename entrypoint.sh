@@ -19,6 +19,10 @@ trap cleanup HUP INT QUIT TERM
 cd /home/
 set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id -u $dir &>/dev/null || useradd $dir; chown $dir:$dir $dir; done
 
+set -x \
+    && conda config --env --set always_yes true \
+    && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight;
+
 set -x && source activate ska3;
 
 cd /srv/jeta/code/;

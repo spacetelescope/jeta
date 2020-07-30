@@ -63,8 +63,9 @@ RUN set -x \
 
 # Install ska3
 # Warning: this URL is out of our control https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda/linux-64/repodata.json
-RUN set -x \
-    && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight;
+# RUN set -x \
+#     && conda config --env --set always_yes true \
+#     && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight;
     # && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight
 
 # Create project directories
