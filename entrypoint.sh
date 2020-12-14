@@ -3,6 +3,7 @@
 set -e
 
 
+
 #-------------------------------------------------------------------------------
 # Handle shutdown/cleanup
 #-------------------------------------------------------------------------------
@@ -19,11 +20,11 @@ trap cleanup HUP INT QUIT TERM
 cd /home/
 set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id -u $dir &>/dev/null || useradd $dir; chown $dir:$dir $dir; done
 
-set -x \
-    && conda config --env --set always_yes true \
-    && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight;
+# set -x \
+#     && conda config --env --set always_yes true \
+#     && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight;
 
-set -x && source activate ska3;
+set -x && source activate ${SKA_ENV};
 
 cd /srv/jeta/code/;
 set -x && python setup.py install
@@ -47,10 +48,10 @@ set -x && conda install -c conda-forge configurable-http-proxy;
 set -x && pip install jupyterhub==1.1.0
 set -x && pip install jupyterlab==1.2.6
 set -x && jupyter labextension install -y @jupyterlab/hub-extension
-set -x && jupyter labextension install -y @jupyter-widgets/jupyterlab-manager
+
 set -x && jupyter lab build
 
-set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/ska3/lib/fonts;
+set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/jSka/lib/fonts;
 
 # # ---------------------------------------------------------------------------
 # # configure supervisor

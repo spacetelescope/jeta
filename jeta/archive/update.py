@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Licensed under a 3-clause BSD style license - see LICENSE.rst
+# see LICENSE.rst
 
 from __future__ import print_function, division, absolute_import
 
@@ -7,46 +7,38 @@ import re
 import os
 import glob
 import time
-import sqlite3
-from six.moves import cPickle as pickle
-from six.moves import zip
-import argparse
+import pickle
 import shutil
+import argparse
 import itertools
-from collections import OrderedDict, defaultdict
-import logging
-from datetime import datetime
+
+from collections import OrderedDict, defaultdict, deque
+
 from astropy.time import Time
 from Chandra.Time import DateTime
-
-from jeta.archive.utils import get_env_variable
 
 import Ska.File
 import Ska.DBI
 import Ska.Numpy
 import pyyaks.logger
 import pyyaks.context
-import astropy.io.fits as pyfits
 
 import h5py
 import tables
 import numpy as np
-import pandas as pd
 import scipy.stats.mstats
 
 import jeta.archive.fetch as fetch
 import jeta.archive.file_defs as file_defs
 import jeta.archive.derived as derived
+from jeta.archive.utils import get_env_variable
 
-from jeta.ingest import process
-
-working_filename = None
 
 def get_options(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run",
                         action="store_true",
-                        help="Dry run (no actual file or database updatees)")
+                        help="Dry run (no actual file or database updates)")
     parser.add_argument("--no-full",
                         action="store_false",
                         dest="update_full",
@@ -105,11 +97,34 @@ def get_options(args=None):
     return parser.parse_args(args)
 
 
+#
 ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
+
+#
+STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
+
+#
+INGEST_CADENCE = 2
+
+
+# The expected life time of the mission in years
+MISSION_LIFE_IN_YEARS = 20
+
+# The maximum number of rows per file per analysis
+MAX_ROWS_PER_FILE = 10_280_811
+
+
+# An assumption about the average number of files per ingest
+AVG_NUMBER_OF_FILES = 50
+
+# Calculate the number of files in a given year for generation
+# of data.
+FILES_IN_A_YEAR = (AVG_NUMBER_OF_FILES * INGEST_CADENCE) * 365
 
 # Configure fetch.MSID to cache recent results for performance in
 # derived parameter updates.
 fetch.CACHE = True
+
 
 opt = get_options()
 if opt.create:
@@ -117,52 +132,240 @@ if opt.create:
 
 ft = fetch.ft
 
-msid_files = pyyaks.context.ContextDict('update_archive.msid_files',
+msid_files = pyyaks.context.ContextDict('update.msid_files',
                                         basedir=ENG_ARCHIVE)
 msid_files.update(file_defs.msid_files)
-arch_files = pyyaks.context.ContextDict('update_archive.arch_files',
+arch_files = pyyaks.context.ContextDict('update.arch_files',
                                         basedir=ENG_ARCHIVE)
 arch_files.update(file_defs.arch_files)
 
 # Set up fetch so it will first try to read from opt.data_root if that is
 # provided as an option and exists, and if not fall back to the default of
-# fetch.ENG_ARCHIVE.  Fetch is a read-only process so this is safe when testing.
+# fetch.ENG_ARCHIVE.  Fetch is a read-only process so this is safe when
+# testing.
 if opt.data_root:
     fetch.msid_files.basedir = ':'.join([opt.data_root, fetch.ENG_ARCHIVE])
 
 # Set up logging
 loglevel = pyyaks.logger.VERBOSE if opt.log_level is None else int(opt.log_level)
-logger = pyyaks.logger.get_logger(filename='/var/log/jeta.update.log', name='JETA Logger', level=loglevel,
-                                  format="%(asctime)s %(message)s")
+
+logger = pyyaks.logger.get_logger(
+    filename='/var/log/jeta.update.log',
+    name='jeta_logger',
+    level=loglevel,
+    format="%(asctime)s %(message)s"
+)
+
 
 # Also adjust fetch logging if non-default log-level supplied (mostly for debug)
 if opt.log_level is not None:
     fetch.add_logging_handler(level=int(opt.log_level))
 
+_values = defaultdict(list)
+_times = defaultdict(list)
 
-archfiles_hdr_cols = (
-    'tstart',
-    'tstop',
-    'startmjf',
-    'startmnf',
-    'stopmjf',
-    'stopmnf',
-    'tlmver',
-    'ascdsver',
-    'revision',
-    'date'
-)
+
+def _create_msid_time_dataset(msid, h5):
+
+    ft['msid'] = msid
+    avg_msids_rows_per_ingest = len(_values[msid])
+
+    expectedrows = (avg_msids_rows_per_ingest
+                    * FILES_IN_A_YEAR
+                    * MISSION_LIFE_IN_YEARS)
+    h5shape = (0,)
+    h5type = tables.Atom.from_dtype(np.dtype('float64'))
+
+    # h5 = tables.open_file(
+    #     msid_files['mnemonic_times'].abs,
+    #     mode='w'
+    # )
+
+    h5.create_earray(
+        h5.root,
+        'time',
+        h5type,
+        h5shape,
+        title=msid,
+        expectedrows=expectedrows
+    )
+
+    return 0
+
+
+def _create_msid_value_dataset(msid, h5):
+
+    ft['msid'] = msid
+    avg_msids_rows_per_ingest = len(_values[msid])
+
+    expectedrows = (avg_msids_rows_per_ingest
+                    * FILES_IN_A_YEAR
+                    * MISSION_LIFE_IN_YEARS)
+    h5shape = (0,)
+
+    # FIXME: The h5type fpr the msid values should vary
+    # depending on the actual data to be stored.
+    h5type = tables.Atom.from_dtype(np.dtype('float64'))
+
+    h5.create_earray(
+        h5.root,
+        'data',
+        h5type,
+        h5shape,
+        title=msid,
+        expectedrows=expectedrows
+    )
+
+    return 0
+
+
+def _create_msid_directories(msids):
+    """Create directories in the archive give a list of msids
+
+        Parameters
+        ----------
+        msids : a python list of msids to add to the archive
+
+    """
+
+    for msid in msids:
+        ft['msid'] = msid
+        msid_directory_path = msid_files['msid'].abs
+        if not os.path.exists(msid_directory_path):
+            logger.info(f"Creating new archive directory for {msid} ...")
+            os.makedirs(msid_directory_path)
+
+
+def _create_archive_files(msids):
+    for msid in msids:
+        ft['msid'] = msid
+
+        logger.info((
+            f"Creating new archive files"
+            f"(times.h5, values.h5) for {msid} ... "
+        ))
+
+        if not os.path.exists(msid_files['mnemonic_value'].abs):
+            try:
+                values_h5 = tables.open_file(
+                    msid_files['mnemonic_value'].abs,
+                    mode='w'
+                )
+                times_h5 = tables.open_file(
+                    msid_files['mnemonic_times'].abs,
+                    mode='w'
+                )
+                times_h5.close()
+                values_h5.close()
+            except Exception as err:
+                print(err)
+
+
+def _aggregate_dataset_samples(samples, large_sample, offset):
+    """Aggregates the dataset samples into a single ndarry from an HDF5 group
+
+        Parameters
+        ----------
+        samples : <class 'h5py._hl.group.Group'>
+                  `samples` contains a collection of 1 - n
+                   datasets of msid samples
+        large_sample : ndarray - dtype=[
+                                            ('id', '>i8'),
+                                            ('observatoryTime', '>i8'),
+                                            ('groundTime', '>i8'),
+                                            ('apid', '>i2'),
+                                            ('engineeringNumericValue', '>f8'),
+                                            ('engineeringTextValue', 'S80'),
+                                            ('alarmStatus', '>i2')
+                                        ]
+                        `large_sample` is a datastructure used to collect all
+                        tlm data from different files in memory.
+        offset : int
+                 This parameter is used to track where in `large_sample`
+                 to start appending new data.
+
+        Returns
+        -------
+        large_sample
+            A pointer to the data being collected
+        offset
+            A updated `offset` values base on the number of rows
+            appended thus far in the ingest.
+    """
+
+    grouped_sample = np.empty((0,), dtype=[
+        ('id', '>i8'),
+        ('observatoryTime', '>i8'),
+        ('groundTime', '>i8'),
+        ('apid', '>i2'),
+        ('engineeringNumericValue', '>f8'),
+        ('engineeringTextValue', 'S80'),
+        ('alarmStatus', '>i2')]
+    )
+
+    for i in range(1, len(samples)+1):
+        data = samples[f'data{i}']
+        dset = data[...]
+        grouped_sample = np.concatenate((grouped_sample, dset))
+
+    for i, v in enumerate(grouped_sample):
+        large_sample[i + offset] = v
+
+    offset += len(grouped_sample)
+
+    return large_sample, offset
+
+
+def _update_index_file(msid, epoch, index):
+    """ Update the index file
+
+        Parameters
+        ----------
+        filepath : str
+            the index file path
+        epoch : float
+            the time
+    """
+    # filters = tables.Filters(complevel=5, complib='zlib')
+    ft['msid'] = msid
+    h5 = tables.open_file(
+        msid_files['mnemonic_index'].abs,
+        driver="H5FD_CORE",
+        mode="a"
+    )
+
+    if index is not None and epoch is not None:
+
+        try:
+            if h5.__contains__('/epoch') is False:
+                compound_datatype = np.dtype([
+                    ('epoch', np.float64),
+                    ('index', np.uint64),
+                ])
+                table = h5.create_table(h5.root, 'epoch', compound_datatype)
+            else:
+                table = h5.root.epoch
+            table.row['index'] = index
+            table.row['epoch'] = epoch
+            table.row.append()
+            table.flush()
+        except Exception as err:
+            raise ValueError(f"Could not create epoch: {err}")
+        finally:
+            h5.close()
 
 
 def get_colnames():
-    """Get column names for the current content type (defined by ft['content'])"""
+    """Get column names for the current content type (defined by ft['content'])
+    """
+
     colnames = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
                 if x not in fetch.IGNORE_COLNAMES]
     return colnames
 
 
 def create_content_dir():
-    """ Make empty files for colnames,pkl and archive.meta.info.db3
+    """ Make empty files for colnames, pkl, and archive.meta.info.db3
 
     Must supply the --create option.
     """
@@ -177,6 +380,7 @@ def create_content_dir():
     if not os.path.exists(msid_files['colnames'].abs):
         with open(msid_files['colnames'].abs, 'wb') as f:
             pickle.dump(empty, f, protocol=0)
+
     if not os.path.exists(msid_files['colnames_all'].abs):
         with open(msid_files['colnames_all'].abs, 'wb') as f:
             pickle.dump(empty, f, protocol=0)
@@ -219,11 +423,11 @@ def fix_state_code(state_code):
 
 
 def main():
-    """ This method begins the telemetry archive update process.
+    """ Perform one full update of the data archive based on opt parameters.
 
-    Perform one full update of the eng archive based on opt parameters.
     This may be called in a loop by the program-level main().
     """
+
     logger.info('Runtime options: \n{}'.format(opt))
     logger.info('Update Module: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch Module: {}'.format(os.path.abspath(fetch.__file__)))
@@ -275,15 +479,6 @@ def main():
 
         if opt.update_stats:
             for colname in colnames:
-                # if opt.state_codes_only:
-                    # Check if colname has a state code in the TDB or if it is in the
-                    # special-case fetch.STATE_CODES dict (e.g. simdiag or simmrg telem).
-                    # try:
-                    #     Ska.tdb.msids[colname].Tsc['STATE_CODE']
-                    # except Exception:
-                    #     if not colname.upper() in fetch.STATE_CODES:
-                    #         continue
-
                 msid = update_stats(colname, 'daily')
                 update_stats(colname, '5min', msid)
 
@@ -637,25 +832,53 @@ def update_derived(filetype):
     for index0, index1 in zip(indexes[:-1], indexes[1:]):
         archfiles.append('{}:{}:{}'.format(filetype['content'], index0, index1))
         if len(archfiles) == max_archfiles or index1 == indexes[-1]:
-            update_telemetry_archive(filetype, archfiles)
-            logger.verbose('update_telemetry_archive(filetype={}, archfiles={})'
-                           .format(str(filetype), archfiles))
+            update_telemetry_archive(archfiles)
+            logger.verbose('update_telemetry_archive(archfiles={})'
+                           .format(archfiles))
             archfiles = []
 
 
 def update_archive(filetype):
-    """ Get new JWST ingest files for ``filetype`` and update telemetry archive
+    """ Get new ingest files for `filetype` and update telemetry archive
         from staged file data.
+
+        Parameter
+        =========
+
+        filetype: the source (i.e. prod, test) type of file to be ingested to a
+        `filetype` directory.
     """
 
-    ingest_files = get_archive_files(filetype)
+    ingest_files = _sort_ingest_files_by_start_time(get_archive_files())
 
-    if ingest_files:
-        processed_ingest_files = update_telemetry_archive(
-            filetype,
-            ingest_files
+    tstart = ingest_files[0]['tstart']
+    tstop = ingest_files[-1]['tstop']
+
+    logger.info(
+        (
+            f"=-=-=-=-Data Time Coverage=-=-=-=-=\n"
+            f"Start Date: {Time(tstart, format='unix').iso}\n"
+            f"End Data: {Time(tstop, format='unix').iso}\n\n"
         )
+    )
+
+    files_to_process = [
+        ingest_file['filename']
+        for ingest_file in ingest_files
+    ]
+
+    if files_to_process:
+        processed_ingest_files = process_ingest_files(
+            files_to_process,
+            tstart,
+            tstop,
+            chunk=4
+        )
+
+        # processed_ingest_files = update_telemetry_archive(files_to_ingest)
         move_archive_files(filetype, processed_ingest_files)
+    else:
+        logger.info('No ingest files discovered in {}')
 
 
 def make_h5_col_file_derived(dats, colname):
@@ -709,27 +932,6 @@ def append_h5_col_derived(dats, colname):
     return data_len
 
 
-# def init_mnemonic_times_file():
-
-#     with h5py.File(msid_files['mnemonic_times'].abs) as h5:
-#         h5.create_dataset('time', shape=(0, ),  maxshape=(None,), dtype=np.float64, chunks=True, compression="gzip")
-#         h5.close()
-
-
-# def init_mnemonic_values_file():
-
-#     with h5py.File(msid_files['mnemonic_value'].abs) as h5:
-#         h5.create_dataset(
-#             'data',
-#             shape=(0, ),
-#             maxshape=(None,),
-#             dtype="S21",
-#             chunks=True,
-#             compression="gzip"
-#         )
-#         h5.close()
-
-
 def init_mnemonic_index_file(idx=None, epoch=None):
 
     compound_datatype = np.dtype([
@@ -742,12 +944,6 @@ def init_mnemonic_index_file(idx=None, epoch=None):
         mnenmonic_idx = np.array([(epoch, idx)], dtype=[('epoch', 'f8'), ('index', np.uint64)])
         dset[:] = mnenmonic_idx
         h5.close()
-
-
-# def create_mnemonic_directory(colname):
-
-#     if not os.path.exists(msid_files['msid'].abs):
-#         os.makedirs(msid_files['msid'].abs)
 
 
 def make_h5_col_file_tlm(dats, colname, metadata):
@@ -794,37 +990,55 @@ def make_h5_col_file_tlm(dats, colname, metadata):
     values_h5.close()
 
 
-def append_h5_col_tlm(dat, colname, metadata):
+def _append_h5_col_tlm(msids):
 
     """Append new values to an HDF5 MSID data table.
-    :param dats: List of pyfits HDU data objects
-    :param colname: column name
+
+    Parameters
+    ----------
+    msids : <class 'list'> of msids with data buffered for appending to the
+            archive.
     """
 
-    id = metadata[metadata['name'] == colname.encode('utf-8')]['id']
+    for msid in msids:
 
-    try:
-        values = dat[dat['id'] == id]['engineeringNumericValue']
-    except Exception as err:
-        print(err)
-        return
+        ft['msid'] = msid
 
-    h5_values_file = tables.open_file(str(msid_files['mnemonic_value'].abs), mode='a')
-    # logger.verbose('Appending %d items to %s' % (len(values), str(msid_files['mnemonic_value'].abs)))
+        values_h5 = tables.open_file(
+            msid_files['mnemonic_value'].abs,
+            mode='a'
+        )
 
-    # h5_times_file = tables.open_file(str(msid_files['mnemonic_times'].abs), mode='a')
-    # logger.verbose('Appending %d items to %s' % (len(times), str(msid_files['mnemonic_times'].abs)))
+        if values_h5.__contains__('/data') is not True:
+            _create_msid_value_dataset(msid, values_h5)
 
-    if not opt.dry_run:
+        times_h5 = tables.open_file(
+            msid_files['mnemonic_times'].abs,
+            mode='a'
+        )
 
-        # h5_times_file.root.time.append(times)
-        h5_values_file.root.data.append(values)
+        if times_h5.__contains__('/time') is not True:
+            _create_msid_time_dataset(msid, times_h5)
 
-    data_len = len(h5_values_file.root.data)
-    # h5_times_file.close()
-    h5_values_file.close()
+        # TODO: Verify epoch is correct:
+        # Start time in this set for this msid
+        epoch = Time(_times[msid][0]/1000.0, format='unix').jd
 
-    return data_len
+        # Index should point to current number of rows
+        index = values_h5.root.data.nrows
+
+        _times[msid] = get_delta_times(_times[msid], epoch)
+
+        if not opt.dry_run:
+            values_h5.root.data.append(_values[msid])
+            times_h5.root.time.append(_times[msid])
+
+        # _update_index_file(msid, epoch, index)
+
+        values_h5.close()
+        times_h5.close()
+
+    return 0
 
 
 def truncate_archive(filetype, date):
@@ -893,7 +1107,7 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
 
     # Check if filename is already in archfiles.  If so then abort further processing.
     filename = os.path.basename(f)
-    dat = defaultdict(list)
+    # dat = defaultdict(list)
 
     if db.fetchall('SELECT filename FROM archfiles WHERE filename=?', (filename,)):
         logger.verbose('File %s already in archfiles - unlinking and skipping' % f)
@@ -904,32 +1118,9 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
     logger.info('Reading (%d / %d) %s' % (i, len(archfiles), filename))
 
     import h5py
+
     h5 = h5py.File(f, 'r')
-
-    large_sample = np.empty((0,), dtype=[
-        ('id', '>i8'),
-        ('observatoryTime', '>i8'),
-        ('groundTime', '>i8'),
-        ('apid', '>i2'),
-        ('engineeringNumericValue', '>f8'),
-        ('engineeringTextValue', 'S80'),
-        ('alarmStatus', '>i2')]
-    )
-
-    samples_length = len(h5['samples'])
-
-    # Put concatenate all datasets in a file and get the start and stop range
-    for i in range(1, samples_length+1):
-        data = h5['samples'][f'data{i}']
-        if i == 1:
-            start_time = Time(int((data.attrs['dataStartTime'][0]/1000)), format='unix').iso
-        elif i == samples_length:
-            stop_time = Time(int((data.attrs['dataStopTime'][0]/1000)), format='unix').iso
-        dset = data[...]
-        large_sample = np.concatenate((large_sample, dset))
-
-
-    dat = large_sample
+    all_samples, tstart, tstop = concat_fos_samples(h5['samples'])
     metadata = h5['metadata'][...]
 
     # Accumlate relevant info about archfile that will be ingested into
@@ -946,7 +1137,7 @@ def read_archfile(i, f, filetype, row, colnames, archfiles, db):
 
     h5.close()
 
-    return dat, archfiles_row, metadata
+    return all_samples, archfiles_row, metadata
 
 
 def read_derived(i, filename, filetype, row, colnames, archfiles, db):
@@ -1016,45 +1207,70 @@ def get_dat_colnames(dat):
     return dat if isinstance(dat, dict) else dat.dtype.names
 
 
-def get_last_database_row_number():
-    # Setup db handle with autocommit=False so that error along the way aborts insert transactions
-    db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs, autocommit=False)
+def get_delta_times(times, epoch=None):
 
-    # Get the last row number from the archfiles table
-    out = db.fetchone('SELECT max(rowstop) FROM archfiles')
-    row = out['max(rowstop)'] or 0
-    last_archfile = db.fetchone('SELECT * FROM archfiles where rowstop=?', (row,))
+    if epoch is None:
+        raise ValueError("Must have epoch")
+    # epoch = Time(time.gmtime(0), format='unix').jd
 
-    return last_archfile, row
+    x = [t/1000.0 for t in times]
+    jd_times = Time(x, format='unix').jd
+    return np.diff(np.insert(jd_times, 0, epoch))
 
 
-def select_ingest_strategy(filepath):
-    """Returns a file processing strategy based on file extension.
+def update_telemetry_archive(ingest_file_list, filetype='TLM'):
+    """ Coordinate the task of updating the tlm archive
     """
 
-    strategy_map = {
+    # a mapping between msids and ingest ids
+    mdmap = {}
 
-        'CSV': 'pandas',
-        'csv': 'pandas',
-        '.h5': 'h5py',
-        'hdf5': 'h5py',
-    }
+    # Represents the position to start appending rows
+    # during the data collection step
+    offset = 0
 
-    return strategy_map[filepath[-3:]]
+    metadata = np.empty((0,), dtype=[
+        ('name', 'S80'),
+        ('id', '>i8'),
+        ('hasEngNumeric', '>i2'),
+        ('hasEngText', '>i2')
+    ])
 
+    # allocate space for all the ingest data upfront in large sample
+    allocated_space = len(ingest_file_list) * 10280811
 
-def update_telemetry_archive(filetype, ingest_file_list):
-    processed_ingest_files = [] # Deviation
+    large_sample = np.empty((allocated_space,), dtype=[
+            ('id', '>i8'),
+            ('observatoryTime', '>i8'),
+            ('groundTime', '>i8'),
+            ('apid', '>i2'),
+            ('engineeringNumericValue', '>f8'),
+            ('engineeringTextValue', 'S80'),
+            ('alarmStatus', '>i2')
+    ])
 
+    missing_ids = []
+    values = defaultdict(list)
+    times = defaultdict(list)
+
+    # List of ingest files that have been processed
+    # Later tar and move out of staging the files named in this list
+    processed_ingest_files = []
+
+    # Get the list of msids that are already in the archive
     colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
     colnames_all = pickle.load(open(msid_files['colnames_all'].abs, 'rb'))
     old_colnames = colnames.copy()
-    old_colnames_all = colnames_all.copy()
+    # old_colnames_all = colnames_all.copy()
 
-    # Setup db handle with autocommit=False so that error along the way aborts insert transactions
-    db = Ska.DBI.DBI(dbi='sqlite', server=msid_files['archfiles'].abs, autocommit=False)
+    # Setup db handle with autocommit=False so that error
+    # along the way aborts insert transactions
+    db = Ska.DBI.DBI(
+        dbi='sqlite',
+        server=msid_files['archfiles'].abs,
+        autocommit=False
+    )
 
-    # last_archfile, row = get_last_database_row_number()
     out = db.fetchone('SELECT max(rowstop) FROM archfiles')
     row = out['max(rowstop)'] or 0
     last_archfile = db.fetchone(
@@ -1062,30 +1278,54 @@ def update_telemetry_archive(filetype, ingest_file_list):
         (row,)
     )
 
-    archfiles_overlaps = []
-    dats = []
-    archfiles_processed = []
+    # content_is_derived = (filetype['instrum'] == 'DERIVED')
+    # make_h5_col_file = make_h5_col_file_derived if content_is_derived else make_h5_col_file_tlm
+    # append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
 
-    content_is_derived = (filetype['instrum'] == 'DERIVED')
+    # Loop to load the data off disk and into memory
+    logger.info('Starting data collection.')
 
-    make_h5_col_file = make_h5_col_file_derived if content_is_derived else make_h5_col_file_tlm
-    append_h5_col = append_h5_col_derived if content_is_derived else append_h5_col_tlm
+    for idx, files in enumerate(ingest_file_list):
+        f = h5py.File(files, 'r')
 
-    for idx, f in enumerate(ingest_file_list):
+        print('Step 2')
+        tstart = f['samples']["data1"].attrs['dataStartTime'][0]/1000
+        tstart = Time(tstart, format='unix').iso
 
-        # strategy = select_ingest_strategy(f)
-        get_data = read_archfile
+        tstop = f['samples'][f"data{len(f['samples'])}"].attrs['dataStopTime'][0]/1000
+        tstop = Time(tstop, format='unix').iso
 
-        # ingest = process.Ingest(f, msid_files['colnames'].abs, strategy=strategy).start()
-        dat, archfiles_row, metadata = get_data(idx, f, filetype, row, colnames, ingest_file_list, db)
-        if dat is None:
-            continue
+        yday = Time(tstart, format='iso').yday
+
+        print('Step 3')
+        large_sample, offset = _aggregate_dataset_samples(
+            f['samples'],
+            large_sample,
+            offset
+        )
+        print('Step 4')
+        metadata = np.unique(np.concatenate((metadata, f['metadata'][...]), 0))
+
+        print('Step 5')
+        archfiles_row = dict(
+                            filename=f.filename,
+                            tstart=tstart,
+                            tstop=tstop,
+                            rowstart=row,
+                            rowstop=row + 1,
+                            year=yday[0:4],
+                            doy=yday[5:8],
+                            date=Time.now().iso
+                        )
 
         # If creating new content type and there are no existing colnames, then
         # define the column names now.
+        print('Step 6')
         if opt.create and not colnames:
             colnames = set(str(name, 'utf-8') for name in metadata['name'].tolist())
 
+        print('Step 7')
+        # TODO: Review that these time gap rules are still valid
         # Ensure that the time gap between the end of the last ingested archive
         # file and the start of this one is less than opt.max_gap (or
         # filetype-based defaults).  If this fails then break out of the
@@ -1095,9 +1335,10 @@ def update_telemetry_archive(filetype, ingest_file_list):
             time_gap = 0
         else:
             time_gap = Time(archfiles_row['tstart'], format='iso').unix - Time(last_archfile['tstop'], format='iso').unix
+
         max_gap = opt.max_gap
         if max_gap is None:
-            if filetype['instrum'] in ['DERIVED']:
+            if False: # filetype['instrum'] in ['DERIVED']:
                 max_gap = 601
             else:
                 max_gap = 32.9
@@ -1119,85 +1360,93 @@ def update_telemetry_archive(filetype, ingest_file_list):
         # leave files either in a tmp dir (HEAD) or in the stage dir (OCC).
         # In the latter case this allows for successful processing later when the
         # gap gets filled.
+        print('Step 8')
+        if not opt.dry_run:
+            processed_ingest_files.append(f.filename)
+            db.insert(archfiles_row, 'archfiles')
+        print('Step 9')
+        f.close()
+    print('Step 10')
 
+    mdmap = {id:name.decode('ascii') for id, name in zip(metadata['id'], metadata['name'])}
 
+    # Update the running list of column names.
+    msid_names = [v for k,v in mdmap.items()]
+    colnames_all.update(msid_names)
+    colnames.update(msid_names)
+    print('Step 11')
+    # Create any directories needed for new msids
+    for msid in colnames:
+        ft['msid'] = msid
+        msid_directory_path = msid_files['msid'].abs
+        if not os.path.exists(msid_directory_path):
+            os.makedirs(msid_directory_path)
+    print('Step 12')
+    # Create any archive files needed for new msids
+
+    print('Step 13')
+    for msid in colnames:
+        ft['msid'] = msid
+
+        avg_data_file = len(values[msid])
+        h5shape = (0,) # + values[msid].shape[1:]
+        h5type = tables.Atom.from_dtype(np.dtype('float64'))
+        times_h5type = tables.Atom.from_dtype(np.dtype('float64'))
+
+        values_filepath = msid_files['mnemonic_value'].abs
+        times_filepath = msid_files['mnemonic_times'].abs
+
+        if not os.path.exists(values_filepath):
+            values_h5 = tables.open_file(values_filepath, mode='w')
+            values_h5.create_earray(values_h5.root, 'data', h5type, h5shape, title=msid,
+                        expectedrows=(avg_data_file * FILES_IN_A_YEAR * MISSION_LIFE_IN_YEARS))
+            values_h5.close()
+        if not os.path.exists(times_filepath):
+            times_h5 = tables.open_file(times_filepath, mode='w')
+            times_h5.create_earray(times_h5.root, 'time', times_h5type, h5shape, title=msid,
+                        expectedrows=(avg_data_file * FILES_IN_A_YEAR * MISSION_LIFE_IN_YEARS))
+            times_h5.close()
+
+    logger.info(f'Organizing data to write to the archive...')
+
+    print('Step 14')
+    for data in large_sample:
+        if data['id'] == 0:
+            continue
+        try:
+            name = mdmap[data['id']]
+            values[name].append(data['engineeringNumericValue'])
+            # times are in milliseonds since unix epoch
+            times[name].append(data['observatoryTime'])
+        except:
+            missing_ids.append(data['id'])
+
+    logger.info(f'Number of missing/problem msids {len(missing_ids)}')
+    logger.info(f'Appending data to archive...')
+
+    for idx, msid in enumerate(msid_names):
+
+        ft['msid'] = msid
+        values_h5 = tables.open_file(msid_files['mnemonic_value'].abs, mode='a')
+        times_h5 = tables.open_file(msid_files['mnemonic_times'].abs, mode='a')
+
+        # Start time in this set for this msid
+        epoch = Time(times[msid][0]/1000.0, format='unix').jd
+
+        # Index should point to current number of rows
+        index = values_h5.root.data.nrows
+
+        times[msid] = get_delta_times(times[msid], epoch)
 
         if not opt.dry_run:
-            db.insert(archfiles_row, 'archfiles')
+            values_h5.root.data.append(values[msid])
+            times_h5.root.time.append(times[msid])
 
-        # Update the running list of column names.
-        colnames_all.update(dat.dtype.names)
-        colnames.update(name for name in get_dat_colnames(dat))
+        _update_index_file(msid, epoch, index)
 
-        # row += len(dat)
+        values_h5.close()
+        times_h5.close()
 
-        logger.verbose(f'Writing make_h5_col_file for {len(colnames)} ' + time.ctime())
-
-        for colname in colnames:
-            ft['msid'] = colname
-            if not os.path.exists(f'/srv/telemetry/archive/data/tlm/{colname}/'):
-                os.makedirs(f'/srv/telemetry/archive/data/tlm/{colname}/')
-                if not opt.create:
-                    # New MSID was found for this content type.  This must be associated with
-                    # an update to the TDB.  Skip for the moment to ensure that other MSIDs
-                    # are fully processed.
-                    continue
-
-        logger.verbose(f'Writing times and values hdf5 ' + time.ctime())
-        for colname in colnames:
-
-            h5shape = (0,)
-            h5type = tables.Float64Atom()
-            times_h5type = tables.Atom.from_dtype(np.dtype('float64'))
-
-            values_h5 = tables.open_file(f'/srv/telemetry/archive/data/tlm/{colname}/values.h5', mode='w')
-            values_h5.create_earray(values_h5.root, 'data', h5type, h5shape, title=colname,
-                            expectedrows=182500)
-
-            times_h5 = tables.open_file(f'/srv/telemetry/archive/data/tlm/{colname}/times.h5', mode='w')
-            times_h5.create_earray(times_h5.root, 'time', times_h5type, h5shape, title=colname,
-                            expectedrows=182500)
-
-            times_h5.close()
-            values_h5.close()
-
-        logger.verbose(f'Appending times and values dsets' + time.ctime())
-
-        df = pd.DataFrame(np.array(dat).byteswap().newbyteorder())
-
-        for colname in colnames:
-            id = metadata[metadata['name'] == colname.encode('utf-8')]['id']
-            try:
-                # number_of_samples = np.random.randint(1000, 10000)
-                # values = np.array(np.random.random_sample((number_of_samples,)))
-                # dat[dat['id'] == id]['engineeringNumericValue']
-                if not opt.dry_run:
-                    h5_values_file = tables.open_file(f'/srv/telemetry/archive/data/tlm/{colname}/values.h5', mode='a')
-                    values = df.loc[df['id'] == id[0], ['engineeringNumericValue']]
-                    # print(values['engineeringNumericValue'].as_matrix())
-                    # print(type(values['engineeringNumericValue'].as_matrix()))
-                    # raise ValueError("Right before appending")
-
-                    h5_values_file.root.data.append(np.hstack(values.as_matrix()))
-                    h5_values_file.close()
-
-            except Exception as err:
-                logger.info(f"Issue with {colname}, {err}")
-                h5_values_file.close()
-                continue
-
-            # processed_ingest_files.append(colname)
-        logger.verbose(f'Done Appending ' + time.ctime())
-        # logger.verbose('Writing accumulated column data to h5 file at ' + time.ctime())
-        # processed_cols = set()
-        # Process any new MSIDs (this is extremely rare)
-        # for colname in colnames:
-        #     ft['msid'] = colname
-        #     append_h5_col(dat, colname, metadata)
-        #     processed_cols.add(colname)
-
-    # Assuming everything worked now commit the db inserts that signify the
-    # new archive files have been processed
     if not opt.dry_run:
         db.commit()
 
@@ -1210,37 +1459,164 @@ def update_telemetry_archive(filetype, ingest_file_list):
     return processed_ingest_files
 
 
+def _allocate_large_sample(preallocation_size):
+
+    return np.empty((preallocation_size,), dtype=[
+        ('id', '>i8'),
+        ('observatoryTime', '>i8'),
+        ('groundTime', '>i8'),
+        ('apid', '>i2'),
+        ('engineeringNumericValue', '>f8'),
+        ('engineeringTextValue', 'S80'),
+        ('alarmStatus', '>i2')
+    ])
+
+
+def _organize_data_for_append(large_sample, mdmap):
+    missing_ids = []
+
+    for idx, data in enumerate(large_sample):
+        if data['id'] == 0:
+            continue
+        try:
+            name = mdmap[data['id']]
+            _values[name].append(data['engineeringNumericValue'])
+            # times are in milliseonds since unix epoch
+            _times[name].append(data['observatoryTime'])
+        except:
+            missing_ids.append(data['id'])
+
+    return missing_ids
+
+
+def process_ingest_files(files_to_process, tstart, tstop, chunk=4):
+
+    processing_start_time = Time(Time.now(), format="datetime").iso
+
+    file_processing_queue = deque(files_to_process)
+
+    while len(file_processing_queue) != 0:
+
+        large_sample = _allocate_large_sample(
+            len(file_processing_queue) * MAX_ROWS_PER_FILE
+        )
+
+        if len(file_processing_queue) < chunk:
+            chunk = len(file_processing_queue)
+
+        mdmap = {}
+        insert_offset = 0
+
+        file_processing_chunk = [
+            file_processing_queue.popleft()
+            for i in range(chunk)
+        ]
+
+        metadata = np.empty((0,), dtype=[
+            ('name', 'S80'),
+            ('id', '>i8'),
+            ('hasEngNumeric', '>i2'),
+            ('hasEngText', '>i2')
+        ])
+
+        for ingest_file in file_processing_chunk:
+
+            f = h5py.File(ingest_file, 'r')
+            large_sample, offset = _aggregate_dataset_samples(f['samples'], large_sample, insert_offset)
+            metadata = np.unique(np.concatenate((metadata, f['metadata'][...]), 0))
+
+            f.close()
+
+        mdmap = {id:name.decode('ascii') for id, name in zip(metadata['id'], metadata['name'])}
+        msids = list(mdmap.values())
+
+        # Create any msid archive directories that do not already exists
+        _create_msid_directories(msids)
+
+        # Create any msid archive files that do not already exists
+        _create_archive_files(msids)
+
+        # # Initialize the dataset in the archive for any new msids
+        # _create_msid_datasets(msids)
+
+        logger.info(
+            f"Preparing to append {len(large_sample)}"
+            f" new datapoints to the archive for {len(msids)} msids ..."
+        )
+
+        _organize_data_for_append(
+            large_sample=large_sample,
+            mdmap=mdmap
+        )
+
+        logger.info(
+            f"Starting to append {len(large_sample)}"
+            f" new datapoints to the archive for {len(msids)} msids ..."
+        )
+        _append_h5_col_tlm(msids)
+
+        _values.clear()
+        _times.clear()
+
+        large_sample = None
+
+    processing_end_time = Time(Time.now(), format="datetime").iso
+    print(f"{processing_start_time} | {processing_end_time}")
+
 def move_archive_files(filetype, processed_ingest_files):
 
-    import tarfile
-    import shutil
+    if processed_ingest_files is not None:
 
-    staging_directory = get_env_variable('STAGING_DIRECTORY')
-    os.chdir(staging_directory)
+        import tarfile
+        import shutil
 
-    tarfile_name = f"stage_{int(DateTime().secs)}.tar"
-    tar = tarfile.open(tarfile_name, mode='w')
+        os.chdir(STAGING_DIRECTORY)
 
-    for ingest_file in processed_ingest_files:
-        tar.add(ingest_file)
-        os.remove(ingest_file)
+        tarfile_name = f"stage_{int(DateTime().secs)}.tar"
+        tar = tarfile.open(tarfile_name, mode='w')
 
-    tar.close()
-    shutil.move(tarfile_name, f"{msid_files['processed_files_directory'].abs}/{tarfile_name}")
+        for ingest_file in processed_ingest_files:
+            tar.add(ingest_file)
+            os.remove(ingest_file)
+
+        tar.close()
+        shutil.move(
+            tarfile_name,
+            f"{msid_files['processed_files_directory'].abs}/{tarfile_name}"
+        )
 
 
-def get_archive_files(filetype):
+def _sort_ingest_files_by_start_time(list_of_files=[]):
+    ingest_list = []
+
+    for file in list_of_files:
+        f = h5py.File(file ,'r')
+        tstart = f['samples']["data1"].attrs['dataStartTime'][0]/1000
+        tstop = f['samples'][f"data{len(f['samples'])}"].attrs['dataStopTime'][0]/1000
+        ingest_list.append(
+            {
+                'filename': f.filename,
+                'tstart': tstart,
+                'tstop': tstop
+            }
+        )
+
+        f.close()
+
+    return sorted(ingest_list, key=lambda k: k['tstart'])
+
+
+def get_archive_files():
     """Get list of files to ingest by examining the file staging area
     """
 
     files = []
 
-    staging_directory = get_env_variable('STAGING_DIRECTORY')
-    logger.info(f"Starting legacy file discovery in {staging_directory} ... ")
-    files.extend(sorted(glob.glob(f"{staging_directory}*.{opt.ingest_file_format.lower()}")))
-    files.extend(sorted(glob.glob(f"{staging_directory}*.{opt.ingest_file_format.upper()}")))
+    logger.info(f"Starting legacy file discovery in {STAGING_DIRECTORY} ... ")
+    files.extend(sorted(glob.glob(f"{STAGING_DIRECTORY}*.{opt.ingest_file_format.lower()}")))
+    files.extend(sorted(glob.glob(f"{STAGING_DIRECTORY}*.{opt.ingest_file_format.upper()}")))
 
-    logger.info(f"{len(files)} file(s) staged in {staging_directory} ...")
+    logger.info(f"{len(files)} file(s) staged in {STAGING_DIRECTORY} ...")
 
     return files
 
