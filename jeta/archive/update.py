@@ -862,17 +862,17 @@ def update_archive(filetype):
             )
         )
 
-    files_to_process = [
-        ingest_file['filename']
-        for ingest_file in ingest_files
-    ]
+    # files_to_process = [
+    #     ingest_file['filename']
+    #     for ingest_file in ingest_files
+    # ]
 
-    if files_to_process:
+    if ingest_files:
         processed_ingest_files = process_ingest_files(
-            files_to_process,
+            ingest_files,
             tstart,
             tstop,
-            chunk=4
+            chunk=6
         )
 
         # processed_ingest_files = update_telemetry_archive(files_to_ingest)
@@ -1276,14 +1276,16 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
     ingest_list = []
 
     for file in list_of_files:
-        with h5py.File(file ,'r') as f:
+        with h5py.File(file, 'r') as f:
+
             tstart = f['samples']["data1"].attrs['dataStartTime'][0]/1000
             tstop = f['samples'][f"data{len(f['samples'])}"].attrs['dataStopTime'][0]/1000
             ingest_list.append(
                 {
                     'filename': f.filename,
                     'tstart': tstart,
-                    'tstop': tstop
+                    'tstop': tstop,
+                    'numPoints': f.attrs['/numPoints']
                 }
             )
 
@@ -1318,10 +1320,6 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=4):
 
         reset_storage()
 
-        large_sample = _allocate_large_sample(
-            int(MAX_ROWS_PER_FILE * chunk)
-        )
-
         if len(file_processing_queue) < chunk:
             chunk = len(file_processing_queue)
 
@@ -1329,6 +1327,14 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=4):
             file_processing_queue.popleft()
             for i in range(chunk)
         ]
+
+        # Sum the number of points for a chunk to get pre-allocation value
+        num_points_in_chunk = sum([i['numPoints'] for i in file_processing_chunk])
+        num_points_in_chunk = num_points_in_chunk + (num_points_in_chunk * .01)
+
+        large_sample = _allocate_large_sample(
+            int(num_points_in_chunk)
+        )
 
         metadata = np.empty((0,), dtype=[
             ('name', 'S80'),
@@ -1344,7 +1350,7 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=4):
 
         for ingest_file in file_processing_chunk:
 
-            f = h5py.File(ingest_file, 'r')
+            f = h5py.File(ingest_file['filename'], 'r')
             large_sample, offset = _aggregate_dataset_samples(f['samples'], large_sample, offset)
             metadata = np.unique(np.concatenate((metadata, f['metadata'][...]), 0))
 
