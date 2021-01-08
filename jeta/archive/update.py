@@ -1303,13 +1303,19 @@ def reset_storage():
     _counts = defaultdict(int)
 
 
-def process_ingest_files(files_to_process, tstart, tstop, chunk=4):
+def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
 
+    #
     processing_start_time = Time(Time.now(), format="datetime").iso
 
+    #
     file_processing_queue = deque(files_to_process)
+
+    #
     original_queue_length = len(file_processing_queue)
 
+    # List of ingest files that have been processed
+    # Later tar and move out of staging the files named in this list
     processed_files = []
 
     while len(file_processing_queue) != 0:
@@ -1317,6 +1323,21 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=4):
         mdmap = {}
         msids = []
         offset = 0
+
+        db = Ska.DBI.DBI(
+            dbi='sqlite',
+            server=msid_files['archfiles'].abs,
+            autocommit=False
+        )
+
+        out = db.fetchone('SELECT max(rowstop) FROM archfiles')
+        row = out['max(rowstop)'] or 0
+        last_archfile = db.fetchone('SELECT * FROM archfiles where rowstop=?', (row,))
+
+        # Get the list of msids that are already in the archive
+        with open(msid_files['colnames'].abs, 'rb') as f:
+            colnames = pickle.load(f)
+            old_colnames = colnames.copy()
 
         reset_storage()
 
@@ -1353,20 +1374,48 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=4):
             f = h5py.File(ingest_file['filename'], 'r')
             large_sample, offset = _aggregate_dataset_samples(f['samples'], large_sample, offset)
             metadata = np.unique(np.concatenate((metadata, f['metadata'][...]), 0))
-
+            if not opt.dry_run:
+                archfiles_row = dict(
+                    filename=f.filename,
+                    tstart=ingest_file['tstart'],
+                    tstop=ingest_file['tstop'],
+                    rowstart=row,
+                    rowstop=row + 1,
+                    year=0,
+                    doy=0,
+                    date=Time.now().iso
+                )
+                db.insert(archfiles_row, 'archfiles')
             f.close()
 
         mdmap = {id:name.decode('ascii') for id, name in zip(metadata['id'], metadata['name'])}
+
+        # a list of all the unique msids that a part of this update.
+        # i.e. to be update with new data
         msids = list(mdmap.values())
 
+        # a list of msids that are new to the archive
+        new_msids = np.setdiff1d(msids, colnames)
+
+        # update this list of msids stored in the archive
+        if new_msids.tolist():
+            colnames.update(new_msids)
+
         # Create any msid archive directories that do not already exists
-        _create_msid_directories(msids)
+        _create_msid_directories(new_msids)
 
         # Create any msid archive files that do not already exists
-        _create_archive_files(msids)
+        _create_archive_files(new_msids)
 
         # # Initialize the dataset in the archive for any new msids
         # _create_msid_datasets(msids)
+
+        # If colnames changed then give warning and update files.
+        if colnames != old_colnames:
+            logger.warning(f"WARNING: updating {msid_files['colnames'].abs} because mnemonic names changed ...")
+            if not opt.dry_run:
+                with open(msid_files['colnames'].abs, 'wb') as f:
+                    pickle.dump(colnames, f)
 
         logger.info(
             f"Preparing to append {len(large_sample)}"
@@ -1386,6 +1435,7 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=4):
         _append_h5_col_tlm(msids)
 
         processed_files = processed_files + file_processing_chunk
+        db.commit()
 
     processing_end_time = Time(Time.now(), format="datetime").iso
     print(f"{processing_start_time} | {processing_end_time}")
