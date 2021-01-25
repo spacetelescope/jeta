@@ -8,6 +8,7 @@ import os
 import glob
 import time
 import pickle
+from random import seed
 import shutil
 import argparse
 import itertools
@@ -17,7 +18,7 @@ from collections import OrderedDict, defaultdict, deque
 from astropy.time import Time
 from Chandra.Time import DateTime
 
-import Ska.File
+# import Ska.File
 import Ska.DBI
 import Ska.Numpy
 import pyyaks.logger
@@ -1116,47 +1117,6 @@ def is_file_already_in_db(ingest_file_path, db):
         return True
 
 
-def read_archfile(i, f, filetype, row, colnames, archfiles, db):
-    """Read filename ``f`` with index ``i`` (position within list of filenames).  The
-    file has type ``filetype`` and will be added to MSID file at row index ``row``.
-    ``colnames`` is the list of column names for the content type (not used here).
-    """
-
-    # Check if filename is already in archfiles.  If so then abort further processing.
-    filename = os.path.basename(f)
-    # dat = defaultdict(list)
-
-    if db.fetchall('SELECT filename FROM archfiles WHERE filename=?', (filename,)):
-        logger.verbose('File %s already in archfiles - unlinking and skipping' % f)
-        os.unlink(f)
-        return None, None
-
-    # Read HDF5 or CVS ingest file and accumulate data into dats list and header into headers dict
-    logger.info('Reading (%d / %d) %s' % (i, len(archfiles), filename))
-
-    import h5py
-
-    h5 = h5py.File(f, 'r')
-    all_samples, tstart, tstop = concat_fos_samples(h5['samples'])
-    metadata = h5['metadata'][...]
-
-    # Accumlate relevant info about archfile that will be ingested into
-    # MSID h5 files.  Commit info before h5 ingest so if there is a failure
-    # the needed info will be available to do the repair.
-    archfiles_row = dict(filename=f,
-                         tstart=start_time,
-                         tstop=stop_time,
-                         rowstart=row,
-                         rowstop=row + 1,
-                         year=f[f.find('-') + 1:f.find('-') + 5],
-                         doy=f[f.rfind('-') + 1:f.rfind('-') + 4],
-                         date=Time.now().iso)
-
-    h5.close()
-
-    return all_samples, archfiles_row, metadata
-
-
 def read_derived(i, filename, filetype, row, colnames, archfiles, db):
     """Read derived data using eng_archive and derived computation classes.
     ``filename`` has format <content>_<index0>_<index1> where <content>
@@ -1305,18 +1265,45 @@ def reset_storage():
 
 def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
 
+
+    # List of ingest files that have been processed
+    # Later tar and move out of staging the files named in this list
+    processed_files = []
+
+    db = Ska.DBI.DBI(
+        dbi='sqlite',
+        server=msid_files['archfiles'].abs,
+        autocommit=False
+    )
+
+    out = db.fetchone('SELECT count(*) FROM ingest_history')
+    ingest_id = out['count(*)']
+
+    ingest_record = {
+        'discovered_files': len(files_to_process),
+        'processed_files': len(processed_files),
+        'tstart': -1,
+        'tstop': -1,
+        'rowstart': None,
+        'coverage_start': tstart,
+        'coverage_end': tstop,
+        'ingest_status': 'processing',
+        'new_msids': 0,
+        'chunk_size': chunk,
+        'ingest_id': ingest_id
+    }
+
     #
-    processing_start_time = Time(Time.now(), format="datetime").iso
+    ingest_record['tstart'] = Time(Time.now(), format="datetime").unix
+
+    db.insert(ingest_record, 'ingest_history')
+    db.commit()
 
     #
     file_processing_queue = deque(files_to_process)
 
     #
     original_queue_length = len(file_processing_queue)
-
-    # List of ingest files that have been processed
-    # Later tar and move out of staging the files named in this list
-    processed_files = []
 
     while len(file_processing_queue) != 0:
 
@@ -1330,9 +1317,10 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
             autocommit=False
         )
 
-        out = db.fetchone('SELECT max(rowstop) FROM archfiles')
-        row = out['max(rowstop)'] or 0
-        last_archfile = db.fetchone('SELECT * FROM archfiles where rowstop=?', (row,))
+        out = db.fetchone('SELECT max(chunk_group) FROM archfiles')
+        row = out['max(chunk_group)'] or 0
+
+        last_archfile = db.fetchone('SELECT * FROM archfiles where chunk_group=?', (row,))
 
         # Get the list of msids that are already in the archive
         with open(msid_files['colnames'].abs, 'rb') as f:
@@ -1375,15 +1363,17 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
             large_sample, offset = _aggregate_dataset_samples(f['samples'], large_sample, offset)
             metadata = np.unique(np.concatenate((metadata, f['metadata'][...]), 0))
             if not opt.dry_run:
+                yday = Time(ingest_file['tstart'], format='unix').yday
                 archfiles_row = dict(
-                    filename=f.filename,
+                    filename=str(f.filename).replace('/srv/telemetry/staging/', ''),
                     tstart=ingest_file['tstart'],
                     tstop=ingest_file['tstop'],
-                    rowstart=row,
-                    rowstop=row + 1,
-                    year=0,
-                    doy=0,
-                    date=Time.now().iso
+                    offset=offset,
+                    chunk_group=row + 1,
+                    year=yday[0:4],
+                    doy=yday[5:8],
+                    processing_date=Time.now().iso,
+                    ingest_id=ingest_id
                 )
                 db.insert(archfiles_row, 'archfiles')
             f.close()
@@ -1396,6 +1386,7 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
 
         # a list of msids that are new to the archive
         new_msids = np.setdiff1d(msids, colnames)
+        ingest_record['new_msids'] = int(ingest_record['new_msids']) + len(new_msids)
 
         # update this list of msids stored in the archive
         if new_msids.tolist():
@@ -1435,10 +1426,35 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
         _append_h5_col_tlm(msids)
 
         processed_files = processed_files + file_processing_chunk
+        sql = (
+            "UPDATE ingest_history "
+            "SET "
+            f"processed_files={len(processed_files)} "
+            f"WHERE ingest_id={ingest_record['ingest_id']}"
+        )
+        db.execute(sql)
         db.commit()
 
-    processing_end_time = Time(Time.now(), format="datetime").iso
-    print(f"{processing_start_time} | {processing_end_time}")
+    ingest_record['tstop'] = Time(Time.now(), format="datetime").unix
+    ingest_record['processed_files'] = len(processed_files)
+    ingest_record['ingest_status'] = 'success'
+
+    db = Ska.DBI.DBI(
+        dbi='sqlite',
+        server=msid_files['archfiles'].abs,
+        autocommit=False
+    )
+    sql = (
+        "UPDATE ingest_history "
+        "SET "
+        f"processed_files={ingest_record['processed_files']}, "
+        f"tstop={ingest_record['tstop']}, "
+        f"ingest_status='{ingest_record['ingest_status']}', "
+        f"new_msids={ingest_record['new_msids']} "
+        f"WHERE ingest_id={ingest_record['ingest_id']}"
+    )
+    db.execute(sql)
+    db.commit()
 
     return processed_files
 
@@ -1479,6 +1495,7 @@ def get_archive_files():
     logger.info(f"{len(files)} file(s) staged in {STAGING_DIRECTORY} ...")
 
     return files
+
 
 if __name__ == "__main__":
     main()

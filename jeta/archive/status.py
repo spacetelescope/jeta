@@ -1,64 +1,72 @@
 import os
-import json
+import pickle
+import sqlite3
 import glob
 import ntpath
 
-from operator import itemgetter
+import pyyaks.logger
+import pyyaks.context
 
-def get_env_variable(var_name):
+import jeta.archive.file_defs as file_defs
+from jeta.archive.utils import get_env_variable
 
+ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
+
+msid_files = pyyaks.context.ContextDict('update.msid_files',
+                                        basedir=ENG_ARCHIVE)
+msid_files.update(file_defs.msid_files)
+
+
+def create_connection(db_file=msid_files['archfiles'].abs):
+    """ create a database connection to the SQLite database
+        specified by the db_file
+    :param db_file: database file
+    :return: Connection object or None
+    """
+    conn = None
     try:
-        return os.environ[var_name]
-    except:
-        error_msg = 'Set the {} environment variable'.format(var_name)
-        raise ValueError(error_msg)
+        conn = sqlite3.connect(db_file)
+    except Error as e:
+        print(e)
 
-def get_number_of_mnemoics_in_archive():
+    return conn
 
-    mnemonic_count = 0
 
-    for _, mnemonics, filenames  in os.walk(get_env_variable('TELEMETRY_ARCHIVE')):
-        mnemonic_count += len(mnemonics)
+def get_msid_count():
 
-    return mnemonic_count
+    with open(msid_files['colnames'].abs, 'rb') as f:
+        colnames = pickle.load(f)
+        return len(colnames)
+
+
+def get_msid_names():
+
+    with open(msid_files['colnames'].abs, 'rb') as f:
+        colnames = pickle.load(f)
+        return list(colnames)
+
 
 def get_list_of_staged_files(include_path=False):
 
-    filenames = [ ntpath.basename(paths) for paths in sorted(glob.glob(f"{staging_directory}*.h5"))]
+    filenames = [ ntpath.basename(paths) for paths in sorted(glob.glob(f"{get_env_variable('STAGING_DIRECTORY')}*.h5"))]
 
     return filenames
 
-def staging_area_status():
 
-    supported_file_types = ['h5', 'CSV']
-    staging_directory = get_env_variable('STAGING_DIRECTORY')
+def get_ingest_history():
+    conn = create_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM ingest_history")
 
-    status = {
-        'files': None,
-        'sizes': None,
-        'max_size': None,
-    }
+    rows = cur.fetchall()
+    return rows
 
-    status['files'] = sorted(glob.glob(f"{staging_directory}*.h5"))
-
-    status['sizes']  = [(name, os.path.getsize(name)) for name in status['files']]
-
-    max_size_file = max(status['sizes'], key=itemgetter(1))
-
-    status['max_size'] = {
-        'file': max_size_file[0],
-        'size_in_bytes': max_size_file[1],
-    }
-
-    return status
 
 def get_total_archive_area_size(PATH_VAR='TELEMETRY_ARCHIVE'):
 
-    archive_path=os.environ[PATH_VAR]
-
     size_of_archive_in_bytes = 0
 
-    for location, dirnames, filelist in os.walk(archive_path):
+    for location, dirnames, filelist in os.walk(ENG_ARCHIVE):
         for file in filelist:
             file_path = os.path.join(location, file)
             size_of_archive_in_bytes += os.path.getsize(file_path)

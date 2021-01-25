@@ -46,8 +46,10 @@ END
 
 set -x && conda install -c conda-forge configurable-http-proxy;
 set -x && pip install jupyterhub==1.1.0
-set -x && pip install jupyterlab==1.2.6
+set -x && pip install 'jupyterlab<2.0'
 set -x && jupyter labextension install -y @jupyterlab/hub-extension
+set -x && jupyter labextension install @jupyter-widgets/jupyterlab-manager
+set -x && jupyter serverextension enable --py jupyterlab --user
 
 set -x && jupyter lab build
 
