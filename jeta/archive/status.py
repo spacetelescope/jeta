@@ -43,7 +43,7 @@ def get_msid_names():
 
     with open(msid_files['colnames'].abs, 'rb') as f:
         colnames = pickle.load(f)
-        return list(colnames)
+        return sorted(list(colnames))
 
 
 def get_list_of_staged_files(include_path=False):
@@ -71,3 +71,10 @@ def get_total_archive_area_size(PATH_VAR='TELEMETRY_ARCHIVE'):
             file_path = os.path.join(location, file)
             size_of_archive_in_bytes += os.path.getsize(file_path)
     return size_of_archive_in_bytes
+
+
+def is_in_archive(msid):
+
+    with open(msid_files['colnames'].abs, 'rb') as f:
+        colnames = list(pickle.load(f))
+        return msid in colnames
