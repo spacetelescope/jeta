@@ -47,10 +47,22 @@ def get_msid_names():
 
 
 def get_list_of_staged_files(include_path=False):
+    from pathlib import Path
 
-    filenames = [ ntpath.basename(paths) for paths in sorted(glob.glob(f"{get_env_variable('STAGING_DIRECTORY')}*.h5"))]
+    filenames = [(ntpath.basename(paths), Path(paths).stat().st_size) for paths in sorted(glob.glob(f"{get_env_variable('STAGING_DIRECTORY')}*.h5"))]
 
     return filenames
+
+
+def get_ingest_files(ingest_id):
+
+    conn = create_connection()
+    cur = conn.cursor()
+    cur.execute(f"SELECT * FROM archfiles WHERE ingest_id={ingest_id};")
+
+    rows = cur.fetchall()
+
+    return rows
 
 
 def get_ingest_history():
@@ -62,15 +74,18 @@ def get_ingest_history():
     return rows
 
 
-def get_total_archive_area_size(PATH_VAR='TELEMETRY_ARCHIVE'):
+def get_total_archive_area_size(area="archive"):
 
-    size_of_archive_in_bytes = 0
+    from pathlib import Path
 
-    for location, dirnames, filelist in os.walk(ENG_ARCHIVE):
-        for file in filelist:
-            file_path = os.path.join(location, file)
-            size_of_archive_in_bytes += os.path.getsize(file_path)
-    return size_of_archive_in_bytes
+    area_map = {
+        'archive': Path('/srv/telemetry/archive/data/tlm'),
+        'staging': Path(get_env_variable('STAGING_DIRECTORY')),
+    }
+
+    root_directory = area_map[area]
+
+    return sum(f.stat().st_size for f in root_directory.glob('**/*') if f.is_file())
 
 
 def is_in_archive(msid):

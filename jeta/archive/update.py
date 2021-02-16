@@ -863,16 +863,34 @@ def update_archive(filetype):
             )
         )
 
-    # files_to_process = [
-    #     ingest_file['filename']
-    #     for ingest_file in ingest_files
-    # ]
+    db = Ska.DBI.DBI(
+        dbi='sqlite',
+        server=msid_files['archfiles'].abs,
+        autocommit=False
+    )
+
+    out = db.fetchone('SELECT count(*) FROM ingest_history')
+    ingest_id = out['count(*)']
+
+    ingest_record = {
+        'discovered_files': len(ingest_files),
+        'tstart': -1,
+        'tstop': -1,
+        'coverage_start': tstart,
+        'coverage_end': tstop,
+        'ingest_status': 'starting',
+        'ingest_id': ingest_id
+    }
+
+    db.insert(ingest_record, 'ingest_history')
+    db.commit()
 
     if ingest_files:
         processed_ingest_files = process_ingest_files(
             ingest_files,
             tstart,
             tstop,
+            ingest_id=ingest_id,
             chunk=6
         )
 
@@ -1263,12 +1281,13 @@ def reset_storage():
     _counts = defaultdict(int)
 
 
-def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
+def process_ingest_files(files_to_process, tstart, tstop, ingest_id, chunk=6):
 
 
     # List of ingest files that have been processed
     # Later tar and move out of staging the files named in this list
     processed_files = []
+    chunk_group = 0
 
     db = Ska.DBI.DBI(
         dbi='sqlite',
@@ -1276,27 +1295,28 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
         autocommit=False
     )
 
-    out = db.fetchone('SELECT count(*) FROM ingest_history')
-    ingest_id = out['count(*)']
-
     ingest_record = {
-        'discovered_files': len(files_to_process),
         'processed_files': len(processed_files),
-        'tstart': -1,
-        'tstop': -1,
+        'tstart': Time(Time.now(), format="datetime").unix,
         'rowstart': None,
-        'coverage_start': tstart,
-        'coverage_end': tstop,
         'ingest_status': 'processing',
         'new_msids': 0,
         'chunk_size': chunk,
         'ingest_id': ingest_id
     }
 
-    #
-    ingest_record['tstart'] = Time(Time.now(), format="datetime").unix
-
-    db.insert(ingest_record, 'ingest_history')
+    sql = (
+        "UPDATE ingest_history "
+        "SET "
+        f"processed_files={len(processed_files)}, "
+        f"tstart={ingest_record['tstart']}, "
+        f"rowstart='{ingest_record['rowstart']}', "
+        f"ingest_status='{ingest_record['ingest_status']}', "
+        f"new_msids={ingest_record['new_msids']}, "
+        f"chunk_size={ingest_record['chunk_size']} "
+        f"WHERE ingest_id={ingest_record['ingest_id']}"
+    )
+    db.execute(sql)
     db.commit()
 
     #
@@ -1337,6 +1357,8 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
             for i in range(chunk)
         ]
 
+        chunk_group += 1
+
         # Sum the number of points for a chunk to get pre-allocation value
         num_points_in_chunk = sum([i['numPoints'] for i in file_processing_chunk])
         num_points_in_chunk = num_points_in_chunk + (num_points_in_chunk * .01)
@@ -1369,7 +1391,7 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
                     tstart=ingest_file['tstart'],
                     tstop=ingest_file['tstop'],
                     offset=offset,
-                    chunk_group=row + 1,
+                    chunk_group=chunk_group,
                     year=yday[0:4],
                     doy=yday[5:8],
                     processing_date=Time.now().iso,
@@ -1386,6 +1408,7 @@ def process_ingest_files(files_to_process, tstart, tstop, chunk=6):
 
         # a list of msids that are new to the archive
         new_msids = np.setdiff1d(msids, colnames)
+        # TODO: Replace with num_points_in_chunk = int(1.01*num_points_in_chunk)
         ingest_record['new_msids'] = int(ingest_record['new_msids']) + len(new_msids)
 
         # update this list of msids stored in the archive
