@@ -10,7 +10,7 @@ import six
 from six.moves import zip
 from functools import wraps
 import numpy as np
-from Chandra.Time import DateTime
+from astropy.time import TimeDatetime
 
 
 # Cache the results of fetching 3 days of telemetry keyed by MSID
@@ -32,25 +32,6 @@ def timeit_wrapper(func):
     return wrapper
 
 
-def create_archive_directories(self):
-
-    pass
-
-    # ingest_mnemonics = np.array(list(self.df.keys()))
-    # existing_archive_directories = np.array([x[1] for x in os.walk(ROOT_MNEMONIC_DIRECTORY)][0])
-
-    # directories_to_create = np.setdiff1d(ingest_mnemonics, existing_archive_directories)
-
-    # print("INFO: creating archive directories ... ")
-
-    # for archive_subdirectory in directories_to_create:
-
-    #     try:
-    #         os.makedirs(ROOT_MNEMONIC_DIRECTORY+"/"+archive_subdirectory)
-    #     except IOError as e:
-    #         raise IOError("Failed to create directory.")
-
-
 def get_env_variable(var_name):
 
     try:
@@ -58,6 +39,7 @@ def get_env_variable(var_name):
     except:
         error_msg = f'Set the {var_name} environment variable'
         raise ValueError(error_msg)
+
 
 def get_fetch_size(msids, start, stop, stat=None, interpolate_dt=None, fast=True):
     """
@@ -86,8 +68,8 @@ def get_fetch_size(msids, start, stop, stat=None, interpolate_dt=None, fast=True
     :returns: fetch_Mb, interpolated_Mb
     """
 
-    start = DateTime(start)
-    stop = DateTime(stop)
+    start = TimeDatetime(start)
+    stop = TimeDatetime(stop)
 
     # Short circuit in the case of a short fetch or not full-resolution telemetry
     if fast and (stop - start < 30 or stat is not None):
@@ -162,8 +144,8 @@ def ss_vector(start, stop=None, obj='Earth'):
       subplot(2, 1, 2)
       plot_cxctime(vec['times'], vec['distance'])
 
-    :param start: start time (DateTime format)
-    :param stop: stop time (DateTime format)
+    :param start: start time (TimeDatetime format)
+    :param stop: stop time (TimeDatetime format)
     :param obj: solar system object ('Earth', 'Moon', 'Sun')
 
     :returns: table of vector values
@@ -179,8 +161,8 @@ def ss_vector(start, stop=None, obj='Earth'):
         raise ValueError('obj parameter must be one of {0}'
                          .format(list(sign.keys())))
 
-    tstart = DateTime(start).secs
-    tstop = DateTime(stop).secs
+    tstart = TimeDatetime(start).secs
+    tstop = TimeDatetime(stop).secs
     q_att_msids = ['aoattqt1', 'aoattqt2', 'aoattqt3', 'aoattqt4']
     q_atts = fetch.MSIDset(q_att_msids, tstart, tstop, stat='5min')
 
@@ -360,8 +342,8 @@ def state_intervals(times, vals):
     state_vals = vals[transitions[1:]]
     state_times = midtimes[transitions]
 
-    intervals = {'datestart': DateTime(state_times[:-1]).date,
-                 'datestop': DateTime(state_times[1:]).date,
+    intervals = {'datestart': TimeDatetime(state_times[:-1]).date,
+                 'datestop': TimeDatetime(state_times[1:]).date,
                  'tstart': state_times[:-1],
                  'tstop': state_times[1:],
                  'duration': state_times[1:] - state_times[:-1],

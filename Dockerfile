@@ -1,13 +1,15 @@
-FROM debian:10
-# FROM jupyterhub/jupyterhub
-LABEL author='David Kauffman <dkauffman@stsci.edu>' Version="1.0.2"
+FROM python:3.8-slim-buster
+
+LABEL version="1.0.3"
+LABEL maintainer="David Kauffman <dkauffman@stsci.edu>"
+LABEL "edu.stsci"="Space Telescope Science Institute"
 
 # Conda Setup Environment Variables
 ENV DISPLAY=${ARG_DISPLAY}
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV CONDA_ROOT=/opt/conda
 # ENV CONDA_ROOT=/usr/local/
-ENV SKA_ENV=ska3
+ENV SKA_ENV=jSka
 ENV PATH=${CONDA_ROOT}/env/${SKA_ENV}/bin:${CONDA_ROOT}/bin:${PATH}
 
 
@@ -50,6 +52,7 @@ RUN set -x \
         npm \
         nodejs \
         wget \
+        vim \
     && apt-get clean
 
 
@@ -61,12 +64,9 @@ RUN set -x \
     && rm -f Miniconda3-4.3.21-Linux-x86_64.sh \
     && echo 'export PATH='${CONDA_ROOT}'/bin:$PATH' >>/etc/profile
 
-# Install ska3
-# Warning: this URL is out of our control https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda/linux-64/repodata.json
-# RUN set -x \
-#     && conda config --env --set always_yes true \
-#     && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight;
-    # && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight
+RUN set -x \
+    && conda config --env --set always_yes true \
+    && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight;
 
 # Create project directories
 RUN set -x \

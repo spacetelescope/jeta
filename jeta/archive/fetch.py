@@ -16,6 +16,8 @@ import collections
 import warnings
 import re
 import json
+import datetime
+from datetime import timedelta
 
 import numpy as np
 from astropy.io import ascii
@@ -43,7 +45,27 @@ CACHE = False
 ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 JETA_SCRIPTS = get_env_variable('JETA_SCRIPTS')
 
-IGNORE_COLNAMES = ('TIME', 'MJF', 'MNF', 'TLM_FMT')
+IGNORE_COLNAMES = (
+        'TIME',
+        'MJF',
+        'MNF',
+        'TLM_FMT',
+        'ENGINEERINGNUMERICVALUE',
+        'ID',
+        'OBSERVATORYTIME',
+        'GROUNDTIME',
+        'APID',
+        'ENGINEERINGTEXTVALUE',
+        'ALARMSTATUS'
+        'id',
+        'observatoryTime',
+        'groundTime',
+        'apid',
+        'engineeringNumericValue',
+        'engineeringTextValue',
+        'alarmStatus',
+)
+
 
 
 # Dates near the start of 2000 that demarcates the split between the 1999 data
@@ -55,7 +77,13 @@ DATE2000_LO = DateTime('2000:001:00:00:00.090').date
 DATE2000_HI = DateTime('2000:003:00:00:00.234').date
 
 # Launch date (earliest possible date for telemetry)
-LAUNCH_DATE = '1999:204'
+# TODO: Rename or Replace with more accurate name
+# Give user option to easily select on orbit data
+LAUNCH_DATE = '2008:001'
+
+# Latest telemetry date (latest possible tlm)
+tomorrow = datetime.datetime.now() + timedelta(days=1)
+LATEST_TLM_DATE = f"{tomorrow.timetuple().tm_year}:{tomorrow.timetuple().tm_yday:03d}:00:00:00.000"
 
 # Maximum number of MSIDs that should ever match an input MSID spec
 # (to prevent accidentally selecting a very large number of MSIDs)
@@ -516,7 +544,7 @@ class MSID(object):
     units = UNITS
     fetch = sys.modules[__name__]
 
-    def __init__(self, msid, start=LAUNCH_DATE, stop=None, filter_bad=False, stat=None):
+    def __init__(self, msid, start=LAUNCH_DATE, stop=LATEST_TLM_DATE, filter_bad=False, stat=None):
 
         self.msid = msid.lower()
         self.MSID = msid.upper()
@@ -613,9 +641,7 @@ class MSID(object):
                     self.colnames = ['vals', 'times', 'bads']
                     args = (self.content, self.tstart, self.tstop, self.MSID, self.units['system'])
 
-                    if ('jwst' in data_source.sources()): #and self.MSID in data_source.get_msids('jwst')):
-
-                        print("INFO: Using JWST Data Sources")
+                    if ('jwst' in data_source.sources()):  # and self.MSID in data_source.get_msids('jwst')):
 
                         get_msid_data = self._get_msid_data_from_jwst
                         # get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE

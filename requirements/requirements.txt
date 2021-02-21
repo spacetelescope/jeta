@@ -14,8 +14,8 @@ billiard==3.5.0.4
 
 # Celery
 celery==4.2.1
-celery-redbeat==0.13.0
-flower==0.9.3
+# celery-redbeat==0.13.0
+# flower==0.9.3
 
 
 # Testing, Code Coverage, Linting

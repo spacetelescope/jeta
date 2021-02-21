@@ -29,7 +29,7 @@ msid_files = {
     'headers':      'data/{{ft.content}}/headers.pickle',
     'archfiles':    'archive.meta.info.db3',
     'colnames':     'colnames.pickle',
-    'colnames_all': 'data/{{ft.content}}/colnames_all.pickle',
+    'colnames_all': 'colnames_all.pickle',
     'msid':         'data/{{ft.content}}/{{ft.msid | upper}}',
     'data':         'data/{{ft.content}}/{{ft.msid | upper}}.h5',
     'statsdir':     'data/{{ft.content}}/stats/{{ft.interval}}/',

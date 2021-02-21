@@ -18,7 +18,7 @@ from celery.result import AsyncResult
 from celery.schedules import schedule as celery_ingest_schedule
 from celery.task.control import inspect
 
-from redbeat.schedulers import RedBeatSchedulerEntry
+# from redbeat.schedulers import RedBeatSchedulerEntry
 
 from jeta.archive.utils import get_env_variable
 
@@ -72,12 +72,12 @@ def _append_data_to_jeta_archive(mnemonic, data, times):
             raise ValueError(err.args[0])
 
 
-def set_ingest_schedule(interval=celery_ingest_schedule(run_every=600)):
+# def set_ingest_schedule(interval=celery_ingest_schedule(run_every=600)):
 
-    entry = RedBeatSchedulerEntry('execute_telemetry_ingest', 'jeta.ingest.controller._execute_automated_ingest', interval, app=app)
-    entry.save()
+#     entry = RedBeatSchedulerEntry('execute_telemetry_ingest', 'jeta.ingest.controller._execute_automated_ingest', interval, app=app)
+#     entry.save()
 
-    return 'The Schedule Update Ran'
+#     return 'The Schedule Update Ran'
 
 
 def get_mnemonic_init_list(ingest):
