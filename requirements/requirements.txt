@@ -38,7 +38,7 @@ Click==7.0
 configobj==5.0.6
 
 crypto==1.4.1
-cryptography==2.4.1
+cryptography==3.3.2
 cycler==0.10.0
 Cython==0.28.3
 decorator==4.3.0
