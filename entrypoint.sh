@@ -2,7 +2,7 @@
 
 set -e
 
-
+set -x && alias jeta='python /srv/jeta/code/jeta/archive/update.py'
 
 #-------------------------------------------------------------------------------
 # Handle shutdown/cleanup
