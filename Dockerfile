@@ -1,6 +1,6 @@
 FROM python:3.8-slim-buster
 
-LABEL version="1.0.3"
+LABEL version="1.2.0"
 LABEL maintainer="David Kauffman <dkauffman@stsci.edu>"
 LABEL "edu.stsci"="Space Telescope Science Institute"
 
