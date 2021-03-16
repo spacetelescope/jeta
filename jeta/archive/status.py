@@ -17,7 +17,6 @@ msid_files = pyyaks.context.ContextDict('update.msid_files',
 msid_files.update(file_defs.msid_files)
 
 
-
 def create_connection(db_file=msid_files['archfiles'].abs):
     """ create a database connection to the SQLite database
         specified by the db_file
@@ -27,7 +26,7 @@ def create_connection(db_file=msid_files['archfiles'].abs):
     conn = None
     try:
         conn = sqlite3.connect(db_file)
-    except Error as e:
+    except Exception as e:
         print(e)
 
     return conn
