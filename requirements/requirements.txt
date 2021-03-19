@@ -27,7 +27,7 @@ selenium==3.141.0
 # Django (Web API)
 Django==2.2
 django-celery-results==1.0.4
-djangorestframework==3.9.0
+djangorestframework==3.11.2
 djangorestframework-simplejwt==4.4.0
 
 
