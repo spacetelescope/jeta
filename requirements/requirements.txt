@@ -121,7 +121,7 @@ python-magic==0.4.15
 python-socketio==4.4.0
 pytz==2018.4
 pyyaks==3.3.4
-PyYAML==5.1
+PyYAML==5.4
 pyzmq==17.0.0
 Quaternion==3.4.1
 redis==2.10.6
