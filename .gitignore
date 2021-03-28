@@ -7,6 +7,7 @@ test/eng_archive
 test/*.tar.gz
 test/regr_vals.*
 .pytest_cache/*
+htmlcov
 
 # Project
 build
@@ -38,3 +39,4 @@ linux_deploy.sh
 # vscode
 .vscode/
 jeta.code-workspace
+jeta/staging/.coverage

@@ -1,5 +1,6 @@
 import os
 import tempfile
+from time import sleep
 
 import unittest
 from unittest import mock
@@ -28,18 +29,41 @@ class TestArchiveStatusAPI(unittest.TestCase):
     def test_get_msid_count(self):
         import pickle
 
-        with tempfile.TemporaryDirectory() as tempdir:
+        tmp = tempfile.TemporaryDirectory()
+        with tmp as tempdir:
             os.environ['TELEMETRY_ARCHIVE'] = tempdir
 
             test_msid_list = ['TEST_MSID']
             expected_result = len(test_msid_list)
-
-            pickle.dump(test_msid_list, open(
-                os.path.join(tempdir, 'colnames.pickle') , '+wb')
-            )
+            with open(os.path.join(tempdir, 'colnames.pickle'), '+wb') as tmp_pickle:
+                pickle.dump(test_msid_list, tmp_pickle)
 
             from jeta.archive.status import get_msid_count
-            count = get_msid_count()
-            assert count == expected_result
+            actual_result = get_msid_count()
+            tmp.cleanup()
 
-# class TestStagingStatusAPI(unittest.TestCase):
+            assert actual_result == expected_result
+
+    # @mock.patch.dict(os.environ, {
+    #         "TELEMETRY_ARCHIVE": FIXTURE_ARCHIVE
+    #     }
+    # )
+    # def test_get_msid_names(self):
+    #     import pickle
+
+    #     tmp = tempfile.TemporaryDirectory()
+
+    #     with tmp as tempdir:
+    #         print(tempdir)
+    #         os.environ['TELEMETRY_ARCHIVE'] = tempdir
+
+    #         test_msid_list = ['TEST_MSID']
+    #         expected_result = test_msid_list
+
+    #         with open(os.path.join(tempdir, 'colnames.pickle'), '+wb') as tmp_pickle:
+    #             pickle.dump(test_msid_list, tmp_pickle)
+
+    #         from jeta.archive.status import get_msid_names
+    #         actual_result = get_msid_names()
+    #         assert actual_result == expected_result
+
