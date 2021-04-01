@@ -54,6 +54,10 @@ def get_list_of_staged_files(include_path=False):
     return filenames
 
 
+def get_list_of_files_in_range(tstart, tstop, target_dir=get_env_variable('STAGING_DIRECTORY')):
+    pass
+
+
 def get_current_ingest_id():
     return os.getenv('CURRENT_INGEST_ID')
 

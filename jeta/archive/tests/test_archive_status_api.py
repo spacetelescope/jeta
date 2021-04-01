@@ -44,6 +44,12 @@ class TestArchiveStatusAPI(unittest.TestCase):
 
             assert actual_result == expected_result
 
+    def test_get_list_of_activities(self):
+        self.fail('Write a test for: test_get_list_of_activities')
+
+    def test_get_list_of_files_in_range(self):
+        self.fail('Write a test for: test_get_list_of_files_in_range')
+
     # @mock.patch.dict(os.environ, {
     #         "TELEMETRY_ARCHIVE": FIXTURE_ARCHIVE
     #     }
@@ -66,4 +72,3 @@ class TestArchiveStatusAPI(unittest.TestCase):
     #         from jeta.archive.status import get_msid_names
     #         actual_result = get_msid_names()
     #         assert actual_result == expected_result
-

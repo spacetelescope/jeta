@@ -12,9 +12,10 @@ from unittest.mock import patch
 from jeta.archive.utils import get_env_variable
 
 from jeta.staging.manage import (
-    _create_activity_staging_area,
-    get_files_by_date,
-    remove_activity
+    get_staged_files_by_date,
+    remove_activity,
+    _format_activity_destination,
+    _create_activity_staging_area
 )
 
 HOME = str(Path.home())
@@ -40,7 +41,7 @@ class TestStaging(unittest.TestCase):
 
     def test_get_files_by_date(self):
 
-        result = get_files_by_date(0, time.time())
+        result = get_staged_files_by_date(0, time.time())
 
         assert len(result) == 1
 
@@ -78,3 +79,24 @@ class TestStaging(unittest.TestCase):
         remove_activity(_activity)
 
         mock_remove.assert_called_once_with(expected_path)
+
+    def test_add_activity(self):
+        pytest.fail('No test implemented')
+
+    def test_add_ingest_file_to_activity(self):
+        pytest.fail('No test implemented')
+
+    def test_get_files_for_activity(self):
+        pytest.fail('No test implemented')
+
+    def restore_activity_to_staging(self):
+        pytest.fail('No test implemented')
+
+    def test_format_activity_destination(self):
+        _activity = "TEST_ACTIVITY"
+
+        expected = f'{STAGING_DIRECTORY}{_activity}/'
+        actual = _format_activity_destination(_activity)
+        print(actual)
+
+        assert expected == actual
