@@ -17,16 +17,16 @@ import jeta.archive.file_defs as file_defs
 from jeta.archive.utils import get_env_variable
 
 ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
-STAGING_DIRECTORY = '/Users/dkauffman/Projects/jSka/development_archive/stage/' # get_env_variable('STAGING_DIRECTORY')
+STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 
 
 # The backlog is a special activity that hosts ingest files that should still be ingested
 # but processing them is behind. i.e. can be any number of files for any range.
 BACKLOG_DIRECTORY = f'{STAGING_DIRECTORY}backlog/'
 
-msid_files = pyyaks.context.ContextDict('update.msid_files',
-                                        basedir=ENG_ARCHIVE)
-msid_files.update(file_defs.msid_files)
+# msid_files = pyyaks.context.ContextDict('update.msid_files',
+#                                         basedir=ENG_ARCHIVE)
+# msid_files.update(file_defs.msid_files)
 
 
 def _format_activity_destination(dst):

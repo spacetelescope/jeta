@@ -19,7 +19,7 @@ from jeta.staging.manage import (
 )
 
 HOME = str(Path.home())
-STAGING_DIRECTORY = '/Users/dkauffman/Projects/jSka/development_archive/stage/'
+STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 
 
 class TestStaging(unittest.TestCase):
