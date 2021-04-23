@@ -1,8 +1,8 @@
 
 CREATE TABLE IF NOT EXISTS ingest_history (
-  ingest_id         int not null, -- unique id for each ingest
+  ingest_id         text not null, -- unique id for each ingest
   discovered_files  int, -- the number of files discovered for ingest
-  processed_files  int, -- the number of files discovered for ingest
+  processed_files   int, -- the number of files discovered for ingest
   coverage_start    float not null,
   coverage_end      float not null,
   tstart            int not null, -- start of ingest
@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS ingest_history (
   ingest_status     text, -- success, failure, null
   new_msids         int, -- number of new msids added during this ingest
   chunk_size        int, -- processing chunks used during this ingest
+  uuid              text,
 
   CONSTRAINT pk_ingest_id PRIMARY KEY (ingest_id)
 );
@@ -26,7 +27,7 @@ CREATE TABLE IF NOT EXISTS archfiles (
   startmjf                   int,
   stopmjf                    int,
   processing_date            text not null,
-  ingest_id                  int not null,
+  ingest_id                  text not null,
 
   FOREIGN KEY(ingest_id) REFERENCES ingest_history(ingest_id),
   CONSTRAINT pk_archfiles PRIMARY KEY (filename)
