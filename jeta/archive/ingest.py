@@ -12,7 +12,12 @@ import pickle
 from random import seed
 import torch
 
-from collections import OrderedDict, defaultdict, deque
+from collections import (
+    Counter,
+    OrderedDict,
+    defaultdict,
+    deque,
+)
 
 from astropy.time import Time
 from Chandra.Time import DateTime
@@ -28,32 +33,32 @@ import tables
 import numpy as np
 
 from jeta.celery import app
-# from torch._C import float64
-# from torch._C import Value, float64
 
 import jeta.archive.fetch as fetch
 import jeta.archive.file_defs as file_defs
-# import jeta.archive.derived as derived
+
 from jeta.archive.utils import get_env_variable
 
 # Frequency Per Day to ingest
 INGEST_CADENCE = 2
 
-# An assumption about the average number of files per ingest
+# An assumption about the average number of files per ingest.
+# default: 60 files covering an ~24mins interval each.
 AVG_NUMBER_OF_FILES = 60
 
 # The expected life time of the mission in years
 MISSION_LIFE_IN_YEARS = 20
 
-# The avg maximum number of rows per file per analysis
+# The avg maximum number of rows per file per
+# analysis performed by DMS.
 MAX_ROWS_PER_FILE = 10_280_811
 
-# Locations for disk I/O
+# Archive persistent storage locations on disk.
 ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 TELEMETRY_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 
-# Calculate the number of files in a given year for generation of data.
+# Calculate the number of files per year for archive space allocation prediction/allocation.
 FILES_IN_A_YEAR = (AVG_NUMBER_OF_FILES * INGEST_CADENCE) * 365
 
 ft = fetch.ft
@@ -361,6 +366,7 @@ def _append_h5_col_tlm(msid, epoch):
 
     return 0
 
+
 def _is_file_already_in_db(ingest_file_path, db):
 
     filename = os.path.basename(ingest_file_path)
@@ -477,7 +483,7 @@ def get_archive_files():
     return files
 
 
-def process_ingest_files(files_to_process, tstart, tstop, ingest_id, chunk=1):
+def process_ingest_files(files_to_process, tstart, tstop, ingest_id, chunks):
 
 
     # List of ingest files that have been processed
@@ -497,7 +503,7 @@ def process_ingest_files(files_to_process, tstart, tstop, ingest_id, chunk=1):
         'rowstart': None,
         'ingest_status': 'processing',
         'new_msids': 0,
-        'chunk_size': chunk,
+        'chunk_size': chunk_group,
         'ingest_id': ingest_id
     }
 
@@ -545,15 +551,17 @@ def process_ingest_files(files_to_process, tstart, tstop, ingest_id, chunk=1):
 
         _reset_storage()
 
-        if len(file_processing_queue) < chunk:
-            chunk = len(file_processing_queue)
+        # if len(file_processing_queue) < chunk:
+        #     chunk = len(file_processing_queue)
+
+        chunk = chunks[files_to_process[chunk_group]['tstart']]
 
         file_processing_chunk = [
             file_processing_queue.popleft()
             for i in range(chunk)
         ]
 
-        chunk_group += 1
+        chunk_group += chunk
 
         # Sum the number of points for a chunk to get pre-allocation value
         num_points_in_chunk = sum([i['numPoints'] for i in file_processing_chunk])
@@ -673,24 +681,6 @@ def process_ingest_files(files_to_process, tstart, tstop, ingest_id, chunk=1):
                 # maybe write ingest_failed() function as well to encapsulate clean up ans roll back.
                 logger.error(f"!!! CRITICAL ERROR !!! failed to sort and calculate times for {msid} | {_times[msid].ndim} | {_times[msid]} | {type(_times[msid])}")
                 raise err
-                # ingest_record = {
-                #     'tstop': Time(Time.now(), format="datetime").unix,
-                #     'ingest_status': 'error',
-                #     'ingest_id': ingest_id
-                # }
-
-                # sql = (
-                #     "UPDATE ingest_history "
-                #     "SET "
-                #     f"tstop='{ingest_record['tstop']}', "
-                #     f"ingest_status='{ingest_record['ingest_status']}' "
-                #     f"WHERE ingest_id='{ingest_record['ingest_id']};'"
-                # )
-                # db.execute(sql)
-                # db.commit()
-
-                # raise ValueError(f'-=-=-=--=-=-=-FULL STOP: {msid}!!!-=-=-=-=-=-==-')
-
 
         processed_files = processed_files + file_processing_chunk
 
@@ -753,8 +743,15 @@ def move_archive_files(filetype, processed_ingest_files):
 def start_ingest():
 
     ingest_id = uuid1()
-
     ingest_files = _sort_ingest_files_by_start_time(get_archive_files())
+
+    #-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+    # NOTE: This matters in the case there exists start times that are exact duplicates
+    # else this will product a list of ones in which case one file at a time will be
+    # processed
+    start_times = [h5file['tstart'] for h5file in ingest_files]
+    chunks = dict(Counter(start_times))
+    #-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
     if ingest_files:
 
@@ -803,7 +800,7 @@ def start_ingest():
             tstart,
             tstop,
             ingest_id=ingest_id.int,
-            chunk=1
+            chunks=chunks
         )
 
         # processed_ingest_files = update_telemetry_archive(files_to_ingest)
@@ -817,7 +814,7 @@ def main():
 
     This may be called in a loop by the program-level main().
     """
-    logger.info('=-=-=-=-=-=-=-=-INGEST PROGRESS REPORT=-=-=-=-=-=-=-=')
+    logger.info('=-=-=-=-=-=-=-=-INGEST REPORT=-=-=-=-=-=-=-=')
 
     logger.info('Update Module: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch Module: {}'.format(os.path.abspath(fetch.__file__)))
@@ -831,7 +828,7 @@ def main():
 
     start_ingest()
 
-    logger.info(f'=-=-=-=-=-=-=-=-=-INGEST COMPLETE-=-=-=-=-=-=-=-=-=')
+    logger.info(f'=-=-=-=-=-=-=-=-INGEST COMPLETE-=-=-=-=-=-=-=-=')
 
 if __name__ == "__main__":
     main()
