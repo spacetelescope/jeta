@@ -70,10 +70,8 @@ arch_files = pyyaks.context.ContextDict('update.arch_files',
                                         basedir=ENG_ARCHIVE)
 arch_files.update(file_defs.arch_files)
 
-#  filename='/var/log/jeta.update.log',
-
 logger = pyyaks.logger.get_logger(
-    filename='/Users/dkauffman/jeta.update.log',
+    filename='/var/log/jeta.update.log',
     name='jeta_logger',
     level='INFO',
     format="%(asctime)s %(message)s"
@@ -483,8 +481,33 @@ def get_archive_files():
     return files
 
 
-def process_ingest_files(files_to_process, tstart, tstop, ingest_id, chunks):
+def _get_ingest_chunk_sequence(ingest_files):
 
+    ingest_chunk_sequence = []
+
+    tstop = ingest_files[0]['tstop']
+
+    if len(ingest_files) == 0:
+        chunk_len = 0
+        return None
+    if len(ingest_files) == 1:
+        chunk_len = 1
+        ingest_chunk_sequence = [1]
+        return ingest_chunk_sequence
+    else:
+        chunk_len = 1
+        for idx, f in enumerate(ingest_files[1:]):
+            if f['tstart'] <= tstop or idx + 1 == len(ingest_files) - 1:
+                chunk_len += 1
+            else:
+                ingest_chunk_sequence.append(chunk_len)
+                chunk_len = 1
+            tstop = f['tstop']
+        ingest_chunk_sequence.append(chunk_len)
+    return ingest_chunk_sequence
+
+
+def process_ingest_files(files_to_process, tstart, tstop, ingest_id, chunks):
 
     # List of ingest files that have been processed
     # Later tar and move out of staging the files named in this list
@@ -740,18 +763,22 @@ def move_archive_files(filetype, processed_ingest_files):
         )
 
 
-def start_ingest():
+def _ingest():
 
+    # unique id for this run of the ingest.
     ingest_id = uuid1()
+
+    # get a list of hdf5 (ingest) files from the staging area and sort by
+    # the files start of coverage attribute.
     ingest_files = _sort_ingest_files_by_start_time(get_archive_files())
 
-    #-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-    # NOTE: This matters in the case there exists start times that are exact duplicates
-    # else this will product a list of ones in which case one file at a time will be
-    # processed
-    start_times = [h5file['tstart'] for h5file in ingest_files]
-    chunks = dict(Counter(start_times))
-    #-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+    # get a the list of files groups (chunks) that will be ingests together
+    # i.e. [1, 2, 1, 3] means that given the sorted list of ingest files
+    # [file1, file2, file3, file4, file5, file6, file7] they would be processed in
+    # theses groups [(file1), (file2, file3), (file4), (file5, file6, file7)]
+    # groups of files have their data aggragated and sorted by time before
+    # appending to archive.
+    chunks = _get_ingest_chunk_sequence(ingest_files)
 
     if ingest_files:
 
@@ -826,9 +853,9 @@ def main():
     known_msids = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
                 if x not in fetch.IGNORE_COLNAMES]
 
-    start_ingest()
+    _ingest()
 
-    logger.info(f'=-=-=-=-=-=-=-=-INGEST COMPLETE-=-=-=-=-=-=-=-=')
+    logger.info(f'=-=-=-=-=-=-=-=-=-INGEST COMPLETE-=-=-=-=-=-=-=-=-=')
 
 if __name__ == "__main__":
     main()
