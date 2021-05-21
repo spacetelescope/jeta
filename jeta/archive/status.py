@@ -26,7 +26,7 @@ def create_connection(db_file=msid_files['archfiles'].abs):
     conn = None
     try:
         conn = sqlite3.connect(db_file)
-    except Error as e:
+    except Exception as e:
         print(e)
 
     return conn
@@ -49,9 +49,21 @@ def get_msid_names():
 def get_list_of_staged_files(include_path=False):
     from pathlib import Path
 
-    filenames = [(ntpath.basename(paths), Path(paths).stat().st_size) for paths in sorted(glob.glob(f"{get_env_variable('STAGING_DIRECTORY')}*.h5"))]
+    filenames = [(ntpath.basename(paths), Path(paths).stat().st_size, Path(paths).stat().st_ctime) for paths in sorted(glob.glob(f"{get_env_variable('STAGING_DIRECTORY')}*.h5"))]
 
     return filenames
+
+
+def get_list_of_files_in_range(tstart, tstop, target_dir=get_env_variable('STAGING_DIRECTORY')):
+    pass
+
+
+def get_current_ingest_id():
+    return os.getenv('CURRENT_INGEST_ID')
+
+
+def get_ingest_state():
+    return os.getenv('INGEST_STATE')
 
 
 def get_ingest_files(ingest_id):

@@ -700,11 +700,14 @@ def calc_stats_vals(msid, rows, indexes, interval):
 
 def update_stats(colname, interval, msid=None):
 
-    dt = {'5min': 328,
-          'daily': 86400}[interval]
+    dt = {
+        '5min': 328,
+        'daily': 86400
+    }[interval]
 
     ft['msid'] = colname
     ft['interval'] = interval
+
     stats_file = msid_files['stats'].abs
 
     logger.info('Updating stats file %s', stats_file)
@@ -713,8 +716,11 @@ def update_stats(colname, interval, msid=None):
         logger.info('Making stats dir {}'.format(msid_files['statsdir'].abs))
         os.makedirs(msid_files['statsdir'].abs)
 
-    stats = tables.open_file(stats_file, mode='a',
-                            filters=tables.Filters(complevel=5, complib='zlib'))
+    stats = tables.open_file(
+                stats_file,
+                mode='a',
+                filters=tables.Filters(complevel=5, complib='zlib')
+    )
 
     # INDEX0 is somewhat before any CXC archive data (which starts around 1999:205)
     INDEX0 = DateTime('1999:200:00:00:00').secs // dt

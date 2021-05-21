@@ -40,8 +40,13 @@ set -x && python manage.py makemigrations && python manage.py migrate;
 
 cat <<END | python manage.py shell
 from django.contrib.auth.models import User
-if not User.objects.filter(username='svc_jska').exists():
-    User.objects.create_superuser('svc_jska', 'no-reply@stsci.edu', 'svc_jska')
+if not User.objects.filter(username='svc_thelma_api').exists():
+    user = User.objects.create_superuser('svc_thelma_api', 'dkauffman@stsci.edu', 'svc_thelma_api')
+    from rest_framework.authtoken.models import Token
+    token = Token.objects.create(user=user)
+    print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    print(token.key)
+    print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 END
 
 set -x && conda install -c conda-forge configurable-http-proxy;

@@ -81,7 +81,10 @@ celery -A jeta.ingest.controller flower --loglevel=info
 
 ## Running the tests
 
-- TBD
+```bash
+coverage run -m  pytest .
+coverage html
+```
 
 ## Coding Style
 
