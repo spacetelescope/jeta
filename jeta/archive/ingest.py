@@ -374,7 +374,6 @@ def _is_file_already_in_db(ingest_file_path, db):
         return True
 
 
-@app.task
 def calculate_delta_times(msid, times, epoch=None):
 
     if epoch is None:
@@ -390,7 +389,6 @@ def calculate_delta_times(msid, times, epoch=None):
     _times[msid] = np.diff(np.insert(jd_times, 0, epoch))
 
 
-@app.task
 def sort_msid_data_by_time(msid, times, values):
 
     global _times
