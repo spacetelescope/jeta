@@ -8,6 +8,7 @@ test/*.tar.gz
 test/regr_vals.*
 .pytest_cache/*
 htmlcov
+.coverage
 
 # Project
 build
