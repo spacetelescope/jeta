@@ -107,9 +107,10 @@ def truncate():
     pass
 
 
-def destory():
+def destory(data_only=True):
     from shutil import rmtree
-    rmtree(ENG_ARCHIVE + 'archive/data/')
+    if data_only:
+        rmtree(ENG_ARCHIVE + 'archive/data/')
 
 
 def add_msid_to_archive(msid, dtype, nrows, nbytes):
