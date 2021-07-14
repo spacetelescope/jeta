@@ -100,4 +100,4 @@ gunicorn==19.8.1
 jhub_remote_user_authenticator
 jupyterhub-dummyauthenticator
 
-torch==1.8.1
+torch

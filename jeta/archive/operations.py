@@ -2,6 +2,7 @@ import os
 import h5py
 import tables
 import uuid
+import pickle
 import numpy as np
 
 import pyyaks.logger
@@ -10,15 +11,31 @@ import pyyaks.context
 import jeta.archive.file_defs as file_defs
 from jeta.archive.utils import get_env_variable
 
-ENG_ARCHIVE = '/Users/dkauffman/System/Engineering/projects/fot/platform/development_archive/'
+ENG_ARCHIVE = get_env_variable('ENG_ARCHIVE')
+ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
 # ARCHIVE_METADATA = get_env_variable('ARCHIVE_METADATA')
 
-ALL_KNOWN_MSID_METAFILE = '/Users/dkauffman/System/Engineering/projects/fot/platform/notebooks/.meta/all_known_msid_sematics.h5'
+msid_files = pyyaks.context.ContextDict('update.msid_files',
+                                        basedir=ENG_ARCHIVE)
+msid_files.update(file_defs.msid_files)
+
+
+def _create_root_content():
+    """ Make empty files and directories for msids, msids.pickle, and archive.meta.info.db3
+    """
+
+    empty = set()
+    if not os.path.exists(f"{ENG_ARCHIVE}/msids.pickle"):
+        with open(f"{ENG_ARCHIVE}/msids.pickle", 'wb') as f:
+            pickle.dump(empty, f, protocol=0)
+
+    if not os.path.exists(f"{ENG_ARCHIVE}/processed_files"):
+        os.makedirs(f"{ENG_ARCHIVE}/processed_files")
 
 
 def _create_msid_index(msid):
     with tables.open_file(
-        f"{ENG_ARCHIVE}archive/data/tlm/{msid}/index.h5",
+        f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/index.h5",
          driver="H5FD_CORE",
          mode='a'
         ) as idx_file:
@@ -40,7 +57,7 @@ def _create_msid_dataset(msid, dtype, nrows, target, nbytes):
     
     filters = tables.Filters(complevel=5, complib='zlib')
     
-    with tables.open_file(f"{ENG_ARCHIVE}archive/data/tlm/{msid}/{target}.h5", 'a') as h5:
+    with tables.open_file(f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/{target}.h5", 'a') as h5:
         h5.create_earray(
             h5.root,
             target,
@@ -55,8 +72,8 @@ def _create_msid_dataset(msid, dtype, nrows, target, nbytes):
 
 
 def _create_archive_files(msid):
-        values_files = f"{ENG_ARCHIVE}archive/data/tlm/{msid}/values.h5"
-        times_files = f"{ENG_ARCHIVE}archive/data/tlm/{msid}/times.h5"
+        values_files = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/values.h5"
+        times_files = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/times.h5"
         try:
             if not os.path.exists(values_files):
                 with tables.open_file(
@@ -80,7 +97,7 @@ def _create_archive_files(msid):
 
 
 def _create_msid_directory(msid):
-        msid_directory_path = f"{ENG_ARCHIVE}archive/data/tlm/{msid}/"
+        msid_directory_path = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/"
         if not os.path.exists(msid_directory_path):
             os.makedirs(msid_directory_path)
 
@@ -110,7 +127,10 @@ def truncate():
 def destory(data_only=True):
     from shutil import rmtree
     if data_only:
-        rmtree(ENG_ARCHIVE + 'archive/data/')
+        try:
+            rmtree(ENG_ARCHIVE + '/archive/data/')
+        except FileNotFoundError as err:
+            return "Nothing to do. Archive does not exist."
 
 
 def add_msid_to_archive(msid, dtype, nrows, nbytes):
@@ -132,6 +152,8 @@ def initialize():
         This function creates and formats the persistent storage area 
         for each msids curated in the archive. 
     """
+    _create_root_content()
+
     with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
         for msid in h5.keys():
             add_msid_to_archive(

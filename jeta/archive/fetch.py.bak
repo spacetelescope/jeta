@@ -22,7 +22,6 @@ from datetime import timedelta
 import numpy as np
 from astropy.io import ascii
 from astropy.time import Time
-import tables
 import pyyaks.context
 import six
 from six.moves import cPickle as pickle
@@ -554,12 +553,8 @@ class MSID(object):
         self.units = Units(self.units['system'])
         self.unit = self.units.get_msid_unit(self.MSID)
         self.stat = stat
-
         if stat:
-            self.dt = {
-                '5min': 328, 
-                'daily': 86400
-            }[stat]
+            self.dt = {'5min': 328, 'daily': 86400}[stat]
 
         # If ``start`` is actually a table of intervals then fetch
         # each interval separately and concatenate the results
@@ -567,17 +562,14 @@ class MSID(object):
         if intervals is not None:
             start, stop = intervals[0][0], intervals[-1][1]
 
-        self.tstart = Time(start, format='yday').unix
-        self.tstop = (Time(stop, format='yday').unix if stop else
-                      Time(Time.now()).unix) 
-
-        self.datestart = Time(self.tstart, format='unix').yday
-        self.datestop = Time(self.tstop, format='unix').yday
-        
+        self.tstart = DateTime(start).secs
+        self.tstop = (DateTime(stop).secs if stop else
+                      DateTime(time.time(), format='unix').secs)
+        self.datestart = DateTime(self.tstart).date
+        self.datestop = DateTime(self.tstop).date
         self.data_source = {}
-
         self.content = content.get(self.MSID)
-    
+
         if self.datestart < DATE2000_LO and self.datestop > DATE2000_HI:
             intervals = [(self.datestart, DATE2000_HI),
                          (DATE2000_HI, self.datestop)]
@@ -649,13 +641,23 @@ class MSID(object):
                     self.colnames = ['vals', 'times', 'bads']
                     args = (self.content, self.tstart, self.tstop, self.MSID, self.units['system'])
 
-                    if ('jwst' in data_source.sources()):
+                    if ('jwst' in data_source.sources()):  # and self.MSID in data_source.get_msids('jwst')):
 
-                        get_msid_data = self._get_archived_data
+                        get_msid_data = self._get_msid_data_from_jwst
                         # get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
                         #                  else self._get_msid_data_from_cxc)
                         self.vals, self.times, self.bads = get_msid_data(*args)
                         # self.data_source['cxc'] = _get_start_stop_dates(self.times)
+
+                    # if ('cxc' in data_source.sources() and
+                    #         self.MSID in data_source.get_msids('cxc')):
+                    #     # CACHE is normally True only when doing ingest processing.  Note
+                    #     # also that to support caching the get_msid_data_from_cxc_cached
+                    #     # method must be static.
+                    #     get_msid_data = (self._get_msid_data_from_cxc_cached if CACHE
+                    #                      else self._get_msid_data_from_cxc)
+                    #     self.vals, self.times, self.bads = get_msid_data(*args)
+                    #     self.data_source['cxc'] = _get_start_stop_dates(self.times)
 
                     if 'test-drop-half' in data_source.sources() and hasattr(self, 'vals'):
                         # For testing purposes drop half the data off the end.  This assumes another
@@ -667,6 +669,12 @@ class MSID(object):
                         # Following assumes only one prior data source but ok for controlled testing
                         for source in self.data_source:
                             self.data_source[source] = _get_start_stop_dates(self.times)
+
+                    if ('maude' in data_source.sources() and
+                            self.MSID in data_source.get_msids('maude')):
+                        # Update self.vals, times, bads in place.  This might concatenate MAUDE
+                        # telemetry to existing CXC values.
+                        self._get_msid_data_from_maude(*args)
 
     def _get_stat_data(self):
         """Do the actual work of getting stats values for an MSID from HDF5
@@ -761,8 +769,8 @@ class MSID(object):
         """Do the actual work of getting time and values for an MSID from HDF5
         files"""
 
-        start_jd = Time(start, format='unix', scale="utc").jd
-        stop_jd = Time(stop, format='unix', scale="utc").jd
+        start_jd = Time(start, format='cxcsec', scale="utc").jd
+        stop_jd = Time(stop, format='cxcsec', scale="utc").jd
 
         values_filepath = msid_files['mnemonic_value'].abs
         times_filepath = msid_files['mnemonic_times'].abs
@@ -790,7 +798,7 @@ class MSID(object):
 
             h5 = tables.open_file(values_filepath, 'r')
             dt = np.dtype([ ('epoch','<f8'), ('index', '<u8')])
-            last_idx = np.array([(0, len(h5.root.values[0:-1]) )], dtype=dt)
+            last_idx = np.array([(0, len(h5.root.data[0:-1]) )], dtype=dt)
             index = np.append(index, last_idx)
             h5.close()
 
@@ -808,7 +816,7 @@ class MSID(object):
         h5.close()
 
         h5 = tables.open_file(times_filepath, 'r')
-        dts = h5.root.times[row0:row1]
+        dts = h5.root.time[row0:row1]
         h5.close()
 
         # Make the final time array now
@@ -828,110 +836,23 @@ class MSID(object):
         return jds[idx0:idx1], vals[idx0:idx1]
 
     @staticmethod
-    def _get_archived_data(content, tstart, tstop, msid, unit_system):
-
-        """ Get the data from the archive and bind it to the MSID object.
-
-        Do the actual work of getting time and values for an MSID from HDF5
-        files.
-
-        Parameters
-        ==========
-
-        content : ???
-        tstart : astropy.time.TimeUnix
-            the start date and time of the data being requested.
-        tstop : astropy.time.TimeUnix
-            the stop date and time of the data being requested.
-        msid : str
-        unit_system : ???
+    def _get_msid_data_from_jwst(content, tstart, tstop, msid, unit_system):
 
         """
-        ft['content'] = 'tlm'
+            Interface for JWST to the original Ska.engarchive system. Accepts the same
+            parameters and then passes them to the JWST data fetching function.
+        """
 
-        # Get references to the arhiv files for this MSID
-        values_filepath = msid_files['mnemonic_value'].abs
-        times_filepath = msid_files['mnemonic_times'].abs
-        index_filepath = msid_files['mnemonic_index'].abs
+        times, vals = MSID._get_jwst_data(tstart, tstop, msid)
 
-        # The archive will use JD for its calculations
-        start_jd = Time(tstart, format='unix', scale="utc").jd
-        stop_jd = Time(tstop, format='unix', scale="utc").jd
-
-        print(tstart)
-        print(tstop)
-        print(start_jd)
-        print(stop_jd)
-        print(values_filepath)
-        print(times_filepath)
-        print(index_filepath)
-
-        # Assume the index.h5 file is a table (named epoch) with 'epoch' and 'index' columns
-        h5 = tables.open_file(index_filepath, 'r')
-        index = h5.root.epoch[:]  # read the whole thing into a numpy structured array
-        h5.close()
-
-        # Interval that starts *before* start_jd, making sure to not go below 0
-        idx0 = max(np.searchsorted(index['epoch'], start_jd, side='right') - 1, 0)
-
-        # Interval that starts *after* stop_jd
-        idx1 = np.searchsorted(index['epoch'], stop_jd, side='right')
-
-        print(idx0)
-        print(idx1)
-
-        if len(index) == idx1:
-            h5 = tables.open_file(values_filepath, 'r')
-            dt = np.dtype([ ('epoch','<f8'), ('index', '<u8')])
-            last_idx = np.array([(0, len(h5.root.values[0:-1]) )], dtype=dt)
-            index = np.append(index, last_idx)
-            h5.close()
-
-        else:
-            index = index[idx0:idx1 + 1]  # The +1 is so that the idx1 record is included
-
-        # Start and stop rows which are guaranteed to contain start, stop
-        row0 = index['index'][0]
-        row1 = index['index'][-1]
-
-        print(row0)
-        print(row1)
-
-        # Get the values
-        h5 = tables.open_file(values_filepath, 'r')
-        vals = h5.root.values[row0:row1]
-        h5.close()
-
-        # Get the times (still an array of delta times now)
-        h5 = tables.open_file(times_filepath, 'r')
-        jds = h5.root.times[row0:row1]
-        h5.close()
-
-        # Make the final time array now
-        # jds = np.zeros_like(dts)
-
-        # Apply the delta times.  This is the meat of the computation and is really
-        # just a few lines.
-        # for index0, index1 in zip(index[:-1], index[1:]):
-        #     r0 = index0['index'] - row0
-        #     r1 = index1['index'] - row0
-
-        #     jds[r0:r1] = index0['epoch'] + np.cumsum(dts[r0:r1])
-
-        # Final time filtering for exact user interval
-        idx0, idx1 = np.searchsorted(jds, [start_jd, stop_jd])
-
-        times= jds[idx0:idx1]
-        vals = vals[idx0:idx1]
-        
         # Covert to a time the original code expected
         times = Time(times, format="jd").unix
 
         # TODO: Remome from here; add type check and conversion into the ingest process.
-        # try:
-        #     vals = np.float64(vals)
-        # except Exception as e:
-        #     pass
+        try:
+            vals = np.float64(vals)
+        except Exception as e:
+            pass
 
         # Currenly no concept of bads
         bads = None
@@ -2035,31 +1956,32 @@ def get_time_range(msid, format=None):
 
     MSID = msid.upper()
     with _cache_ft():
-        import tables
 
         content[msid] = ""
         ft['content'] = 'tlm'
         ft['msid'] = msid
 
         times_filepath = msid_files['mnemonic_times'].abs
-        # index_filepath = msid_files['mnemonic_index'].abs
+        index_filepath = msid_files['mnemonic_index'].abs
 
         logger.info('Reading %s', times_filepath)
-       
+
+        import tables
+        print(f"Index File Path: {index_filepath}")
         times_h5 = tables.open_file(times_filepath)
-        # index_h5 = tables.open_file(index_filepath)
+        index_h5 = tables.open_file(index_filepath)
 
-        # sp_idx = int(index_h5.root.epoch[-1][1]) - 1
+        sp_idx = int(index_h5.root.epoch[-1][1]) - 1
 
-        tstart = times_h5.root.times[0] # index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.times[0])[0]
+        tstart = index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.time[0])[0]
 
         try:
-            tstop = times_h5.root.times[-1] # index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.times[sp_idx:-1])[-1]
+            tstop =  index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.time[sp_idx:-1])[-1]
         except Exception as err:
             tstop = tstart
             #raise
 
-        # index_h5.close()
+        index_h5.close()
         times_h5.close()
 
         if format == 'iso':

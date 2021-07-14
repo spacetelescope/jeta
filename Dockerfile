@@ -37,7 +37,7 @@ ENV CURRENT_INGEST_ID="-1"
 
 # JETA Environment Variables
 ENV JETA_SCRIPTS=/srv/jeta/code/scripts
-ENV ARCHIVE_DEFINITION_SOURCE="${JETA_SCRIPTS}/sql/create.archive.meta.sql"
+ENV JETA_ARCHIVE_DEFINITION_SOURCE="${JETA_SCRIPTS}/sql/create.archive.meta.sql"
 
 # Install core system packages
 RUN set -x \
