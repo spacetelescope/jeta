@@ -8,7 +8,7 @@ import pytest
 
 from .. import fetch
 from .. import fetch_eng
-from Chandra.Time import DateTime
+from astropy.time import Time
 
 print(fetch.__file__)
 
@@ -60,24 +60,24 @@ def test_filter_bad_times_list():
                          'stop=2008:298:12:00:00.000 len=2360195 dtype=int16>')
 
     dat.filter_bad_times(table=BAD_TIMES)
-    dates = DateTime(dat.times[168581:168588]).date
+    dates = Time(dat.times[168581:168588]).date
     assert np.all(dates == DATES_EXPECT1)
 
     dat = fetch.Msid('aogyrct1', '2008:291', '2008:298')
     dat.filter_bad_times(table=BAD_TIMES)
-    dates = DateTime(dat.times[168581:168588]).date
+    dates = Time(dat.times[168581:168588]).date
     assert np.all(dates == DATES_EXPECT1)
 
 
 def test_msidset_filter_bad_times_list():
     dat = fetch.MSIDset(['aogyrct1'], '2008:291', '2008:298')
     dat.filter_bad_times(table=BAD_TIMES)
-    dates = DateTime(dat['aogyrct1'].times[168581:168588]).date
+    dates = Time(dat['aogyrct1'].times[168581:168588]).date
     assert np.all(dates == DATES_EXPECT1)
 
     dat = fetch.Msidset(['aogyrct1'], '2008:291', '2008:298')
     dat.filter_bad_times(table=BAD_TIMES)
-    dates = DateTime(dat['aogyrct1'].times[168581:168588]).date
+    dates = Time(dat['aogyrct1'].times[168581:168588]).date
     assert np.all(dates == DATES_EXPECT1)
 
 
@@ -85,20 +85,20 @@ def test_filter_bad_times_default():
     """Test bad times that come from msid_bad_times.dat"""
     dat = fetch.MSID('aogbias1', '2008:291', '2008:298')
     dat.filter_bad_times()
-    dates = DateTime(dat.times[42140:42150]).date
+    dates = Time(dat.times[42140:42150]).date
     assert np.all(dates == DATES_EXPECT2)
 
 
 def test_filter_bad_times_list_copy():
     dat = fetch.MSID('aogyrct1', '2008:291', '2008:298')
     dat2 = dat.filter_bad_times(table=BAD_TIMES, copy=True)
-    dates = DateTime(dat2.times[168581:168588]).date
+    dates = Time(dat2.times[168581:168588]).date
     assert np.all(dates == DATES_EXPECT1)
     assert len(dat.vals) != len(dat2.vals)
 
     dat = fetch.Msid('aogyrct1', '2008:291', '2008:298')
     dat2 = dat.filter_bad_times(table=BAD_TIMES, copy=True)
-    dates = DateTime(dat2.times[168581:168588]).date
+    dates = Time(dat2.times[168581:168588]).date
     assert np.all(dates == DATES_EXPECT1)
     assert len(dat.vals) != len(dat2.vals)
 
@@ -106,12 +106,12 @@ def test_filter_bad_times_list_copy():
 def test_msidset_filter_bad_times_list_copy():
     dat = fetch.MSIDset(['aogyrct1'], '2008:291', '2008:298')
     dat2 = dat.filter_bad_times(table=BAD_TIMES, copy=True)
-    dates = DateTime(dat2['aogyrct1'].times[168581:168588]).date
+    dates = Time(dat2['aogyrct1'].times[168581:168588]).date
     assert np.all(dates == DATES_EXPECT1)
 
     dat = fetch.Msidset(['aogyrct1'], '2008:291', '2008:298')
     dat2 = dat.filter_bad_times(table=BAD_TIMES, copy=True)
-    dates = DateTime(dat2['aogyrct1'].times[168581:168588]).date
+    dates = Time(dat2['aogyrct1'].times[168581:168588]).date
     assert np.all(dates == DATES_EXPECT1)
 
 
@@ -119,7 +119,7 @@ def test_filter_bad_times_default_copy():
     """Test bad times that come from msid_bad_times.dat"""
     dat = fetch.MSID('aogbias1', '2008:291', '2008:298')
     dat2 = dat.filter_bad_times(copy=True)
-    dates = DateTime(dat2.times[42140:42150]).date
+    dates = Time(dat2.times[42140:42150]).date
     assert np.all(dates == DATES_EXPECT2)
 
 
@@ -232,7 +232,7 @@ def test_interpolate_msid_times():
                   ['NPNT', 'NPNT', 'NMAN', 'NMAN', 'NMAN', 'NMAN', 'NMAN', 'NMAN',
                    'NMAN', 'NMAN', 'NMAN'])
 
-    assert np.all(DateTime(dat.times).date == DATES_EXPECT3)
+    assert np.all(Time(dat.times).date == DATES_EXPECT3)
 
 
 def test_interpolate_time_precision():

@@ -1,10 +1,9 @@
-version: '3.4'
+version: '3.7'
 
 services:
-  jska:
+  lita:
     build:
       context: .
-      # target: prod
       args:
         ARG_VERSION_MAJOR: ${VERSION_MAJOR}
         ARG_VERSION_MINOR: ${VERSION_MINOR}

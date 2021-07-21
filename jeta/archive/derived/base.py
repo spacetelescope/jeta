@@ -1,9 +1,9 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 from __future__ import print_function, division, absolute_import
 
-from Chandra.Time import DateTime
+from astropy.time import Time
 from .. import fetch
-import Ska.Numpy
+
 import numpy as np
 from .. import cache
  
@@ -12,15 +12,15 @@ __all__ = ['MNF_TIME', 'times_indexes', 'DerivedParameter']
 MNF_TIME = 0.25625              # Minor Frame duration (seconds)
 
 def times_indexes(start, stop, dt):
-    index0 = DateTime(start).secs // dt
-    index1 = DateTime(stop).secs // dt + 1
+    index0 = Time(start).unix // dt
+    index1 = Time(stop).unix // dt + 1
     indexes = np.arange(index0, index1, dtype=np.int64)
     times = indexes * dt
     return times, indexes
 
 @cache.lru_cache(20)
 def interpolate_times(keyvals, len_data_times, data_times=None, times=None):
-    return Ska.Numpy.interpolate(np.arange(len_data_times),
+    return np.interpolate(np.arange(len_data_times),
                                  data_times, times, method='nearest')
 
 class DerivedParameter(object):
@@ -56,7 +56,7 @@ class DerivedParameter(object):
                 data.bads = np.ones(2, dtype=np.bool)  # all points bad
                 data.times = np.array([times[0], times[-1]])
                 print('No data in {} between {} and {} (setting all bad)'
-                      .format(msidname, DateTime(start).date, DateTime(stop).date))
+                      .format(msidname, Time(start).yday, Time(stop).yday))
             keyvals = (data.content, data.times[0], data.times[-1],
                        len(times), times[0], times[-1])
             idxs = interpolate_times(keyvals, len(data.times), 
@@ -76,8 +76,8 @@ class DerivedParameter(object):
             if np.any(gap_bads):
                 print("Setting bads because of gaps in {} between {} to {}"
                       .format(msidname,
-                              DateTime(times[gap_bads][0]).date,
-                              DateTime(times[gap_bads][-1]).date))
+                              Time(times[gap_bads][0]).yday,
+                              Time(times[gap_bads][-1]).yday))
             bads = bads | gap_bads
 
         dataset.times = times
@@ -87,7 +87,7 @@ class DerivedParameter(object):
         return dataset
 
     def __call__(self, start, stop):
-        dataset = fetch_eng.MSIDset(self.rootparams, start, stop, filter_bad=True)
+        dataset = fetch.MSIDset(self.rootparams, start, stop, filter_bad=True)
 
         # Translate state codes "ON" and "OFF" to 1 and 0, respectively.
         for data in dataset.values():

@@ -1,8 +1,9 @@
 #!/bin/bash
 
 set -e
-
-set -x && alias jeta='python /srv/jeta/code/jeta/archive/update.py'
+set -o errexit
+set -o pipefail
+set -o nounset
 
 #-------------------------------------------------------------------------------
 # Handle shutdown/cleanup
@@ -21,23 +22,30 @@ cd /home/
 set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id -u $dir &>/dev/null || useradd $dir; chown $dir:$dir $dir; done
 
 # set -x \
+#     && cd /srv/jeta/requirements \
 #     && conda config --env --set always_yes true \
-#     && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight;
+#     && conda env create -n ${SKA_ENV} -f jeta-conda.yml
 
-set -x && source activate ${SKA_ENV};
+# set -x && source activate ${JETA_ENV};
 
-cd /srv/jeta/code/;
+# Install the jeta tools inside the environment
+cd /srv/jeta/code/
 set -x && python setup.py install
 
-cd /srv/jeta/api
-
+# Install the API and Jupyterhub packages
+# TODO: Isolate these services see branch LITA-35
+# for a wip start on this effort.
 cd /srv/jeta/requirements
+pip install --upgrade pip
+# pip install tld --ignore-installed six tornado --user
 pip install -r production.txt
 
+# Create the database for the API
 cd /srv/jeta/api
+set -x && python manage.py makemigrations && python manage.py migrate && python manage.py migrate authtoken;
 
-set -x && python manage.py makemigrations && python manage.py migrate;
-
+# Create a default user for the API and generate a token
+# FIXME: make p/w a parameter.
 cat <<END | python manage.py shell
 from django.contrib.auth.models import User
 if not User.objects.filter(username='svc_thelma_api').exists():
@@ -49,16 +57,19 @@ if not User.objects.filter(username='svc_thelma_api').exists():
     print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 END
 
-set -x && conda install -c conda-forge configurable-http-proxy;
-set -x && pip install jupyterhub==1.1.0
-set -x && pip install 'jupyterlab<2.0'
-set -x && jupyter labextension install -y @jupyterlab/hub-extension
-set -x && jupyter labextension install @jupyter-widgets/jupyterlab-manager
-set -x && jupyter serverextension enable --py jupyterlab --user
+# Install proxy tools for websockets
+# set -x && conda install -c conda-forge configurable-http-proxy
+# set -x && conda install -c conda-forge jupyterlab
 
-set -x && jupyter lab build
+# # Install Jupyterlab
+# # set -x && pip install 'jupyterlab<2.0'
+# set -x && jupyter labextension install -y @jupyterlab/hub-extension
+# set -x && jupyter labextension install @jupyter-widgets/jupyterlab-manager
+# set -x && jupyter serverextension enable --py jupyterlab --user
 
-set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/jSka/lib/fonts;
+# # Build Jupyterlab
+# set -x && jupyter lab build
+# set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/jSka/lib/fonts;
 
 # # ---------------------------------------------------------------------------
 # # configure supervisor
@@ -98,7 +109,7 @@ fi
 
 
 # Start Jupyterhub with custom configuration
-jupyterhub -f /srv/jupyterhub/config/jupyterhub_config.py;
+# jupyterhub -f /srv/jupyterhub/config/jupyterhub_config.py;
 
 # Keep the container running
 tail -f /dev/null

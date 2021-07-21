@@ -4,19 +4,20 @@ LABEL version="1.2.0"
 LABEL maintainer="David Kauffman <dkauffman@stsci.edu>"
 LABEL "edu.stsci"="Space Telescope Science Institute"
 
-# Conda Setup Environment Variables
-ENV DISPLAY=${ARG_DISPLAY}
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV CONDA_ROOT=/opt/conda
-# ENV CONDA_ROOT=/usr/local/
-ENV SKA_ENV=jSka
-ENV PATH=${CONDA_ROOT}/env/${SKA_ENV}/bin:${CONDA_ROOT}/bin:${PATH}
-
-
 ARG ARG_NAME_COLUMN
 ARG ARG_TIME_COLUMN
 ARG ARG_VALUE_COLUMN
 ARG ARG_RAVEN_SECRET_KEY
+
+# Conda Setup Environment Variables
+ENV DISPLAY=${ARG_DISPLAY}
+ENV PYTHONDONTWRITEBYTECODE=1
+
+ENV CONDA_ROOT=/opt/conda
+ENV PATH=${CONDA_ROOT}/envs/${JETA_ENV}/bin:${CONDA_ROOT}/bin:${PATH}
+
+
+ENV JETA_ENV=jeta
 
 # Special Test Case Variables
 ENV NAME_COLUMN=${NAME_COLUMN}
@@ -32,7 +33,12 @@ ENV RAVEN_SECRET_KEY=${ARG_RAVEN_SECRET_KEY}
 ENV ENG_ARCHIVE=/srv/telemetry/
 ENV TELEMETRY_ARCHIVE=/srv/telemetry/archive/
 ENV STAGING_DIRECTORY=/srv/telemetry/staging/
+ENV ALL_KNOWN_MSID_METAFILE=/srv/telemetry/archive/all_known_msid_sematics.h5
+
+# Current status of the ingest pipeline
 ENV INGEST_STATE="IDLE"
+
+# UUID of the current ingest
 ENV CURRENT_INGEST_ID="-1"
 
 # JETA Environment Variables
@@ -51,24 +57,26 @@ RUN set -x \
         python3-pip \
         libqt5gui5 \
         python3-pyqt4 \
-        npm \
-        nodejs \
         wget \
         vim \
-    && apt-get clean
+        dirmngr \ 
+        apt-transport-https \
+        lsb-release \ 
+        ca-certificates \
+        yarn \
+        git-core \ 
+        build-essential \ 
+        openssl \
+    && apt-get clean \
+    && apt autoclean \
+    && apt autoremove
 
-
-# Install required version of conda for the ska3 build script
-RUN set -x \
-    && wget https://repo.continuum.io/miniconda/Miniconda3-4.3.21-Linux-x86_64.sh \
-    && ls -la /opt \
-    && bash ./Miniconda3-4.3.21-Linux-x86_64.sh -f -b -p ${CONDA_ROOT} \
-    && rm -f Miniconda3-4.3.21-Linux-x86_64.sh \
-    && echo 'export PATH='${CONDA_ROOT}'/bin:$PATH' >>/etc/profile
-
-RUN set -x \
-    && conda config --env --set always_yes true \
-    && conda create -n ${SKA_ENV} -c https://cxc.cfa.harvard.edu/mta/ASPECT/jska3-conda --yes ska3-flight;
+# RUN set -x \
+#     && wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.9.2-Linux-x86_64.sh \
+#     && ls -la /opt \
+#     && bash ./Miniconda3-py38_4.9.2-Linux-x86_64.sh  -f -b -p ${CONDA_ROOT} \
+#     && rm -f Miniconda3-py38_4.9.2-Linux-x86_64.sh  \
+#     && echo 'export PATH='${CONDA_ROOT}'/bin:$PATH' >>/etc/profile
 
 # Create project directories
 RUN set -x \
@@ -89,6 +97,10 @@ COPY raven /srv/jeta/api
 COPY requirements /srv/jeta/requirements
 COPY scripts ${JETA_SCRIPTS}
 
+# RUN set -x \
+#     && conda config --env --set always_yes true \
+#     && conda env create -n ${JETA_ENV} python=3.8.5
+
 # Copy over setup.py for JETA
 WORKDIR /srv/jeta/code
 COPY setup.py /srv/jeta/code/setup.py
@@ -106,6 +118,5 @@ EXPOSE 9232
 
 # jupyterhub
 EXPOSE 5050
-
 
 ENTRYPOINT ["/entrypoint.sh"]

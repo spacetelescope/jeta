@@ -36,7 +36,7 @@ import numpy as np
 
 from . import base
 
-from Chandra.Time import DateTime
+from astropy.time import Time
 
 ELEMENTS_CACHE = {}
 R_E = 6378.137e3  # Earth Equatorial Radius (m)
@@ -164,8 +164,8 @@ class DerivedParameterOrbit(base.DerivedParameter):
         # Lower case and chop off the initial "DP_"
         param = self.__class__.__name__.lower()[3:]
 
-        start = DateTime(data.times[0]).date
-        stop = DateTime(data.times[-1]).date
+        start = Time(data.times[0]).yday
+        stop = Time(data.times[-1]).yday
         if (start, stop) in ELEMENTS_CACHE:
             return ELEMENTS_CACHE[start, stop][param]
 
