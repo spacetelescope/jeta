@@ -107,7 +107,6 @@ else
 fi
 
 
-
 # Start Jupyterhub with custom configuration
 # jupyterhub -f /srv/jupyterhub/config/jupyterhub_config.py;
 

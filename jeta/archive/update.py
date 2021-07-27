@@ -1497,7 +1497,7 @@ def move_archive_files(filetype, processed_ingest_files):
 
         os.chdir(STAGING_DIRECTORY)
 
-        tarfile_name = f"stage_{int(DateTime().secs)}.tar"
+        tarfile_name = f"stage_{int(DateTime(Time.now()).secs)}.tar"
         tar = tarfile.open(tarfile_name, mode='w')
 
         for ingest_file in processed_ingest_files:

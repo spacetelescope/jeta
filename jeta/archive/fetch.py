@@ -1334,7 +1334,7 @@ class MSIDset(collections.OrderedDict):
             start, stop = intervals[0][0], intervals[-1][1]
 
         self.tstart = Time(start).unix
-        self.tstop = (Time(stop).unix if stop else Time().unix)
+        self.tstop = (Time(stop).unix if stop else Time(Time.now()).unix)
         self.datestart = Time(self.tstart).yday
         self.datestop = Time(self.tstop).yday
 

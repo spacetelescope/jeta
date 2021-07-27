@@ -14,8 +14,8 @@ from matplotlib.dates import (YearLocator, MonthLocator, DayLocator,
 from matplotlib.ticker import FixedLocator, FixedFormatter
 
 
-MIN_TSTART_UNIX = Time('1999:100', format='ydoy').unix
-MAX_TSTOP_UNIX = Time().unix + 1e7
+MIN_TSTART_UNIX = Time('1999:100', format='yday').unix
+MAX_TSTOP_UNIX = Time(Time.now()).unix + 1e7
 
 
 # Licensed under a 3-clause BSD style license - see LICENSE.rst

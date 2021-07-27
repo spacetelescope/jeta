@@ -59,11 +59,11 @@ def get_list_of_files_in_range(tstart, tstop, target_dir=get_env_variable('STAGI
 
 
 def get_current_ingest_id():
-    return os.getenv('CURRENT_INGEST_ID')
+    return os.getenv('JETA_CURRENT_INGEST_ID')
 
 
 def get_ingest_state():
-    return os.getenv('INGEST_STATE')
+    return os.getenv('JETA_INGEST_STATE')
 
 
 def get_ingest_files(ingest_id):

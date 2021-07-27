@@ -1,23 +1,44 @@
 import os
-import h5py
-import tables
+
 import uuid
 import pickle
-import numpy as np
+import sqlite3
 
-import pyyaks.logger
-import pyyaks.context
+import numpy as np
+import h5py
+import tables
+
+# import pyyaks.logger
+# import pyyaks.context
 
 import jeta.archive.file_defs as file_defs
 from jeta.archive.utils import get_env_variable
 
 ENG_ARCHIVE = get_env_variable('ENG_ARCHIVE')
+TELEMETRY_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
-# ARCHIVE_METADATA = get_env_variable('ARCHIVE_METADATA')
+# JETA_LOGS = get_env_variable('JETA_LOGS')
 
-msid_files = pyyaks.context.ContextDict('update.msid_files',
-                                        basedir=ENG_ARCHIVE)
-msid_files.update(file_defs.msid_files)
+
+# logger = pyyaks.logger.get_logger(
+#     filename=f'{JETA_LOGS}/jeta.operations.log',
+#     name='jeta_operations_logger',
+#     level='INFO',
+#     format="%(asctime)s %(message)s"
+# )
+
+def _create_archive_database():
+    """ Make empty files archive.meta.info.db3 if it doesn't exist
+    """
+    db_filepath = os.path.join(TELEMETRY_ARCHIVE,'archive.meta.info.db3')
+    if not os.path.exists(db_filepath):
+        with open(get_env_variable('JETA_ARCHIVE_DEFINITION_SOURCE'), 'r') as db_definition_file:
+            db_definition_script = db_definition_file.read()
+            # logger.info('Creating archive tracking database (sqlite3) {}'.format(db_filepath))
+            db = sqlite3.connect(db_filepath)
+            cur = db.cursor()
+            cur.executescript(db_definition_script)
+            cur.close()
 
 
 def _create_root_content():
@@ -153,6 +174,7 @@ def initialize():
         for each msids curated in the archive. 
     """
     _create_root_content()
+    _create_archive_database()
 
     with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
         for msid in h5.keys():

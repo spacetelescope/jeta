@@ -2,7 +2,7 @@
 Ingest Process
 **************
 
-.. py:currentmodule:: jeta.ingest.archive
+.. py:currentmodule:: jeta.archive.ingest
 
 =============
 Classes Index
@@ -25,6 +25,7 @@ Supported Ingest Files
 ----------------------
 
 * CSV
+* Single MSID FOF (CSV) - Comma-delimited tabular data for a single msid
 * Flat HDF5
 * Grouped HDF5
 

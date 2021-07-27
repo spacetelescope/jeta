@@ -16,9 +16,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV CONDA_ROOT=/opt/conda
 ENV PATH=${CONDA_ROOT}/envs/${JETA_ENV}/bin:${CONDA_ROOT}/bin:${PATH}
 
-
-ENV JETA_ENV=jeta
-
 # Special Test Case Variables
 ENV NAME_COLUMN=${NAME_COLUMN}
 ENV TIME_COLUMN=${TIME_COLUMN}
@@ -35,13 +32,11 @@ ENV TELEMETRY_ARCHIVE=/srv/telemetry/archive/
 ENV STAGING_DIRECTORY=/srv/telemetry/staging/
 ENV ALL_KNOWN_MSID_METAFILE=/srv/telemetry/archive/all_known_msid_sematics.h5
 
-# Current status of the ingest pipeline
-ENV INGEST_STATE="IDLE"
-
-# UUID of the current ingest
-ENV CURRENT_INGEST_ID="-1"
-
 # JETA Environment Variables
+ENV JETA_LOGS=${ENG_ARCHIVE}/logs
+ENV JETA_ENV=jeta
+ENV JETA_INGEST_STATE="IDLE"
+ENV JETA_CURRENT_INGEST_ID=""
 ENV JETA_SCRIPTS=/srv/jeta/code/scripts
 ENV JETA_ARCHIVE_DEFINITION_SOURCE="${JETA_SCRIPTS}/sql/create.archive.meta.sql"
 
@@ -82,7 +77,9 @@ RUN set -x \
 RUN set -x \
     && mkdir -p /srv/jeta/code \
     && mkdir -p /srv/jeta/log \
-    && mkdir -p /srv/jeta/api
+    && mkdir -p /srv/jeta/api \
+    && mkdir -p /srv/telemetry/logs \
+    && touch /srv/telemetry/logs/jeta.ingest.log
 
 # Create JupyterHub JupyterLab Directories
 # RUN set -x \

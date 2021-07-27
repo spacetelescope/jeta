@@ -24,10 +24,6 @@ STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 # but processing them is behind. i.e. can be any number of files for any range.
 BACKLOG_DIRECTORY = f'{STAGING_DIRECTORY}backlog/'
 
-# msid_files = pyyaks.context.ContextDict('update.msid_files',
-#                                         basedir=ENG_ARCHIVE)
-# msid_files.update(file_defs.msid_files)
-
 
 def _format_activity_destination(dst):
     return f'{STAGING_DIRECTORY}{dst}/'

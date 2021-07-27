@@ -29,6 +29,10 @@ gunicorn
 jhub_remote_user_authenticator
 jupyterhub-dummyauthenticator
 
+numpy
+pandas
+matplotlib
+seaborn
 astropy
 h5py
 tables
