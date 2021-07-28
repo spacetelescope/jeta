@@ -29,6 +29,7 @@ gunicorn
 jhub_remote_user_authenticator
 jupyterhub-dummyauthenticator
 
+numba
 numpy
 pandas
 matplotlib
