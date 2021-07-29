@@ -182,18 +182,18 @@ def time2plotdate(times):
     :param times: times (any DateTime compatible format or object)
     :rtype: plot_date times
     """
-    # Convert times to float array of CXC seconds
-    if isinstance(times, (Time, Time)):
-        times = times.unix
-    else:
-        times = np.asarray(times)
+    # # Convert times to float array of CXC seconds
+    # if isinstance(times, (Time, Time)):
+    #     times = times.unix
+    # else:
+    times = np.asarray(times)
 
-        # If not floating point then use CxoTime to convert to seconds
-        if times.dtype.kind != 'f':
-            times = Time(times).unix
+    # If not floating point then use CxoTime to convert to seconds
+    # if times.dtype.kind != 'f':
+    #     times = Time(times).unix
 
     # Find the plotdate of first time and use a relative offset from there
-    t0 = Time(times[0]).unix
+    t0 = Time(times[0], format='unix').unix
     plotdate0 = epoch2num(t0)
     return (times - times[0]) / 86400. + plotdate0
 
