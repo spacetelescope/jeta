@@ -48,8 +48,9 @@ def get_msid_names():
 
 def get_list_of_staged_files(include_path=False):
     from pathlib import Path
-
-    filenames = [(ntpath.basename(paths), Path(paths).stat().st_size, Path(paths).stat().st_ctime) for paths in sorted(glob.glob(f"{get_env_variable('STAGING_DIRECTORY')}*.h5"))]
+    from jeta.staging.manage import get_file_coverage
+    
+    filenames = [(ntpath.basename(paths), Path(paths).stat().st_size, Path(paths).stat().st_ctime, *get_file_coverage(os.path.basename(paths))) for paths in sorted(glob.glob(f"{get_env_variable('STAGING_DIRECTORY')}/*.h5"))]
 
     return filenames
 

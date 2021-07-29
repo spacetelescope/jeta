@@ -101,6 +101,14 @@ def get_list_of_activities():
     return dirnames
 
 
+def get_file_coverage(ingest_filename):
+    with h5py.File(f"{STAGING_DIRECTORY}/{ingest_filename}",  'r') as h5:
+        tstart = h5['samples']["data1"].attrs['dataStartTime'][0]/1000
+        tstop = h5['samples'][f"data{len(h5['samples'])}"].attrs['dataStopTime'][0]/1000
+      
+        return (tstart, tstop)
+
+
 def flag_activity_files_by_date(tstart, tstop):
     # file root attr?
     pass

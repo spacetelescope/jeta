@@ -249,7 +249,7 @@ content = collections.OrderedDict()
 # Function to load MSID names from the files
 def load_msid_names():
     all_colnames = dict()
-    with h5py.File(ALL_KNOWN_MSID_SEMANTICS_H5) as f:
+    with h5py.File(ALL_KNOWN_MSID_SEMANTICS_H5, 'r') as f:
         all_colnames = list(f.keys())
     return all_colnames
 
