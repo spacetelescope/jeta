@@ -40,3 +40,4 @@ tables
 torch
 pyyaks
 six
+plotly

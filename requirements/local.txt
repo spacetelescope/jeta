@@ -19,9 +19,9 @@ Jinja2
 jsonschema
 ruamel_yaml
 
-Django==2.2
-djangorestframework==3.9.0
-djangorestframework-simplejwt==4.4.0
+Django==2.2.24
+djangorestframework==3.12.4
+djangorestframework-simplejwt==4.7.2
 
 Unipath==1.1
 gunicorn
@@ -29,8 +29,15 @@ gunicorn
 jhub_remote_user_authenticator
 jupyterhub-dummyauthenticator
 
+numba
+numpy
+pandas
+matplotlib
+seaborn
 astropy
+h5py
 tables
 torch
 pyyaks
 six
+plotly
