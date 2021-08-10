@@ -62,13 +62,13 @@ RUN set -x \
         git-core \ 
         build-essential \ 
         openssl \
-        sudo \
     && apt-get clean \
     && apt autoclean \
     && apt autoremove
 
 RUN set -x \
-    curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
+    && curl -sL https://deb.nodesource.com/setup_12.x | bash \
+    && apt-get install nodejs
 #     && wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.9.2-Linux-x86_64.sh \
 #     && ls -la /opt \
 #     && bash ./Miniconda3-py38_4.9.2-Linux-x86_64.sh  -f -b -p ${CONDA_ROOT} \
