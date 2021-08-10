@@ -28,9 +28,7 @@ set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id 
 
 # set -x && source activate ${JETA_ENV};
 
-# Install the jeta tools inside the environment
-cd /srv/jeta/code/
-set -x && python setup.py install
+
 
 # Install the API and Jupyterhub packages
 # TODO: Isolate these services see branch LITA-35
@@ -39,6 +37,10 @@ cd /srv/jeta/requirements
 pip install --upgrade pip
 # pip install tld --ignore-installed six tornado --user
 pip install -r production.txt
+
+# Install the jeta tools inside the environment
+cd /srv/jeta/code/
+set -x && python setup.py install
 
 # Create the database for the API
 cd /srv/jeta/api
