@@ -46,6 +46,11 @@ from jeta.archive.units import Units
 from jeta.archive.utils import get_env_variable
 from jeta.version import __version__, __git_version__
 
+try:
+    import fastss
+except ImportError:
+    pass
+
 # Module-level units, defaults to CXC units (e.g. Kelvins etc)
 UNITS = Units(system='cxc')
 
@@ -234,6 +239,139 @@ logger.propagate = False
 data_source = _DataSource
 
 
+def search_both_sorted(a, v):
+    """Find indices where elements should be inserted to maintain order.
+
+    Find the indices into a sorted float array `a` such that, if the
+    corresponding elements in float array `v` were inserted before the indices,
+    the order of `a` would be preserved.
+
+    Similar to np.searchsorted but BOTH `a` and `v` must be sorted in ascending
+    order.  If `len(v) < len(a) / 100` then the normal `np.searchsorted` is
+    called.  Otherwise both `v` and `a` are cast to `np.float64` internally
+    and a Cython function is called to compute the indices in a fast way.
+
+    Parameters
+    ----------
+    :param a: input float array, sorted in ascending order
+    :param v: float values to insert into `a`, sorted in ascending order
+
+    :returns: indices as int np.array
+    """
+    # If `v` is not comparable in length to `a` then np.searchsorted is faster.
+    # Also require that both inputs be floating type.
+    if a.dtype.kind != 'f' or v.dtype.kind != 'f' or len(v) < len(a) // 100:
+        return np.searchsorted(a, v)
+    else:
+        # _search_both_sorted requires float64.  If already float64 this
+        # just returns a view of the original (taking no extra memory).
+        v = np.asarray(v, dtype=np.float64)
+        a = np.asarray(a, dtype=np.float64)
+        return fastss._search_both_sorted(a, v)
+
+def _interpolate_vectorized(yin, xin, xout, method='linear', sorted=False):
+    """
+    Interpolate the curve defined by (xin, yin) at points xout.  The array
+    xin must be monotonically increasing.  The output has the same data type as
+    the input yin.
+
+    :param yin: y values of input curve
+    :param xin: x values of input curve
+    :param xout: x values of output interpolated curve
+    :param method: interpolation method ('linear' | 'nearest')
+    :param sorted: `xout` values are sorted so use `search_both_sorted`
+
+    @:rtype: numpy array with interpolated curve
+    """
+
+    lenxin = len(xin)
+    if sorted:
+        i1 = search_both_sorted(xin, xout)
+    else:
+        i1 = np.searchsorted(xin, xout)
+
+    i1[ i1==0 ] = 1
+    i1[ i1==lenxin ] = lenxin-1
+
+    x0 = xin[i1-1]
+    x1 = xin[i1]
+    y0 = yin[i1-1]
+    y1 = yin[i1]
+
+    if method == 'linear':
+        yout = (xout - x0) / (x1 - x0) * (y1 - y0) + y0
+    elif method == 'nearest':
+        yout = np.where(np.abs(xout - x0) < np.abs(xout - x1), y0, y1)
+    else:
+        raise ValueError('Invalid interpolation method: %s' % method)
+
+    return yout
+
+
+def _interpolate_cython(yin, xin, xout, method='linear', sorted=True):
+    """
+    Interpolate the curve defined by (xin, yin) at points xout.  Both arrays
+    xin and xout must be monotonically increasing.  The output has the same
+    data type as the input yin.
+
+    This uses the Cython version and is faster for len(xout) >~ len(xin) / 100.
+
+    :param yin: y values of input curve
+    :param xin: x values of input curve
+    :param xout: x values of output interpolated curve
+    :param method: interpolation method ('linear' | 'nearest')
+    :param sorted: `xout` values are sorted (must be True)
+
+    @:rtype: numpy array with interpolated curve
+    """
+
+    if not sorted:
+        raise ValueError('Input arrays must be sorted')
+
+    if xin.dtype.kind != 'f' or xout.dtype.kind != 'f':
+        raise ValueError('Input arrays must both be float type')
+
+    xin = np.asarray(xin, dtype=np.float64)
+    xout = np.asarray(xout, dtype=np.float64)
+
+    if method == 'nearest':
+        idxs = fastss._nearest_index(xin, xout)
+        return yin[idxs]
+    elif method == 'linear':
+        yin64 = np.asarray(yin, dtype=np.float64)
+        yout = fastss._interp_linear(yin64, xin, xout)
+        return np.asarray(yout, dtype=yin.dtype)
+    else:
+        raise ValueError('Invalid interpolation method: {}'.format(method))
+
+
+
+def not_np_interpolate(yin, xin, xout, method='linear', sorted=False, cython=True):
+    """
+    Interpolate the curve defined by (xin, yin) at points xout.  The array
+    xin must be monotonically increasing.  The output has the same data type as
+    the input yin.
+
+    :param yin: y values of input curve
+    :param xin: x values of input curve
+    :param xout: x values of output interpolated curve
+    :param method: interpolation method ('linear' | 'nearest')
+    :param sorted: `xout` values are sorted so use `search_both_sorted`
+    :param cython: use Cython interpolation code if possible (default=True)
+
+    @:rtype: numpy array with interpolated curve
+    """
+
+    if (cython and sorted and
+        xin.dtype.kind == 'f' and xout.dtype.kind == 'f'
+        and (yin.dtype.kind == 'f' or method == 'nearest')
+        and len(xout) >= len(xin) // 100):
+        func = _interpolate_cython
+    else:
+        func = _interpolate_vectorized
+
+    return func(yin, xin, xout, method=method, sorted=sorted)
+
 def _get_start_stop_dates(times):
     if len(times) == 0:
         return {}
@@ -335,9 +473,9 @@ def msid_glob(msid):
         msids.update((m, None) for m in ms)
         MSIDS.update((m, None) for m in MS)
 
-    if not msids:
-        raise ValueError('MSID {!r} is not in {} data source(s)'
-                         .format(msid, ' or '.join(x.upper() for x in sources)))
+    # if not msids:
+    #     raise ValueError('MSID {!r} is not in {} data source(s)'
+    #                      .format(msid, ' or '.join(x.upper() for x in sources)))
 
     return list(msids), list(MSIDS)
 
@@ -545,7 +683,7 @@ class MSID(object):
             # ft['msid'] = self.MSID
             if self.stat:
                 # ft['interval'] = self.stat
-                self._get_stat_data()
+                self._get_stat_data(self.MSID, self.stat)
             else:
                 self.colnames = ['vals', 'times', 'bads']
                 args = (self.content, self.tstart, self.tstop, self.MSID, self.units['system'])
@@ -567,7 +705,7 @@ class MSID(object):
     def _get_stat_data(self, msid, interval):
         """Do the actual work of getting stats values for an MSID from HDF5
         files"""
-        filename = f"{ENG_ARCHIVE}/data/tlm/stats/{{interval}}/{{msid | upper }}.h5"
+        filename = f"{ENG_ARCHIVE}/archive/data/tlm/stats/{interval}/{str(msid).upper()}.h5"
         logger.info('Opening %s', filename)
 
         def get_stat_data_from_server(filename, dt, tstart, tstop):
@@ -582,7 +720,7 @@ class MSID(object):
             logger.info(f"FETCH: Telemetry data range {tstart} to {tstop} from {filename}")
             print(filename)
             
-            h5 = tables.open(filename)
+            h5 = tables.open_file(filename)
             table = h5.root.data
             times = (table.col('index') + 0.5) * dt
             times = Time(times, format="unix").unix
@@ -833,7 +971,7 @@ class MSID(object):
 
         logger.info('Interpolating index for %s', self.msid)
         print(f'Interpolating index for {self.msid}')
-        indexes = np.interpolate(np.arange(len(self.times)),
+        indexes = not_np_interpolate(np.arange(len(self.times)),
                                         self.times, times,
                                         method='nearest', sorted=True)
         logger.info('Slicing on indexes')
@@ -1262,19 +1400,19 @@ class MSID(object):
         return json.dumps(telemetry)
 
 
-    def statistics_as_json(self, msid, interval):
+    # def statistics_as_json(self, msid, interval):
 
-        import tables
+    #     import tables
 
-        ft['msid'] = msid
-        ft['interval'] = interval
+    #     ft['msid'] = msid
+    #     ft['interval'] = interval
 
-        filename = msid_files['stats'].abs
+    #     filename = msid_files['stats'].abs
 
-        h5 = tables.open_file(filename)
-        table = h5.root.data
+    #     h5 = tables.open_file(filename)
+    #     table = h5.root.data
 
-        return table
+    #     return table
 
 
     def plot(self, *args, **kwargs):
@@ -1333,18 +1471,18 @@ class MSIDset(collections.OrderedDict):
         if intervals is not None:
             start, stop = intervals[0][0], intervals[-1][1]
 
-        self.tstart = Time(start).unix
-        self.tstop = (Time(stop).unix if stop else Time(Time.now()).unix)
-        self.datestart = Time(self.tstart).yday
-        self.datestop = Time(self.tstop).yday
+        self.tstart = Time(start, format='yday').unix
+        self.tstop = (Time(stop, format='yday').unix if stop else Time(Time.now()).unix)
+        self.datestart = Time(self.tstart, format="unix").yday
+        self.datestop = Time(self.tstop, format="unix").yday
 
         # Input ``msids`` may contain globs, so expand each and add to new list
-        new_msids = []
+        # new_msids = []
+        # for msid in msids:
+        #     new_msids.extend(msid_glob(msid)[0])
         for msid in msids:
-            new_msids.extend(msid_glob(msid)[0])
-        for msid in new_msids:
             if intervals is None:
-                self[msid] = self.MSID(msid, self.tstart, self.tstop,
+                self[msid] = self.MSID(msid, self.datestart, self.datestop,
                                        filter_bad=False, stat=stat)
             else:
                 self[msid] = self.MSID(msid, intervals, filter_bad=False, stat=stat)
@@ -1533,7 +1671,7 @@ class MSIDset(collections.OrderedDict):
             if filter_bad and not bad_union:
                 msid.filter_bad()
             logger.info('Interpolating index for %s', msid.msid)
-            indexes = np.interpolate(np.arange(len(msid.times)),
+            indexes = not_np_interpolate(np.arange(len(msid.times)),
                                             msid.times, obj.times,
                                             method='nearest', sorted=True)
             logger.info('Slicing on indexes')
@@ -1716,7 +1854,7 @@ def get_time_range(msid, format=None):
         ft['content'] = 'tlm'
         ft['msid'] = msid
 
-        times_filepath = msid_files['mnemonic_times'].abs
+        times_filepath = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/times.h5"
         # index_filepath = msid_files['mnemonic_index'].abs
 
         logger.info('Reading %s', times_filepath)
@@ -1790,49 +1928,49 @@ def get_telem(msids, start=None, stop=None, sampling='full', unit_system='eng',
                      max_fetch_Mb, max_output_Mb)
 
 
-@memoized
-def get_interval(content, tstart, tstop):
-    """
-    Get the approximate row intervals that enclose the specified ``tstart`` and
-    ``tstop`` times for the ``content`` type.
+# @memoized
+# def get_interval(content, tstart, tstop):
+#     """
+#     Get the approximate row intervals that enclose the specified ``tstart`` and
+#     ``tstop`` times for the ``content`` type.
 
-    :param content: content type (e.g. 'pcad3eng', 'thm1eng')
-    :param tstart: start time (CXC seconds)
-    :param tstop: stop time (CXC seconds)
+#     :param content: content type (e.g. 'pcad3eng', 'thm1eng')
+#     :param tstart: start time (CXC seconds)
+#     :param tstop: stop time (CXC seconds)
 
-    :returns: rowslice
-    """
+#     :returns: rowslice
+#     """
 
-    ft['content'] = content
+#     ft['content'] = content
 
 
-    def get_interval_from_db(tstart, tstop, server):
+#     def get_interval_from_db(tstart, tstop, server):
 
-        import Ska.DBI
+#         import Ska.DBI
 
-        db = Ska.DBI.DBI(dbi='sqlite', server=os.path.join(*server))
+#         db = Ska.DBI.DBI(dbi='sqlite', server=os.path.join(*server))
 
-        query_row = db.fetchone('SELECT tstart, rowstart FROM archfiles '
-                                'WHERE filetime < ? order by filetime desc',
-                                (tstart,))
-        if not query_row:
-            query_row = db.fetchone('SELECT tstart, rowstart FROM archfiles '
-                                    'order by filetime asc')
+#         query_row = db.fetchone('SELECT tstart, rowstart FROM archfiles '
+#                                 'WHERE filetime < ? order by filetime desc',
+#                                 (tstart,))
+#         if not query_row:
+#             query_row = db.fetchone('SELECT tstart, rowstart FROM archfiles '
+#                                     'order by filetime asc')
 
-        rowstart = query_row['rowstart']
+#         rowstart = query_row['rowstart']
 
-        query_row = db.fetchone('SELECT tstop, rowstop FROM archfiles '
-                                'WHERE filetime > ? order by filetime asc',
-                                (tstop,))
-        if not query_row:
-            query_row = db.fetchone('SELECT tstop, rowstop FROM archfiles '
-                                    'order by filetime desc')
+#         query_row = db.fetchone('SELECT tstop, rowstop FROM archfiles '
+#                                 'WHERE filetime > ? order by filetime asc',
+#                                 (tstop,))
+#         if not query_row:
+#             query_row = db.fetchone('SELECT tstop, rowstop FROM archfiles '
+#                                     'order by filetime desc')
 
-        rowstop = query_row['rowstop']
+#         rowstop = query_row['rowstop']
 
-        return slice(rowstart, rowstop)
+#         return slice(rowstart, rowstop)
 
-    return get_interval_from_db(tstart, tstop, _split_path(msid_files['archfiles'].abs))
+#     return get_interval_from_db(tstart, tstop, _split_path(msid_files['archfiles'].abs))
 
 
 @contextlib.contextmanager

@@ -58,18 +58,18 @@ if not User.objects.filter(username='svc_thelma_api').exists():
 END
 
 # Install proxy tools for websockets
-# set -x && conda install -c conda-forge configurable-http-proxy
-# set -x && conda install -c conda-forge jupyterlab
+set -x && conda install -c conda-forge configurable-http-proxy
+set -x && conda install -c conda-forge jupyterlab
 
 # # Install Jupyterlab
 # # set -x && pip install 'jupyterlab<2.0'
-# set -x && jupyter labextension install -y @jupyterlab/hub-extension
-# set -x && jupyter labextension install @jupyter-widgets/jupyterlab-manager
-# set -x && jupyter serverextension enable --py jupyterlab --user
+set -x && jupyter labextension install -y @jupyterlab/hub-extension
+set -x && jupyter labextension install @jupyter-widgets/jupyterlab-manager
+set -x && jupyter serverextension enable --py jupyterlab --user
 
 # # Build Jupyterlab
-# set -x && jupyter lab build
-# set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/jSka/lib/fonts;
+set -x && jupyter lab build
+set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/jSka/lib/fonts
 
 # # ---------------------------------------------------------------------------
 # # configure supervisor
@@ -108,7 +108,7 @@ fi
 
 
 # Start Jupyterhub with custom configuration
-# jupyterhub -f /srv/jupyterhub/config/jupyterhub_config.py;
+jupyterhub -f /srv/jupyterhub/config/jupyterhub_config.py;
 
 # Keep the container running
 tail -f /dev/null

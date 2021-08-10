@@ -34,7 +34,7 @@ def _create_archive_database():
     if not os.path.exists(db_filepath):
         with open(get_env_variable('JETA_ARCHIVE_DEFINITION_SOURCE'), 'r') as db_definition_file:
             db_definition_script = db_definition_file.read()
-            # logger.info('Creating archive tracking database (sqlite3) {}'.format(db_filepath))
+            print('Creating archive tracking database (sqlite3) {}'.format(db_filepath))
             db = sqlite3.connect(db_filepath)
             cur = db.cursor()
             cur.executescript(db_definition_script)
@@ -42,16 +42,26 @@ def _create_archive_database():
 
 
 def _create_root_content():
-    """ Make empty files and directories for msids, msids.pickle, and archive.meta.info.db3
+    """ Make empty files and directories for msids, msids.pickle
     """
 
     empty = set()
-    if not os.path.exists(f"{ENG_ARCHIVE}/msids.pickle"):
-        with open(f"{ENG_ARCHIVE}/msids.pickle", 'wb') as f:
-            pickle.dump(empty, f, protocol=0)
+    if not os.path.exists(f"{ENG_ARCHIVE}/logs"):
+        os.makedirs(f"{ENG_ARCHIVE}/logs")
 
+    if not os.path.exists(f"{ENG_ARCHIVE}/archive"):
+        os.makedirs(f"{ENG_ARCHIVE}/archive")
+    
+    if not os.path.exists(f"{ENG_ARCHIVE}/staging"):
+        os.makedirs(f"{ENG_ARCHIVE}/staging")
+
+    if not os.path.exists(f"{TELEMETRY_ARCHIVE}/msids.pickle"):
+        with open(f"{TELEMETRY_ARCHIVE}/msids.pickle", 'wb') as f:
+            pickle.dump(empty, f, protocol=0)
     if not os.path.exists(f"{ENG_ARCHIVE}/processed_files"):
         os.makedirs(f"{ENG_ARCHIVE}/processed_files")
+    
+   
 
 
 def _create_msid_index(msid):
@@ -141,8 +151,54 @@ def restore():
     pass
 
 
-def truncate():
+def truncate(filetype, date):
+    """Truncate msid and statfiles for every archive file after date (to nearest
+    year:doy)
+    """
     pass
+    # colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
+
+    # date = DateTime(date).date
+    # year, doy = date[0:4], date[5:8]
+
+    # # Setup db handle with autocommit=False so that error along the way aborts insert transactions
+    # db = Ska.DBI.DBI(
+    #     dbi='sqlite',
+    #     server=msid_files['archfiles'].abs,
+    #     autocommit=False
+    # )
+
+    # # Get the earliest row number from the archfiles table where year>=year and doy=>doy
+    # out = db.fetchall('SELECT rowstart FROM archfiles '
+    #                   'WHERE year>={0} AND doy>={1}'.format(year, doy))
+    # if len(out) == 0:
+    #     return
+    # rowstart = out['rowstart'].min()
+    # time0 = DateTime("{0}:{1}:00:00:00".format(year, doy)).secs
+
+    # for colname in colnames:
+    #     ft['msid'] = colname
+    #     filename = msid_files['mnemonic_value'].abs # msid_files['msid'].abs
+    #     if not os.path.exists(filename):
+    #         raise IOError('MSID file {} not found'.format(filename))
+    #     if not opt.dry_run:
+    #         h5 = tables.open_file(filename, mode='a')
+    #         h5.root.data.truncate(rowstart)
+    #         h5.root.quality.truncate(rowstart)
+    #         h5.close()
+    #     logger.verbose('Removed rows from {0} for filetype {1}:{2}'.format(
+    #         rowstart, filetype['content'], colname))
+
+    #     # Delete the 5min and daily stats, with a little extra margin
+    #     if colname not in fetch.IGNORE_COLNAMES:
+    #         del_stats(colname, time0, '5min')
+    #         del_stats(colname, time0, 'daily')
+
+    # cmd = 'DELETE FROM archfiles WHERE (year>={0} AND doy>={1}) OR year>{0}'.format(year, doy, year)
+    # if not opt.dry_run:
+    #     db.execute(cmd)
+    #     db.commit()
+    # logger.verbose(cmd)
 
 
 def destory(data_only=True):

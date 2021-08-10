@@ -359,7 +359,7 @@ def _start_ingest_pipeline(ingest_type="csv", source_type='', provided_ingest_fi
         # TODO: Write to database that an ingest was started.
 
         if ingest_type == 'csv' or ingest_type == 'CSV':
-            _process_csv(ingest_files, ingest_id=ingest_id, single_msid=True)
+            _process_csv(ingest_files, ingest_id=ingest_id, single_msid=False)
             
         elif ingest_type == 'h5':
             # Preprocess HDF5 files to match DF interface
@@ -390,26 +390,47 @@ def _process_csv(ingest_files, ingest_id, single_msid=False):
     
     processed_files = []
 
-    for f in ingest_files:
-        fof = pd.read_csv(f) 
-        
-        _reset_storage()
-        msid = fof['Telemetry Mnemonic'][0]
-    
-        with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
-            npt = h5[msid].attrs['numpy_datatype'].replace('np.', '')
-            times = fof['Observatory Time'].str.replace('/', '-')
-            times = Time(times.to_list() , format='iso').jd
+    if single_msid == True:
+        for f in ingest_files:
+            fof = pd.read_csv(f) 
             
-            sort_msid_data_by_time(msid, times, fof['EU Value'].to_list())
-            _values[msid] = _values[msid].astype(npt)
-            # Store times as deltas instead of as unix timestamps
-            # _times[msid] = np.diff(np.insert(_times[msid], 0, _times[msid][0])) 
-           
-            _append_h5_col_tlm(msid=msid, epoch=_times[msid][0])
+            _reset_storage()
+            msid = fof['Telemetry Mnemonic'][0]
+        
+            with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
+                npt = h5[msid].attrs['numpy_datatype'].replace('np.', '')
+                times = fof['Observatory Time'].str.replace('/', '-')
+                times = Time(times.to_list() , format='iso').jd
+                
+                sort_msid_data_by_time(msid, times, fof['EU Value'].to_list())
+                _values[msid] = _values[msid].astype(npt)
+                # Store times as deltas instead of as unix timestamps
+                # _times[msid] = np.diff(np.insert(_times[msid], 0, _times[msid][0])) 
+            
+                _append_h5_col_tlm(msid=msid, epoch=_times[msid][0])
 
-            processed_files.append(f)
+                processed_files.append(f)
            
+
+    if single_msid == False:
+        print("Processing FOF")
+        with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
+            for f in ingest_files:
+                _reset_storage()
+                fof = pd.read_csv(f)
+                msids = fof['Telemetry Mnemonic'].unique().tolist()
+                print(msids)
+                for m in msids:
+                    npt = h5[m].attrs['numpy_datatype'].replace('np.', '')
+                    times = fof.loc[fof['Telemetry Mnemonic']==m, ['Observatory Time']]
+                    times = times['Observatory Time'].str.replace('/', '-')
+                    times = Time(times.tolist() , format='iso').jd
+                    values = fof.loc[fof['Telemetry Mnemonic']==m, ['EU Value']]
+                    sort_msid_data_by_time(m, times, values.values.tolist())
+                    _values[m] = _values[m].astype(npt)
+                    _append_h5_col_tlm(msid=m, epoch=_times[m][0])
+
+
     return processed_files
 
 
