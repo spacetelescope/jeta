@@ -67,7 +67,7 @@ set -x && jupyter serverextension enable --py jupyterlab --user
 
 # # Build Jupyterlab
 set -x && jupyter lab build
-set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/jSka/lib/fonts
+# set -x && ln -snf /usr/share/fonts/truetype/dejavu /opt/conda/envs/jSka/lib/fonts
 
 # # ---------------------------------------------------------------------------
 # # configure supervisor
