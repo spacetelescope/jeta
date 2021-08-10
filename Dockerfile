@@ -60,6 +60,8 @@ RUN set -x \
         ca-certificates \
         yarn \
         git-core \ 
+        nodejs \
+        npm \
         build-essential \ 
         openssl \
     && apt-get clean \
