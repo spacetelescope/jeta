@@ -60,15 +60,14 @@ RUN set -x \
         ca-certificates \
         yarn \
         git-core \ 
-        nodejs \
-        npm \
         build-essential \ 
         openssl \
     && apt-get clean \
     && apt autoclean \
     && apt autoremove
 
-# RUN set -x \
+RUN set -x \
+    curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
 #     && wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.9.2-Linux-x86_64.sh \
 #     && ls -la /opt \
 #     && bash ./Miniconda3-py38_4.9.2-Linux-x86_64.sh  -f -b -p ${CONDA_ROOT} \
