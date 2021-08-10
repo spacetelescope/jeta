@@ -62,6 +62,7 @@ RUN set -x \
         git-core \ 
         build-essential \ 
         openssl \
+        sudo \
     && apt-get clean \
     && apt autoclean \
     && apt autoremove
