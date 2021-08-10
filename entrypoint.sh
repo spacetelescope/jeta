@@ -59,10 +59,6 @@ if not User.objects.filter(username='svc_thelma_api').exists():
     print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
 END
 
-# Install proxy tools for websockets
-set -x && conda install -c conda-forge configurable-http-proxy
-set -x && conda install -c conda-forge jupyterlab
-
 # # Install Jupyterlab
 # # set -x && pip install 'jupyterlab<2.0'
 set -x && jupyter labextension install -y @jupyterlab/hub-extension
