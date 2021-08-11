@@ -40,7 +40,7 @@ pip install -r production.txt
 
 # Install the jeta tools inside the environment
 cd /srv/jeta/code/
-set -x && python setup.py install
+set -x && python setup.py build_ext && python setup.py install
 
 # Create the database for the API
 cd /srv/jeta/api

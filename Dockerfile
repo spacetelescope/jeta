@@ -50,6 +50,7 @@ RUN set -x \
         ipython \
         python3-matplotlib \
         python3-pip \
+        python3-dev \
         libqt5gui5 \
         python3-pyqt4 \
         wget \
@@ -62,6 +63,7 @@ RUN set -x \
         git-core \ 
         build-essential \ 
         openssl \
+        git \
     && apt-get clean \
     && apt autoclean \
     && apt autoremove
