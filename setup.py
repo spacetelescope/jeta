@@ -25,7 +25,10 @@ setup(
         'jeta.core',
         'jeta.tests',
         ]),
-    ext_modules = cythonize( [Extension("fastss", ["jeta/archive/fastss.pyx"], include_dirs=[numpy.get_include()])]),
+    ext_modules = cythonize( 
+        [Extension("fastss", ["jeta/archive/fastss.pyx"], include_dirs=[numpy.get_include()])],
+        compiler_directives={'language_level' : "3"}
+    ),
     py_modules=['jeta.version'],
     scripts=[
         'scripts/sql/create.archive.meta.sql'

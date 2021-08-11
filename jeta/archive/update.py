@@ -99,6 +99,9 @@ ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 
 
+JETA_LOGS = get_env_variable('JETA_LOGS')
+
+
 # Configure fetch.MSID to cache recent results for performance in
 # derived parameter updates.
 fetch.CACHE = True
@@ -122,7 +125,7 @@ ft = fetch.ft
 loglevel = pyyaks.logger.VERBOSE if opt.log_level is None else int(opt.log_level)
 
 logger = pyyaks.logger.get_logger(
-    filename='/Users/dkauffman/demo_archive/logs/jeta.update.log',
+    filename='${JETA_LOGS}/jeta.update.log',
     name='jeta_logger',
     level=loglevel,
     format="%(asctime)s %(message)s"
