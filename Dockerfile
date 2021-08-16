@@ -72,12 +72,12 @@ RUN set -x \
 
 RUN set -x \
     && curl -sL https://deb.nodesource.com/setup_12.x | bash \
-    && apt-get install nodejs
-#     && wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.9.2-Linux-x86_64.sh \
-#     && ls -la /opt \
-#     && bash ./Miniconda3-py38_4.9.2-Linux-x86_64.sh  -f -b -p ${CONDA_ROOT} \
-#     && rm -f Miniconda3-py38_4.9.2-Linux-x86_64.sh  \
-#     && echo 'export PATH='${CONDA_ROOT}'/bin:$PATH' >>/etc/profile
+    && apt-get install nodejs \
+    && wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.9.2-Linux-x86_64.sh \
+    && ls -la /opt \
+    && bash ./Miniconda3-py38_4.9.2-Linux-x86_64.sh  -f -b -p ${CONDA_ROOT} \
+    && rm -f Miniconda3-py38_4.9.2-Linux-x86_64.sh  \
+    && echo 'export PATH='${CONDA_ROOT}'/bin:$PATH' >>/etc/profile
 
 # Create project directories
 RUN set -x \
@@ -100,9 +100,9 @@ COPY raven /srv/jeta/api
 COPY requirements /srv/jeta/requirements
 COPY scripts ${JETA_SCRIPTS}
 
-# RUN set -x \
-#     && conda config --env --set always_yes true \
-#     && conda env create -n ${JETA_ENV} python=3.8.5
+RUN set -x \
+    && conda config --env --set always_yes true \
+    && conda env create -n ${JETA_ENV} python=3.8.5
 
 # Copy over setup.py for JETA
 WORKDIR /srv/jeta/code

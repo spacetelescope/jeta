@@ -31,10 +31,8 @@ set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id 
 
 
 # Install the API and Jupyterhub packages
+source activate jeta
 cd /srv/jeta/requirements
-export SHELL=/bin/bash
-pipenv --python 3.8 
-pipenv shell
 pip install --upgrade pip
 pip install -r production.txt
 
