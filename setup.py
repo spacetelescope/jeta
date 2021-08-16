@@ -8,7 +8,7 @@ import numpy
 
 setup(
     name='jeta',
-    version='2.7.3',
+    version='2.8.0',
     description='Modules supporting JWST engineering telemetry archiving.',
     license='BSD 3-Clause',
     long_description="",
@@ -26,7 +26,13 @@ setup(
         'jeta.tests',
         ]),
     ext_modules = cythonize( 
-        [Extension("fastss", ["jeta/archive/fastss.pyx"], include_dirs=[numpy.get_include()])],
+        [
+            Extension(
+                "fastss", 
+                ["jeta/archive/fastss.pyx"], 
+                include_dirs=[numpy.get_include()]
+            )
+        ],
         compiler_directives={'language_level' : "3"}
     ),
     py_modules=['jeta.version'],
@@ -34,7 +40,7 @@ setup(
         'scripts/sql/create.archive.meta.sql'
     ],
     classifiers=[
-        'Development Status :: v2.7.3',
+        'Development Status :: v2.8.0',
         'License :: BSD 3-Clause',
     ]
 )

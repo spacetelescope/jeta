@@ -50,6 +50,7 @@ RUN set -x \
         ipython \
         python3-matplotlib \
         python3-pip \
+        pipenv \
         python3-dev \
         libqt5gui5 \
         python3-pyqt4 \
@@ -62,6 +63,7 @@ RUN set -x \
         yarn \
         git-core \ 
         build-essential \ 
+        clang \
         openssl \
         git \
     && apt-get clean \
