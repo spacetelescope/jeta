@@ -26,12 +26,12 @@ set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id 
 #     && conda config --env --set always_yes true \
 #     && conda env create -n ${SKA_ENV} -f jeta-conda.yml
 
-# set -x && source activate ${JETA_ENV};
+
 
 
 
 # Install the API and Jupyterhub packages
-source activate jeta
+set -x && source activate jeta
 cd /srv/jeta/requirements
 pip install --upgrade pip
 pip install -r production.txt
