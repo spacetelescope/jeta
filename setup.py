@@ -33,6 +33,7 @@ setup(
                 include_dirs=[numpy.get_include()]
             )
         ],
+        extra_compile_args=["-shared", "-fPIC", "-fwrapv", "-O2", "-Wall"],
         compiler_directives={'language_level' : "3"}
     ),
     py_modules=['jeta.version'],
