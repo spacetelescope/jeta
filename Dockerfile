@@ -102,7 +102,7 @@ COPY scripts ${JETA_SCRIPTS}
 
 RUN set -x \
     && conda config --env --set always_yes true \
-    && conda env create -n ${JETA_ENV} python=3.8.5
+    && conda create -n ${JETA_ENV} python=3.8.5
 
 # Copy over setup.py for JETA
 WORKDIR /srv/jeta/code
