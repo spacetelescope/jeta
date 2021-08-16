@@ -31,7 +31,7 @@ set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id 
 
 
 # Install the API and Jupyterhub packages
-set -x && source activate jeta
+set -x && conda init bash && bash && conda activate jeta
 cd /srv/jeta/requirements
 pip install --upgrade pip
 pip install -r production.txt
