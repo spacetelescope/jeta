@@ -1,5 +1,6 @@
 import os
 import pickle
+import h5py
 import sqlite3
 import glob
 import ntpath
@@ -11,6 +12,8 @@ import jeta.archive.file_defs as file_defs
 from jeta.archive.utils import get_env_variable
 
 ENG_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
+
+ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
 
 msid_files = pyyaks.context.ContextDict('update.msid_files',
                                         basedir=ENG_ARCHIVE)
@@ -33,17 +36,13 @@ def create_connection(db_file=msid_files['archfiles'].abs):
 
 
 def get_msid_count():
-
-    with open(msid_files['colnames'].abs, 'rb') as f:
-        colnames = pickle.load(f)
-        return len(colnames)
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
+        return len(h5.keys())
 
 
 def get_msid_names():
-
-    with open(msid_files['colnames'].abs, 'rb') as f:
-        colnames = pickle.load(f)
-        return sorted(list(colnames))
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
+        return sorted(list(h5.keys()))
 
 
 def get_list_of_staged_files(include_path=False):
