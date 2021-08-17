@@ -125,7 +125,7 @@ ft = fetch.ft
 loglevel = pyyaks.logger.VERBOSE if opt.log_level is None else int(opt.log_level)
 
 logger = pyyaks.logger.get_logger(
-    filename='${JETA_LOGS}/jeta.update.log',
+    filename=f'{JETA_LOGS}/jeta.update.log',
     name='jeta_logger',
     level=loglevel,
     format="%(asctime)s %(message)s"
