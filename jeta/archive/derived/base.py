@@ -12,8 +12,8 @@ __all__ = ['MNF_TIME', 'times_indexes', 'DerivedParameter']
 MNF_TIME = 0.25625              # Minor Frame duration (seconds)
 
 def times_indexes(start, stop, dt):
-    index0 = Time(start).unix // dt
-    index1 = Time(stop).unix // dt + 1
+    index0 = Time(start, format='unix').unix // dt
+    index1 = Time(stop, format='unix').unix // dt + 1
     indexes = np.arange(index0, index1, dtype=np.int64)
     times = indexes * dt
     return times, indexes
@@ -56,7 +56,7 @@ class DerivedParameter(object):
                 data.bads = np.ones(2, dtype=np.bool)  # all points bad
                 data.times = np.array([times[0], times[-1]])
                 print('No data in {} between {} and {} (setting all bad)'
-                      .format(msidname, Time(start).yday, Time(stop).yday))
+                      .format(msidname, Time(start, format='unix').yday, Time(stop, format='unix').yday))
             keyvals = (data.content, data.times[0], data.times[-1],
                        len(times), times[0], times[-1])
             idxs = interpolate_times(keyvals, len(data.times), 
@@ -76,8 +76,8 @@ class DerivedParameter(object):
             if np.any(gap_bads):
                 print("Setting bads because of gaps in {} between {} to {}"
                       .format(msidname,
-                              Time(times[gap_bads][0]).yday,
-                              Time(times[gap_bads][-1]).yday))
+                              Time(times[gap_bads][0], format='unix').yday,
+                              Time(times[gap_bads][-1], format='unix').yday))
             bads = bads | gap_bads
 
         dataset.times = times

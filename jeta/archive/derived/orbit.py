@@ -164,8 +164,8 @@ class DerivedParameterOrbit(base.DerivedParameter):
         # Lower case and chop off the initial "DP_"
         param = self.__class__.__name__.lower()[3:]
 
-        start = Time(data.times[0]).yday
-        stop = Time(data.times[-1]).yday
+        start = Time(data.times[0], format='unix').yday
+        stop = Time(data.times[-1], format='unix').yday
         if (start, stop) in ELEMENTS_CACHE:
             return ELEMENTS_CACHE[start, stop][param]
 
