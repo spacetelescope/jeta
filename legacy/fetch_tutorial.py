@@ -49,11 +49,11 @@ print pcad_mode.MSID
 ## **Date and time formats**
 ## Converting between units is straightforward with the ``Chandra.Time`` module::
 
-import Chandra.Time
-datetime = Chandra.Time.DateTime(126446464.184)
-print datetime.date
-print datetime.greta
-print Chandra.Time.DateTime('2009:235:12:13:14').secs
+# import Chandra.Time
+# datetime = Chandra.Time.DateTime(126446464.184)
+# print datetime.date
+# print datetime.greta
+# print Chandra.Time.DateTime('2009:235:12:13:14').secs
 
 # <demo> --- stop ---
 

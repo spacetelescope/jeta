@@ -24,10 +24,6 @@ STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 # but processing them is behind. i.e. can be any number of files for any range.
 BACKLOG_DIRECTORY = f'{STAGING_DIRECTORY}backlog/'
 
-# msid_files = pyyaks.context.ContextDict('update.msid_files',
-#                                         basedir=ENG_ARCHIVE)
-# msid_files.update(file_defs.msid_files)
-
 
 def _format_activity_destination(dst):
     return f'{STAGING_DIRECTORY}{dst}/'
@@ -103,6 +99,14 @@ def get_activity_count():
 def get_list_of_activities():
     _, dirnames, _ = next(os.walk(STAGING_DIRECTORY))
     return dirnames
+
+
+def get_file_coverage(ingest_filename):
+    with h5py.File(f"{STAGING_DIRECTORY}/{ingest_filename}",  'r') as h5:
+        tstart = h5['samples']["data1"].attrs['dataStartTime'][0]/1000
+        tstop = h5['samples'][f"data{len(h5['samples'])}"].attrs['dataStopTime'][0]/1000
+      
+        return (tstart, tstop)
 
 
 def flag_activity_files_by_date(tstart, tstop):

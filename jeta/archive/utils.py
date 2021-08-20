@@ -10,7 +10,7 @@ import six
 from six.moves import zip
 from functools import wraps
 import numpy as np
-from astropy.time import TimeDatetime
+from astropy.time import Time
 
 
 # Cache the results of fetching 3 days of telemetry keyed by MSID
@@ -71,8 +71,8 @@ def get_fetch_size(msids, start, stop, stat=None, interpolate_dt=None, fast=True
     :returns: fetch_Mb, interpolated_Mb
     """
 
-    start = TimeDatetime(start)
-    stop = TimeDatetime(stop)
+    start = Time(start, format='yday').unix
+    stop = Time(stop, format='yday').unix
 
     # Short circuit in the case of a short fetch or not full-resolution telemetry
     if fast and (stop - start < 30 or stat is not None):
@@ -345,8 +345,8 @@ def state_intervals(times, vals):
     state_vals = vals[transitions[1:]]
     state_times = midtimes[transitions]
 
-    intervals = {'datestart': TimeDatetime(state_times[:-1]).date,
-                 'datestop': TimeDatetime(state_times[1:]).date,
+    intervals = {'datestart': Time(state_times[:-1], format="unix").yday,
+                 'datestop': Time(state_times[1:], format="unix").yday,
                  'tstart': state_times[:-1],
                  'tstop': state_times[1:],
                  'duration': state_times[1:] - state_times[:-1],

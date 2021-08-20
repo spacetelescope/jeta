@@ -41,6 +41,3 @@ torch
 pyyaks
 six
 plotly
-Cython
-configurable-http-proxy
-jupyterlab

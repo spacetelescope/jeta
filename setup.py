@@ -1,11 +1,14 @@
 from setuptools import setup, find_packages
+from distutils.extension import Extension
+from Cython.Build import cythonize
+import numpy
 
 # with open("README.md") as f:
 #     long_description = f.read()
 
 setup(
     name='jeta',
-    version='1.10.0',
+    version='2.8.4',
     description='Modules supporting JWST engineering telemetry archiving.',
     license='BSD 3-Clause',
     long_description="",
@@ -15,19 +18,29 @@ setup(
     packages=find_packages(include=[
         'jeta',
         'jeta.archive',
+        'jeta.archive.*',
         'jeta.staging',
         'jeta.archive.derived',
         'jeta.config',
         'jeta.core',
-        'jeta.ingest',
         'jeta.tests',
         ]),
-    py_modules=['jeta.archive.version'],
+    ext_modules = cythonize( 
+        [
+            Extension(
+                "fastss", 
+                ["jeta/archive/fastss.pyx"], 
+                include_dirs=[numpy.get_include()]
+            )
+        ],
+        compiler_directives={'language_level' : "3"}
+    ),
+    py_modules=['jeta.version'],
     scripts=[
         'scripts/sql/create.archive.meta.sql'
     ],
     classifiers=[
-        'Development Status :: v1.10.0',
+        'Development Status :: v2.8.4',
         'License :: BSD 3-Clause',
     ]
 )
