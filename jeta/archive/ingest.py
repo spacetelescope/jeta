@@ -28,6 +28,7 @@ import h5py
 import tables
 import numpy as np
 import pandas as pd
+from torch._C import Value
 
 import jeta.archive.fetch as fetch
 import jeta.archive.file_defs as file_defs
@@ -130,7 +131,7 @@ def _update_index_file(msid, epoch, index):
             h5.close()
 
 
-def _append_h5_col_tlm(msid, epoch):
+def _append_h5_col_tlm(msid, epoch, times=None, values=None, apply_direct=False):
 
     """Append new values to an HDF5 MSID data table.
 
@@ -163,10 +164,19 @@ def _append_h5_col_tlm(msid, epoch):
 
     # Index should point to current number of rows
     index = values_h5.root.values.nrows
+    # TODO: Filter interval before append
+    # if index != 0:
+    #     last_time = times_h5.root.times[index -  1]
+    #     tstart = np.atleast_1d(_times[msid])[0]
+    #     tstop = np.atleast_1d(_times[msid])[-1]
 
     try:
-        values_h5.root.values.append(np.atleast_1d(_values[msid]))
-        times_h5.root.times.append(np.atleast_1d(_times[msid]))
+        if apply_direct == True:
+            values_h5.root.values.append(np.atleast_1d(values))
+            times_h5.root.times.append(np.atleast_1d(times)) 
+        else:
+            values_h5.root.values.append(np.atleast_1d(_values[msid]))
+            times_h5.root.times.append(np.atleast_1d(_times[msid]))
     except Exception as err:
         logger.error(f'{msid} couldnt append the normal way {type(_values[msid])} | {[_values[msid]]} | {_values[msid]}')
 
@@ -203,23 +213,21 @@ def calculate_delta_times(msid, times, epoch=None):
     _times[msid] = np.diff(np.insert(jd_times, 0, epoch))
 
 
-def sort_msid_data_by_time(msid, times=None, values=None, append=True):
+def sort_msid_data_by_time(mid, times=None, values=None, append=True):
 
     global _times
     global _values
 
     if append:
-        _times[msid] = np.append(_times[msid], times)
-        _values[msid] = np.append(_values[msid], values)
+        pass
+        # FIXME: this may not be require with the new design
+        # _times[mid] = np.append(_times[mid], times)
+        # _values[mid] = np.append(_values[mid], values)
 
-    msid_times = _times[msid]
-    msid_values = _values[msid]
+    idxs = torch.argsort(torch.from_numpy(_times[mid]))
 
-    idxs = torch.argsort(torch.from_numpy(msid_times))
-
-    _times[msid] = np.array(msid_times[idxs])
-    _values[msid] = np.array(msid_values[idxs])
-
+    _times[mid] = _times[mid][idxs]
+    _values[mid] = _values[mid][idxs]
 
 def _sort_ingest_files_by_start_time(list_of_files=[]):
     ingest_list = []
@@ -364,17 +372,13 @@ def _start_ingest_pipeline(ingest_type="csv", source_type='', provided_ingest_fi
         elif ingest_type == 'h5':
             # Preprocess HDF5 files to match DF interface
             logger.info('Starting HDF5 file pre-processing ...')
-            ingest_files, chunks = _preprocess_hdf(ingest_files)
+            ingest_file_data, chunks = _preprocess_hdf(ingest_files)
             logger.info('Completed HDF5 file pre-processing ...')
 
             logger.info('Starting HDF5 file data ingest ...')
             # out = db.fetchone('SELECT count(*) FROM ingest_history')
-            processed_ingest_files = _process_hdf(
-                ingest_files,
-                ingest_files[0]['tstart'],
-                ingest_files[-1]['tstop'],
-                ingest_id=ingest_id.int,
-                chunks=chunks,
+            _process_hdf(
+                ingest_file_data=ingest_file_data,
                 mdmap=mdmap
             )
             logger.info('Completed HDF5 file data ingest ALL data ...') 
@@ -434,64 +438,83 @@ def _process_csv(ingest_files, ingest_id, single_msid=False):
     return processed_files
 
 
-def _process_hdf(ingest_files, tstart, tstop, ingest_id, chunks, mdmap):
+def _process_hdf(ingest_file_data, mdmap):
+    """ Function for handling the ingest of HDF5 files deliveried to the staging area.
+    """
 
     global _times
     global _values
 
-    # List of ingest files that have been processed
-    # Later tar and move out of staging the files named in this list
+    # Process each file in the discovered regardless
     processed_files = []
-    chunk_group = 0
 
-    file_processing_queue = deque(ingest_files)
-    queue_size = len(file_processing_queue)
-
-    if sum(chunks) != queue_size:
-        raise ValueError(f"sum of chunks ({sum(chunks)}) not equal processing queue size ({queue_size})")
-
-    # Assume 60 files per ingest
-    while len(file_processing_queue) != 0:
-        _reset_storage()
-
-        chunk = chunks[chunk_group]
-
-        file_processing_chunk = [
-            file_processing_queue.popleft()
-            for i in range(chunk)
-        ]
-        
-        chunk_group += chunk
-
-        # for each group of files 1 - N where N <= 6
-        for ingest_file in file_processing_chunk:
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
+        for file_data in ingest_file_data:
             try:
-                with h5py.File(ingest_file['filename'], 'r') as f:
-                    s = f['samples']
-                    # get the msids that will be updated from this file
-                    ids = pd.DataFrame(f['metadata'][...].byteswap().newbyteorder())['id'].to_list()
-                    try:
-                        # for each msid go through each dataset and append the data to write
-                        for id in ids:
-                            for dset in s.keys():
-                                df = pd.DataFrame(s[dset][...].byteswap().newbyteorder())
-                                tlm = df.loc[df['id']==id, ['observatoryTime', 'engineeringNumericValue']]
-                                _times[mdmap[id]] = np.concatenate((_times[mdmap[id]], tlm['observatoryTime'].to_numpy()), 0)
-                                _values[mdmap[id]] = np.concatenate((_values[mdmap[id]], tlm['engineeringNumericValue'].to_numpy()), 0)
-                    except Exception as err:
-                        raise err
+                with h5py.File(file_data['filename'], 'r') as current_ingest_file:
+
+                    # File Processing Setup
+                    dtype = current_ingest_file['samples']['data1'].dtype
+                    number_of_datasets = len(current_ingest_file['samples'])
+                    total_data_points = sum([d.shape[0] for d in current_ingest_file['samples'].values()])
+                    shape = (total_data_points, )
+
+                    # Create Virtual Layout
+                    layout = h5py.VirtualLayout(shape=shape,
+                                dtype=dtype)
+
+                    # Map data sources
+                    idx0 = 0
+                    for i, dset in enumerate(current_ingest_file['samples']):
+                        vsource = h5py.VirtualSource(current_ingest_file['samples'][dset])
+                        total_data_points = sum([d.shape[0] for d in list(current_ingest_file['samples'].values())[0:i+1]])
+                        layout[idx0:total_data_points] = vsource
+                        idx0 = total_data_points
+                    
+                    # Create Virtual Dataset
+                    with h5py.File("VDS.hdf5", 'w', libver='latest') as vds:
+                        vds.create_virtual_dataset('/data', layout)
+                    
+                    # Ingest the data from Virtual Dataset
+                    with h5py.File("VDS.hdf5", 'r', libver='latest') as vds:
+                        # Get all the MSIDs to ingest in this file
+                        ids = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())['id'].unique()
+                        
+                        # Entries with ID 0 are padding and can be ignored
+                        ids = ids[ids != 0]
+                        ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
+
+                        # Process each MSID in the file
+                        df = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())
+
+                        for msid_id in ids:
+                            # Skip MSIDs not in the PRD
+                            # if msid_id not in mdmap.keys():
+                            #     print(f"Unknown MSID {msid_id} in {file_data['filename']} moving on ...")
+                            #     continue
+                           
+                            # Find the time series for the current msid 
+                            tlm = df.loc[df['id']==msid_id, ['observatoryTime', 'engineeringNumericValue']]
+
+                            times = tlm['observatoryTime'].to_numpy()
+                            values = tlm['engineeringNumericValue'].to_numpy()
+
+                            # Get this MSID
+                            npt = h5[mdmap[msid_id]].attrs['numpy_datatype'].replace('np.', '')
+
+                            # Set datatypes for archive data
+                            times.dtype = np.float64
+                            values = values.astype(npt)
+                            
+                            # sort_msid_data_by_time(mid, append=False)
+                            _append_h5_col_tlm(msid=mdmap[msid_id], epoch=times[0], times=times, values=values, apply_direct=True)
+
+                            # logger.info(f"Done with {mdmap[msid_id]}, {len(values)} data points were added to the archive")
+                        processed_files.append(file_data['filename'])
+                        logger.info(f"Ingest file processing completed for {file_data['filename']} | {file_data['tstart']} | {file_data['tstop']} | .h5 ")
             except (IOError, FileNotFoundError, Exception) as err:
                 raise err
-              
-        for msid in _times.keys():
-            with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
-                npt = h5[msid].attrs['numpy_datatype'].replace('np.', '')
-                _times[msid] = Time([t/1000 for t in _times[msid]], format='unix').jd
-                sort_msid_data_by_time(msid)
-                _values[msid] = _values[msid].astype(npt)
-                _append_h5_col_tlm(msid=msid, epoch=_times[msid][0])
-
-            processed_files.append(f)
+        print(processed_files)
 
 
 def execute(ingest_type='CSV'):
