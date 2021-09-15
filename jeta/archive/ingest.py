@@ -264,8 +264,8 @@ def _auto_file_discovery(ingest_type, source_type):
             the type of file to match in the file search. 
             examples of valid values are: h5, hdf, csv, txt
         source_type : str
-            the source type of the data. source_type of an empty string means sources of
-            ingest_type.
+            the source type of the data e.g. (FILE_PREFIX, Directory Path or Sim vs. Flight)
+            source_type of an empty string means sources of ingest_type in default staging.
 
     Returns
     =======
@@ -434,22 +434,115 @@ def _process_csv(ingest_files, ingest_id, single_msid=False):
                     _values[m] = _values[m].astype(npt)
                     _append_h5_col_tlm(msid=m, epoch=_times[m][0])
 
-
     return processed_files
 
 
 def _process_hdf(ingest_file_data, mdmap):
     """ Function for handling the ingest of HDF5 files deliveried to the staging area.
     """
+    
+    MAX_FILE_PROCESSING_CHUNK = 5
 
     global _times
     global _values
 
-    # Process each file in the discovered regardless
     processed_files = []
+    total_data_points = None
+
+    file_processing_queue = deque(ingest_file_data)
+    queue_size = len(file_processing_queue)
 
     with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
-        for file_data in ingest_file_data:
+        while len(file_processing_queue) != 0:
+
+            # Get a chunk of files to process, either the next 5 or whatever is left
+            chunk = min(MAX_FILE_PROCESSING_CHUNK, len(file_processing_queue))
+            file_processing_chunk = [
+                file_processing_queue.popleft()
+                for i in range(chunk)
+            ]
+
+            # clear array data before processing the next chunk
+            _reset_storage()
+
+            dtype = None
+            n_samples_to_ingest = 0
+
+            for file_data in file_processing_chunk:
+                with h5py.File(file_data['filename'], 'r') as current_ingest_file:
+                    # FIXME: create config for dtype parameter, value rarely changes
+                    dtype = current_ingest_file['samples']['data1'].dtype 
+                    n_samples_to_ingest += sum([d.shape[0] for d in current_ingest_file['samples'].values()])
+
+            # Create a layout to hold a memory map of all files in the chunk
+            shape = (n_samples_to_ingest, )
+            layout = h5py.VirtualLayout(shape=shape,
+                                dtype=dtype)
+
+            # For each file in the chunk, create a memory map that presents
+            # the individual datasets in the file as one large dataset
+            # then append the msid data to global arrays after checking for overlaps
+            # and disgarding APID>0
+            idx0 = 0
+            for file_data in file_processing_chunk:
+                try:
+                    with h5py.File(file_data['filename'], 'r') as current_ingest_file:
+                        # Get the number of datasets in the file
+                        total_data_points = sum([d.shape[0] for d in current_ingest_file['samples'].values()])
+                    
+                        # Map datasets in the file to the layout
+                        for i, dset in enumerate(current_ingest_file['samples']):
+                            vsource = h5py.VirtualSource(current_ingest_file['samples'][dset]) 
+                            # total_data_points = sum([d.shape[0] for d in list(current_ingest_file['samples'].values())[0:i+1]])
+                            total_data_points = list(current_ingest_file['samples'].values())[i].shape[0]
+                            print(vsource.shape)
+                            print(total_data_points)
+                            layout[idx0:idx0+total_data_points] = vsource
+                            idx0 += total_data_points
+                except Exception as err:
+                    raise err
+                    
+            # Create Virtual Dataset
+            # with h5py.File("VDS.hdf5", 'w', libver='latest') as vds:
+            #     vds.create_virtual_dataset('/data', layout)
+                        
+            # Ingest the data from Virtual Dataset
+            # with h5py.File("VDS.hdf5", 'r', libver='latest') as vds:
+            #     # Get all the MSIDs to ingest in this file
+            #     ids = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())['id'].unique()
+                
+            #     # Entries with ID 0 are padding and can be ignored
+            #     ids = ids[ids != 0]
+            #     ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
+
+            #     # Process each MSID in the file
+            #     df = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())
+
+            #     for msid_id in ids:
+            #         # Skip MSIDs not in the PRD
+            #         # if msid_id not in mdmap.keys():
+            #         #     print(f"Unknown MSID {msid_id} in {file_data['filename']} moving on ...")
+            #         #     continue
+                
+            #         # Find the time series for the current msid 
+            #         tlm = df.loc[df['id']==msid_id, ['observatoryTime', 'engineeringNumericValue']]
+
+            #         times = tlm['observatoryTime'].to_numpy()
+            #         values = tlm['engineeringNumericValue'].to_numpy()
+
+            #         # Get this MSID
+            #         npt = h5[mdmap[msid_id]].attrs['numpy_datatype'].replace('np.', '')
+
+            #         # Set datatypes for archive data
+            #         # times.dtype = np.float64
+            #         _times[msid_id].extend(times)
+            #         _values[msid_id].extend(values.astype(npt))
+
+            print(f"NOW APPEND!!!!!!!!! {n_samples_to_ingest} n_samples.")
+
+
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
+        for file_data in file_processing_chunk:
             try:
                 with h5py.File(file_data['filename'], 'r') as current_ingest_file:
 
