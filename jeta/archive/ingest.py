@@ -333,10 +333,21 @@ def move_archive_files(filetype, processed_ingest_files):
 
 
 def _ingest_virtual_dataset(ref_data, mdmap):
+    """ Do the actual work of extracting data from the files
+        and appending it to the archive.
 
-    # Ingest the data from Virtual Dataset
+        Parameters:
+            ref_data: 
+                a data structure containing reference meta data
+                about each msid.
+            mdmap:
+                a dict with ids as keys and msid friendly strings 
+                as keys
+    """
+    logger.info('Ingesting virtual dataset temp file VDS.hdf5')
     with h5py.File("VDS.hdf5", 'r', libver='latest') as vds:
-        # Get all the MSIDs in the VDS to ingest
+        # Get all the MSIDs data from the VDS (Virtual Data Set) 
+        # and use it to create a Pandas Dataframe
         df = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())
         
         # Entries with ID 0 are padding and can be ignored
@@ -344,17 +355,21 @@ def _ingest_virtual_dataset(ref_data, mdmap):
         ids = ids[ids != 0]
         ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
 
-        print("INFO: processing the MSIDs in chunk X... ")
-        tmp_count = 0
-        total = len(ids)
+        df = df.groupby(["id"])[['observatoryTime', 'engineeringNumericValue', 'apid']]
+        
         for msid_id in ids:
-            tmp_count += 1
-            # 
-            # Find the time series for the current msid 
-            tlm = df.loc[df['id']==msid_id, [
-                'observatoryTime', 
-                'engineeringNumericValue', 
-                'apid']]
+            tlm = df.get_group(msid_id)
+            tlm = tlm.drop_duplicates()
+
+            # FIXME: Not sure this will work and need a fast way to get the 
+            # last_timestamp_in_archive, maybe add column to index.h5
+            # if tlm['observatoryTime'].min() < last_timestamp_in_archive:
+            #     if tlm['observatoryTime'].max() > last_timestamp_in_archive:
+            #         # remove overlap 
+            #         tlm = tlm.loc[tlm['observatoryTime'] > last_timestamp_in_archive]
+            #     else:
+            #         # do not ingest. time range already covered.
+            #         continue
 
             times = tlm['observatoryTime'].to_numpy()
             values = tlm['engineeringNumericValue'].to_numpy()
@@ -365,9 +380,15 @@ def _ingest_virtual_dataset(ref_data, mdmap):
             # Set datatypes for archive data
             times.dtype = np.float64
             values = values.astype(npt)
+
+            # Ensure data is sorted in time order
+            # TODO: Verify this can be removed permanently
+            # since data should come order by msid 
             # sort_msid_data_by_time(mid, append=False)
-            print(f"{mdmap[msid_id]} w/ {len(times)} samples is # {tmp_count} of {total}")
+
+            # Finally append the data to the archive.
             _append_h5_col_tlm(msid=mdmap[msid_id], epoch=times[0], times=times, values=values, apply_direct=True)
+
 
 def _preprocess_hdf(ingest_files):
     ingest_files = _sort_ingest_files_by_start_time(ingest_files)
@@ -414,15 +435,16 @@ def _start_ingest_pipeline(ingest_type="csv", source_type='', provided_ingest_fi
 
             logger.info('Starting HDF5 file data ingest ...')
             # out = db.fetchone('SELECT count(*) FROM ingest_history')
-            _process_hdf(
+            processed_files = _process_hdf(
                 ingest_file_data=ingest_file_data,
                 mdmap=mdmap
             )
-            logger.info('Completed HDF5 file data ingest ALL data ...') 
+            logger.info('Completed HDF5 file data ingest ALL data sequence ...') 
         else:
             raise ValueError('Ingest type parameter is invalid. Valid options are csv or h5.')
-        logger.info('Moving HDF5 ingest file to tmp storage ...')  
-        # move_archive_files(filetype, processed_ingest_files)
+        logger.info(f'Moving {len(processed_files)} HDF5 ingest file(s) to tmp storage ... (DISABLED!!!)')
+
+        # move_archive_files(filetype, processed_files)
     else:
         logger.info('No ingest files discovered in {STAGING_DIRECTORY}')
 
@@ -478,7 +500,7 @@ def _process_hdf(ingest_file_data, mdmap):
     """ Function for handling the ingest of HDF5 files deliveried to the staging area.
     """
     
-    MAX_FILE_PROCESSING_CHUNK = 18
+    MAX_FILE_PROCESSING_CHUNK = 6
 
     # global _times
     # global _values
@@ -539,130 +561,26 @@ def _process_hdf(ingest_file_data, mdmap):
                     raise err
 
             # Filenames being processed in this chunk
-            print(files_processed_chunk)
+            # print(files_processed_chunk)
 
             # Total numer of points eing processed in this chunk
-            print(layout.shape)
+            # print(layout.shape)
 
-            # file seem indicies?
-            print(chunk_seams)
+            # File seem indicies?
+            # print(chunk_seams)
 
             # Create Virtual Dataset
             with h5py.File("VDS.hdf5", 'w', libver='latest') as vds:
                 vds.create_virtual_dataset('/data', layout)
             
-            print("Ingest VDS")
             _ingest_virtual_dataset(ref_data, mdmap)
-
-            print(f"NOW MOVE ON TO THE NEXT CHUNK!!!!!!!!! {layout.shape[0]} n_samples.")
-           
-            return 0      
             
-                        
-            # Ingest the data from Virtual Dataset
-            # with h5py.File("VDS.hdf5", 'r', libver='latest') as vds:
-            #     # Get all the MSIDs to ingest in this file
-            #     ids = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())['id'].unique()
-                
-            #     # Entries with ID 0 are padding and can be ignored
-            #     ids = ids[ids != 0]
-            #     ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
+            # print(f"{layout.shape[0]} n_samples.")
 
-            #     # Process each MSID in the file
-            #     df = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())
+            processed_files.extend(file_processing_chunk)
 
-            #     for msid_id in ids:
-            #         # Skip MSIDs not in the PRD
-            #         # if msid_id not in mdmap.keys():
-            #         #     print(f"Unknown MSID {msid_id} in {file_data['filename']} moving on ...")
-            #         #     continue
-                
-            #         # Find the time series for the current msid 
-            #         tlm = df.loc[df['id']==msid_id, ['observatoryTime', 'engineeringNumericValue']]
-
-            #         times = tlm['observatoryTime'].to_numpy()
-            #         values = tlm['engineeringNumericValue'].to_numpy()
-
-            #         # Get this MSID
-            #         npt = h5[mdmap[msid_id]].attrs['numpy_datatype'].replace('np.', '')
-
-            #         # Set datatypes for archive data
-            #         # times.dtype = np.float64
-            #         _times[msid_id].extend(times)
-            #         _values[msid_id].extend(values.astype(npt))
-            
-        # print(seams)
-        # print(sum(seams))
-        return 0
-
-    # with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
-    #     for file_data in file_processing_chunk:
-    #         try:
-    #             with h5py.File(file_data['filename'], 'r') as current_ingest_file:
-
-    #                 # File Processing Setup
-    #                 dtype = current_ingest_file['samples']['data1'].dtype
-    #                 number_of_datasets = len(current_ingest_file['samples'])
-    #                 total_data_points = sum([d.shape[0] for d in current_ingest_file['samples'].values()])
-    #                 shape = (total_data_points, )
-
-    #                 # Create Virtual Layout
-    #                 layout = h5py.VirtualLayout(shape=shape,
-    #                             dtype=dtype)
-
-    #                 # Map data sources
-    #                 idx0 = 0
-    #                 for i, dset in enumerate(current_ingest_file['samples']):
-    #                     vsource = h5py.VirtualSource(current_ingest_file['samples'][dset])
-    #                     total_data_points = sum([d.shape[0] for d in list(current_ingest_file['samples'].values())[0:i+1]])
-    #                     layout[idx0:total_data_points] = vsource
-    #                     idx0 = total_data_points
-                    
-    #                 # Create Virtual Dataset
-    #                 with h5py.File("VDS.hdf5", 'w', libver='latest') as vds:
-    #                     vds.create_virtual_dataset('/data', layout)
-                    
-    #                 # Ingest the data from Virtual Dataset
-    #                 with h5py.File("VDS.hdf5", 'r', libver='latest') as vds:
-    #                     # Get all the MSIDs to ingest in this file
-    #                     ids = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())['id'].unique()
-                        
-    #                     # Entries with ID 0 are padding and can be ignored
-    #                     ids = ids[ids != 0]
-    #                     ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
-
-    #                     # Process each MSID in the file
-    #                     df = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())
-
-    #                     for msid_id in ids:
-    #                         # Skip MSIDs not in the PRD
-    #                         # if msid_id not in mdmap.keys():
-    #                         #     print(f"Unknown MSID {msid_id} in {file_data['filename']} moving on ...")
-    #                         #     continue
-                           
-    #                         # Find the time series for the current msid 
-    #                         tlm = df.loc[df['id']==msid_id, ['observatoryTime', 'engineeringNumericValue']]
-
-    #                         times = tlm['observatoryTime'].to_numpy()
-    #                         values = tlm['engineeringNumericValue'].to_numpy()
-
-    #                         # Get this MSID
-    #                         npt = h5[mdmap[msid_id]].attrs['numpy_datatype'].replace('np.', '')
-
-    #                         # Set datatypes for archive data
-    #                         times.dtype = np.float64
-    #                         values = values.astype(npt)
-                            
-    #                         # sort_msid_data_by_time(mid, append=False)
-    #                         _append_h5_col_tlm(msid=mdmap[msid_id], epoch=times[0], times=times, values=values, apply_direct=True)
-
-    #                         # logger.info(f"Done with {mdmap[msid_id]}, {len(values)} data points were added to the archive")
-    #                     processed_files.append(file_data['filename'])
-    #                     logger.info(f"Ingest file processing completed for {file_data['filename']} | {file_data['tstart']} | {file_data['tstop']} | .h5 ")
-    #         except (IOError, FileNotFoundError, Exception) as err:
-    #             raise err
-    #     print(processed_files)
-
+    return processed_files
+        
 
 def execute(ingest_type='CSV'):
     """ Perform one full update of the data archive based on parameters.

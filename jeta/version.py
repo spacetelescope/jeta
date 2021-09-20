@@ -1,6 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """
-Version numbering for Ska.engarchive.
+Version numbering for jeta.
 
 This file is intended to be copied into a project and provide version information,
 including git version values.  It is copied instead of used as a module to ensure
@@ -34,7 +34,7 @@ import os
 ### SET THESE VALUES
 ############################
 # Major, Minor, Bugfix, Dev
-VERSION = (2, 9, 1, False)
+VERSION = (2, 10, 0, False)
 
 
 class SemanticVersion(object):
