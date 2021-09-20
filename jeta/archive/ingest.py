@@ -234,9 +234,15 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
 
     for file in list_of_files:
         with h5py.File(file, 'r') as f:
-
-            tstart = f['samples']["data1"].attrs['dataStartTime'][0]/1000
-            tstop = f['samples'][f"data{len(f['samples'])}"].attrs['dataStopTime'][0]/1000
+            df = None
+            for dataset in f['samples'].keys():
+                dff = pd.DataFrame( np.array(f['samples'][dataset]).byteswap().newbyteorder() )            
+                dff = dff.loc[(dff['id'] != 0) & (dff['apid'] > 0)]
+                df = pd.concat([df, dff])  
+            tstart = df['observatoryTime'].min()/1000
+            tstop = df['observatoryTime'].max()/1000
+                # tstart = f['samples']["data1"].attrs['dataStartTime'][0]/1000
+                # tstop = f['samples'][f"data{len(f['samples'])}"].attrs['dataStopTime'][0]/100
             ingest_list.append(
                 {
                     'filename': f.filename,
@@ -355,24 +361,31 @@ def _ingest_virtual_dataset(ref_data, mdmap):
         ids = ids[ids != 0]
         ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
 
+        # Remove duplicate entries
+        df.drop_duplicates(subset=['id', 'observatoryTime', 'engineeringNumericValue', 'apid'], inplace=True)
+
+        # Remove API > 0 from and msids with ids == 0
+        df = df.loc[(df['id'] != 0) & (df['apid'] > 0)]
+        df['observatoryTime'] = Time(df['observatoryTime']/1000, format='unix').jd
         df = df.groupby(["id"])[['observatoryTime', 'engineeringNumericValue', 'apid']]
         
         for msid_id in ids:
             tlm = df.get_group(msid_id)
-            tlm = tlm.drop_duplicates()
 
-            # FIXME: Not sure this will work and need a fast way to get the 
-            # last_timestamp_in_archive, maybe add column to index.h5
-            # if tlm['observatoryTime'].min() < last_timestamp_in_archive:
-            #     if tlm['observatoryTime'].max() > last_timestamp_in_archive:
-            #         # remove overlap 
-            #         tlm = tlm.loc[tlm['observatoryTime'] > last_timestamp_in_archive]
-            #     else:
-            #         # do not ingest. time range already covered.
-            #         continue
+            if 'last_ingested_timestamp' not in list(ref_data[mdmap[msid_id]].attrs):
+                ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = 0
 
+            if tlm['observatoryTime'].min() < ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']:
+                if tlm['observatoryTime'].max() > ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']:
+                    # remove overlap 
+                    tlm = tlm.loc[tlm['observatoryTime'] > ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']]
+                else:
+                    # do not ingest. time range already covered.
+                    continue
+                
             times = tlm['observatoryTime'].to_numpy()
             values = tlm['engineeringNumericValue'].to_numpy()
+            ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = times[-1] # last timestamp in the ingest
 
             # Get this MSID numpy datatype
             npt = ref_data[mdmap[msid_id]].attrs['numpy_datatype'].replace('np.', '')
@@ -511,7 +524,7 @@ def _process_hdf(ingest_file_data, mdmap):
     file_processing_queue = deque(ingest_file_data)
     queue_size = len(file_processing_queue)
 
-    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as ref_data:
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'a') as ref_data:
         chunk_seams = []
         files_processed_chunk = []
         while len(file_processing_queue) != 0:
