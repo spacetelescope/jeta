@@ -33,6 +33,7 @@ recovery
 .env
 jeta.egg-info
 linux_deploy.sh
+VDS.hdf5
 
 # Python
 *.pyc
