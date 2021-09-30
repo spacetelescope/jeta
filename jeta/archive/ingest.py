@@ -251,6 +251,9 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
                     'numPoints': f.attrs['/numPoints']
                 }
             )
+    
+    ingest_list = sorted(ingest_list, key=lambda k: k['tstart'])
+
     logger.info(
         (
             f"Data coverage for ALL ingest files discovered (tstart, tstop): "
@@ -258,7 +261,8 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
             f"{Time(ingest_list[-1]['tstop'], format='unix').iso})"
         )
     )
-    return sorted(ingest_list, key=lambda k: k['tstart'])
+
+    return ingest_list
 
 
 def _auto_file_discovery(ingest_type, source_type):
@@ -364,7 +368,7 @@ def _ingest_virtual_dataset(ref_data, mdmap):
         # Remove duplicate entries
         df.drop_duplicates(subset=['id', 'observatoryTime', 'engineeringNumericValue', 'apid'], inplace=True)
 
-        # Remove API > 0 from and msids with ids == 0
+        # Remove samples with apid <= 0 or id == 0
         df = df.loc[(df['id'] != 0) & (df['apid'] > 0)]
         df['observatoryTime'] = Time(df['observatoryTime']/1000, format='unix').jd
         df = df.groupby(["id"])[['observatoryTime', 'engineeringNumericValue', 'apid']]
