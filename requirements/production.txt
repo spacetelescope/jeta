@@ -44,3 +44,7 @@ plotly
 Cython
 configurable-http-proxy
 jupyterlab
+
+# Documentation
+sphinx_rtd_theme
+sphinxcontrib-versioning

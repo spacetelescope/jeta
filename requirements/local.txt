@@ -41,3 +41,7 @@ torch
 pyyaks
 six
 plotly
+
+# Documentation
+sphinx_rtd_theme
+sphinxcontrib-versioning

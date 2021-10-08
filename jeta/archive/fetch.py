@@ -568,10 +568,7 @@ def _get_table_intervals_as_list(table, check_overlaps=True):
 class MSID(object):
     """Fetch data from the engineering telemetry archive into an MSID object.
 
-    The input ``msid`` is case-insensitive and can include linux file "glob"
-    patterns, for instance ``orb*1*_x`` (ORBITEPHEM1_X) or ``*pcadmd``
-    (AOPCADMD).  For derived parameters the initial ``DP_`` is optional, for
-    instance ``dpa_pow*`` (DP_DPA_POWER).
+    The input ``msid`` is case-insensitive.
 
     :param msid: a mnemonic (case-insensitive) as a string.
     :param start: start date of telemetry. (YYYY:DOY)
@@ -1259,8 +1256,8 @@ class MSID(object):
         * datestart: date of interval start
         * datestop: date of interval stop
         * duration: duration of interval (sec)
-        * tstart: time of interval start (CXC sec)
-        * tstop: time of interval stop (CXC sec)
+        * tstart: time of interval start (unix)
+        * tstop: time of interval stop (unix)
 
         Examples::
 
@@ -1313,8 +1310,8 @@ class MSID(object):
         * datestart: date of interval start
         * datestop: date of interval stop
         * duration: duration of interval (sec)
-        * tstart: time of interval start (CXC sec)
-        * tstop: time of interval stop (CXC sec)
+        * tstart: time of interval start (unix)
+        * tstop: time of interval stop (unix)
         * val: MSID value during the interval
 
         Example::
@@ -1843,7 +1840,7 @@ def get_time_range(msid, format=None):
 
     :param msid: MSID name
     :param format: Output format (DateTime format, e.g. 'secs', 'date', 'greta')
-    :returns: (tstart, tstop) in CXC seconds
+    :returns: (tstart, tstop) in seconds
     """
 
     MSID = msid.upper()
@@ -1901,7 +1898,7 @@ def get_telem(msids, start=None, stop=None, sampling='full', unit_system='eng',
       - Filter out bad or missing data.
       - Interpolate (resample) all MSID values to a common uniformly-spaced time sequence.
       - Remove or select time intervals corresponding to specified Kadi event types.
-      - Change the time format from CXC seconds (seconds since 1998.0) to something more
+      - Change the time format from seconds (seconds since 1998.0) to something more
         convenient like GRETA time.
       - Write the MSID telemetry data to a zipfile.
 
@@ -1935,8 +1932,8 @@ def get_telem(msids, start=None, stop=None, sampling='full', unit_system='eng',
 #     ``tstop`` times for the ``content`` type.
 
 #     :param content: content type (e.g. 'pcad3eng', 'thm1eng')
-#     :param tstart: start time (CXC seconds)
-#     :param tstop: stop time (CXC seconds)
+#     :param tstart: start time (seconds)
+#     :param tstop: stop time (seconds)
 
 #     :returns: rowslice
 #     """

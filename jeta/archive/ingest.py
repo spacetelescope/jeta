@@ -600,7 +600,7 @@ def _process_hdf(ingest_file_data, mdmap):
         
 
 def execute(ingest_type='CSV'):
-    """ Perform one full update of the data archive based on parameters.
+    """Perform one full update of the data archive based on parameters.
 
     This may be called in a loop by the program-level main().
     """

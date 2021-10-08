@@ -143,12 +143,18 @@ def calculate_expected_rows(sampling_rate):
     return sampling_rate * 60 * 60 * 24 * 365 * ARCHIVE_LIFE
 
 
-def backup():
+def backup(data_only=False):
+    """[summary]
+
+    Args:
+        data_only (bool, optional): [description]. Defaults to False.
+    """
     pass
 
 
 def restore():
-    pass
+    """[summary]
+    """
 
 
 def truncate(filetype, date):
@@ -202,6 +208,14 @@ def truncate(filetype, date):
 
 
 def destory(data_only=True):
+    """Destory the archive by removing all data and
+
+    Args:
+        data_only (bool, optional): [description]. Defaults to True.
+
+    Returns:
+        [type]: [description]
+    """
     from shutil import rmtree
     if data_only:
         try:
@@ -243,5 +257,5 @@ def initialize():
 
 if __name__ == "__main__":
     import jeta
-    print(f"Initializing archive using jeta version {jeta.__version__}")
+    print(f"Initializing archive using jeta version {jeta.__version__} via cli")
     initialize()
