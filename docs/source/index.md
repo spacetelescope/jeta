@@ -83,15 +83,7 @@ fetch.md
 plotting.md
 operations.md
 ingest.md
-staging.md
-status.md
-recovery.md
 update.md
-infrastructure.md
-pagination.md
-benchmarks.md
-environment.md
-code_style.md
 ```
 
 

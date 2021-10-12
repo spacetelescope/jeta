@@ -1446,11 +1446,6 @@ class MSID(object):
 class MSIDset(collections.OrderedDict):
     """Fetch a set of MSIDs from the engineering telemetry archive.
 
-    Each input ``msid`` is case-insensitive and can include linux file "glob"
-    patterns, for instance ``orb*1*_?`` (ORBITEPHEM1_X, Y and Z) or
-    ``aoattqt[1234]`` (AOATTQT1, 2, 3, and 4).  For derived parameters the
-    initial ``DP_`` is optional, for instance ``dpa_pow*`` (DP_DPA_POWER).
-
     :param msids: list of MSID names (case-insensitive)
     :param start: start date of telemetry (Chandra.Time compatible)
     :param stop: stop date of telemetry (current time if not supplied)
