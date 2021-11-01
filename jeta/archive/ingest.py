@@ -10,6 +10,7 @@ from uuid import uuid1
 from functools import partial
 import pickle
 from random import seed
+import datetime
 import torch
 
 from collections import (
@@ -230,6 +231,9 @@ def sort_msid_data_by_time(mid, times=None, values=None, append=True):
     _values[mid] = _values[mid][idxs]
 
 def _sort_ingest_files_by_start_time(list_of_files=[]):
+    # TODO: Move epoch to system config
+    epoch = datetime.datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
+    
     ingest_list = []
 
     for file in list_of_files:
@@ -251,15 +255,25 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
                     'numPoints': f.attrs['/numPoints']
                 }
             )
+
+            try:
+                dt_tstart = epoch + datetime.timedelta(seconds=int(tstart))
+                dt_tstop = epoch + datetime.timedelta(seconds=int(tstop))
+                logger.info("{}, {}, {}".format(file, dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S')))
+            except Exception as e:
+                logger.info("{}, {}".format(file, e))
     
     ingest_list = sorted(ingest_list, key=lambda k: k['tstart'])
+    
+    dt_tstart = epoch + datetime.timedelta(seconds=int(ingest_list[0]['tstart']))
+    dt_tstop = epoch + datetime.timedelta(seconds=int(ingest_list[-1]['tstop']))
 
     logger.info(
         (
-            f"Data coverage for ALL ingest files discovered (tstart, tstop): "
-            f"({Time(ingest_list[0]['tstart'], format='unix').iso},"
-            f"{Time(ingest_list[-1]['tstop'], format='unix').iso})"
-        )
+            "Data coverage for ALL ingest files discovered (tstart, tstop): "
+            "({},"
+            "{})"
+        ).format(dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S'))
     )
 
     return ingest_list
