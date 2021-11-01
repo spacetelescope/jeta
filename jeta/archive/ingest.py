@@ -370,6 +370,7 @@ def _ingest_virtual_dataset(ref_data, mdmap):
 
         # Remove samples with apid <= 0 or id == 0
         df = df.loc[(df['id'] != 0) & (df['apid'] > 0)]
+        df = df.sort_values(by=['observatoryTime'])
         df['observatoryTime'] = Time(df['observatoryTime']/1000, format='unix').jd
         df = df.groupby(["id"])[['observatoryTime', 'engineeringNumericValue', 'apid']]
         

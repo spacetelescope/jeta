@@ -8,7 +8,7 @@ import numpy
 
 setup(
     name='jeta',
-    version='2.11.1',
+    version='2.11.2',
     description='Modules supporting JWST engineering telemetry archiving.',
     license='BSD 3-Clause',
     long_description="",
@@ -40,7 +40,7 @@ setup(
         'scripts/sql/create.archive.meta.sql'
     ],
     classifiers=[
-        'Development Status :: v2.11.1',
+        'Development Status :: v2.11.2',
         'License :: BSD 3-Clause',
     ]
 )
