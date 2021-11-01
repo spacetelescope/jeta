@@ -1883,7 +1883,7 @@ def get_time_range(msid, format=None):
         if format == 'date':
             tstart = Time(tstart, format='jd').yday
             if tstop is not None:
-                tstop = Time(tstop, format='jd', out_subfmt='date_hms').yday
+                tstop = Time(tstop, format='jd').yday
 
         return tstart, tstop
 
