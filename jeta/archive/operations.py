@@ -62,8 +62,6 @@ def _create_root_content():
         os.makedirs(f"{ENG_ARCHIVE}/processed_files")
     
    
-
-
 def _create_msid_index(msid):
     with tables.open_file(
         f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/index.h5",
@@ -131,6 +129,14 @@ def _create_msid_directory(msid):
         msid_directory_path = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/"
         if not os.path.exists(msid_directory_path):
             os.makedirs(msid_directory_path)
+
+
+def _reset_last_ingest_timestamps():
+    """ Reset the last ingest timestamp in the msid reference db
+    """
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'a') as h5:
+        for msid in h5.keys():
+            h5[msid].attrs['last_ingested_timestamp'] = 0
 
 
 def calculate_expected_rows(sampling_rate):
@@ -240,6 +246,7 @@ def initialize():
                 nrows=calculate_expected_rows(4),
                 nbytes=h5[msid].attrs['nbytes']
             )
+            _reset_last_ingest_timestamps()
 
 if __name__ == "__main__":
     import jeta
