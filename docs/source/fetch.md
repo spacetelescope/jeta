@@ -1,14 +1,13 @@
 # Fetching
 
-The target audieance of this document is a GSE or Operator who wish to access archived 
-telemetery for the purpose of data analysis.
+The target audience of this document is a member of the FOT who wishes to access archived engineering data for 
+the purpose of data analysis.
 
 ```{py:currentmodule} jeta.archive.fetch
 ```
 
 ## Acronyms and Terms
 * MSID - an object model of an mnemonic (or measurand).
-* GSE - Ground System Engineer
 * API - Application Programming Interface
 * CLI - Command-Line Interface
 

@@ -571,12 +571,14 @@ class MSID(object):
     The input ``msid`` is case-insensitive.
 
     :param msid: a mnemonic (case-insensitive) as a string.
-    :param start: start date of telemetry. (YYYY:DOY)
-    :param stop: stop date of telemetry default: current time. (YYYY:DOY)
-    :param filter_bad: automatically filter out bad values
-    :param stat: return 5-minute or daily statistics ('5min' or 'daily')
+    :param start: start date of telemetry, formatted YYYY:DDD (optional, default is beginning of archive)
+    :param stop: stop date of telemetry, formatted YYYY:DDD (optional, default is current time)
+    :param filter_bad: automatically filter out bad values (optional)
+    :param stat: return statistics, '5min' or 'daily' (optional)
 
-    :returns: MSID instance
+    :returns: MSID instance, ex. data = fetch.MSID(<MSID>, start='2021:293:12:00', stop='2021:293:14:00')
+
+
     """
     units = UNITS
     fetch = sys.modules[__name__]
@@ -1086,18 +1088,12 @@ class MSID(object):
         and the standard deviation is recomputed.  This filters out the large
         rates during maneuvers::
 
-          >>> aorate2 = fetch.Msid('aorate2', '2011:001', '2011:002')
-          >>> aorate2.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
+          >>> m = fetch.Msid(<msid>, '2011:001', '2011:002')
+          >>> m.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
           3.9969393528801782
           >>> figure(1)
-          >>> aorate2.plot(',')
+          >>> m.plot(',')
 
-          >>> from kadi import events
-          >>> aorate2.remove_intervals(events.manvrs)
-          >>> aorate2.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
-          -0.0003688639491030978
-          >>> figure(2)
-          >>> aorate2.plot(',')
 
         :param intervals: EventQuery or iterable (N x 2) with start, stop dates/times
         :param copy: return a copy of MSID object with intervals removed
@@ -1126,18 +1122,12 @@ class MSID(object):
         and the mean is recomputed.  This highlights the large rates during
         maneuvers::
 
-          >>> aorate2 = fetch.Msid('aorate2', '2011:001', '2011:002')
-          >>> aorate2.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
+          >>> m = fetch.Msid(<msid>, '2011:001', '2011:002')
+          >>> m.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
           3.9969393528801782
           >>> figure(1)
-          >>> aorate2.plot(',')
+          >>> m.plot(',')
 
-          >>> from kadi import events
-          >>> aorate2.select_intervals(events.manvrs)
-          >>> aorate2.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
-          24.764309542605481
-          >>> figure(2)
-          >>> aorate2.plot(',')
 
         :param intervals: EventQuery or iterable (N x 2) with start, stop dates/times
         :param copy: return a copy of MSID object with intervals selected
@@ -1447,10 +1437,10 @@ class MSIDset(collections.OrderedDict):
     """Fetch a set of MSIDs from the engineering telemetry archive.
 
     :param msids: list of MSID names (case-insensitive)
-    :param start: start date of telemetry (Chandra.Time compatible)
-    :param stop: stop date of telemetry (current time if not supplied)
-    :param filter_bad: automatically filter out bad values
-    :param stat: return 5-minute or daily statistics ('5min' or 'daily')
+    :param start: start date of telemetry, formatted YYYY:DDD (optional, default is beginning of archive)
+    :param stop: stop date of telemetry, formatted YYYY:DDD (optional, default is current time)
+    :param filter_bad: automatically filter out bad values (optional)
+    :param stat: return statistics, '5min' or 'daily' (optional)
 
     :returns: Dict-like object containing MSID instances keyed by MSID name
     """
@@ -1706,7 +1696,7 @@ class MSIDset(collections.OrderedDict):
         """Write MSIDset to a zip file named ``filename``
 
         Within the zip archive the data for each MSID in the set will be stored
-        in csv format with the name <msid_name>.csv.
+        in csv format with the name <msid_name>.csv
 
         :param filename: output zipfile name
         """
@@ -1722,13 +1712,13 @@ class Msid(MSID):
     Same as MSID class but with filter_bad=True by default.
 
     :param msid: name of MSID (case-insensitive)
-    :param start: start date of telemetry (Chandra.Time compatible)
-    :param stop: stop date of telemetry (current time if not supplied)
-    :param filter_bad: automatically filter out bad values
-    :param stat: return 5-minute or daily statistics ('5min' or 'daily')
-    :param unit_system: Unit system (cxc|eng|sci, default=current units)
+    :param msid: a mnemonic (case-insensitive) as a string.
+    :param start: start date of telemetry, formatted YYYY:DDD (optional, default is beginning of archive)
+    :param stop: stop date of telemetry, formatted YYYY:DDD (optional, default is current time)
+    :param filter_bad: automatically filter out bad values (optional)
+    :param stat: return statistics, '5min' or 'daily' (optional)
 
-    :returns: MSID instance
+    :returns: MSID instance, ex. data = fetch.MSID(<MSID>, start='2021:293:12:00', stop='2021:293:14:00')
     """
     units = UNITS
 
@@ -1742,11 +1732,11 @@ class Msidset(MSIDset):
     Same as MSIDset class but with filter_bad=True by default.
 
     :param msids: list of MSID names (case-insensitive)
-    :param start: start date of telemetry (Chandra.Time compatible)
-    :param stop: stop date of telemetry (current time if not supplied)
-    :param filter_bad: automatically filter out bad values
-    :param stat: return 5-minute or daily statistics ('5min' or 'daily')
-    :param unit_system: Unit system (cxc|eng|sci, default=current units)
+    :param msids: list of MSID names (case-insensitive)
+    :param start: start date of telemetry, formatted YYYY:DDD (optional, default is beginning of archive)
+    :param stop: stop date of telemetry, formatted YYYY:DDD (optional, default is current time)
+    :param filter_bad: automatically filter out bad values (optional)
+    :param stat: return statistics, '5min' or 'daily' (optional)
 
     :returns: Dict-like object containing MSID instances keyed by MSID name
     """
