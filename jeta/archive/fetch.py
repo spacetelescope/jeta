@@ -568,18 +568,17 @@ def _get_table_intervals_as_list(table, check_overlaps=True):
 class MSID(object):
     """Fetch data from the engineering telemetry archive into an MSID object.
 
-    The input ``msid`` is case-insensitive and can include linux file "glob"
-    patterns, for instance ``orb*1*_x`` (ORBITEPHEM1_X) or ``*pcadmd``
-    (AOPCADMD).  For derived parameters the initial ``DP_`` is optional, for
-    instance ``dpa_pow*`` (DP_DPA_POWER).
+    The input ``msid`` is case-insensitive.
 
     :param msid: a mnemonic (case-insensitive) as a string.
-    :param start: start date of telemetry. (YYYY:DOY)
-    :param stop: stop date of telemetry default: current time. (YYYY:DOY)
-    :param filter_bad: automatically filter out bad values
-    :param stat: return 5-minute or daily statistics ('5min' or 'daily')
+    :param start: start date of telemetry, formatted YYYY:DDD (optional, default is beginning of archive)
+    :param stop: stop date of telemetry, formatted YYYY:DDD (optional, default is current time)
+    :param filter_bad: automatically filter out bad values (optional)
+    :param stat: return statistics, '5min' or 'daily' (optional)
 
-    :returns: MSID instance
+    :returns: MSID instance, ex. data = fetch.MSID(<MSID>, start='2021:293:12:00', stop='2021:293:14:00')
+
+
     """
     units = UNITS
     fetch = sys.modules[__name__]
@@ -1089,18 +1088,12 @@ class MSID(object):
         and the standard deviation is recomputed.  This filters out the large
         rates during maneuvers::
 
-          >>> aorate2 = fetch.Msid('aorate2', '2011:001', '2011:002')
-          >>> aorate2.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
+          >>> m = fetch.Msid(<msid>, '2011:001', '2011:002')
+          >>> m.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
           3.9969393528801782
           >>> figure(1)
-          >>> aorate2.plot(',')
+          >>> m.plot(',')
 
-          >>> from kadi import events
-          >>> aorate2.remove_intervals(events.manvrs)
-          >>> aorate2.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
-          -0.0003688639491030978
-          >>> figure(2)
-          >>> aorate2.plot(',')
 
         :param intervals: EventQuery or iterable (N x 2) with start, stop dates/times
         :param copy: return a copy of MSID object with intervals removed
@@ -1129,18 +1122,12 @@ class MSID(object):
         and the mean is recomputed.  This highlights the large rates during
         maneuvers::
 
-          >>> aorate2 = fetch.Msid('aorate2', '2011:001', '2011:002')
-          >>> aorate2.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
+          >>> m = fetch.Msid(<msid>, '2011:001', '2011:002')
+          >>> m.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
           3.9969393528801782
           >>> figure(1)
-          >>> aorate2.plot(',')
+          >>> m.plot(',')
 
-          >>> from kadi import events
-          >>> aorate2.select_intervals(events.manvrs)
-          >>> aorate2.vals.mean() * 3600 * 180 / np.pi  # rate in arcsec/sec
-          24.764309542605481
-          >>> figure(2)
-          >>> aorate2.plot(',')
 
         :param intervals: EventQuery or iterable (N x 2) with start, stop dates/times
         :param copy: return a copy of MSID object with intervals selected
@@ -1259,8 +1246,8 @@ class MSID(object):
         * datestart: date of interval start
         * datestop: date of interval stop
         * duration: duration of interval (sec)
-        * tstart: time of interval start (CXC sec)
-        * tstop: time of interval stop (CXC sec)
+        * tstart: time of interval start (unix)
+        * tstop: time of interval stop (unix)
 
         Examples::
 
@@ -1313,8 +1300,8 @@ class MSID(object):
         * datestart: date of interval start
         * datestop: date of interval stop
         * duration: duration of interval (sec)
-        * tstart: time of interval start (CXC sec)
-        * tstop: time of interval stop (CXC sec)
+        * tstart: time of interval start (unix)
+        * tstop: time of interval stop (unix)
         * val: MSID value during the interval
 
         Example::
@@ -1449,16 +1436,11 @@ class MSID(object):
 class MSIDset(collections.OrderedDict):
     """Fetch a set of MSIDs from the engineering telemetry archive.
 
-    Each input ``msid`` is case-insensitive and can include linux file "glob"
-    patterns, for instance ``orb*1*_?`` (ORBITEPHEM1_X, Y and Z) or
-    ``aoattqt[1234]`` (AOATTQT1, 2, 3, and 4).  For derived parameters the
-    initial ``DP_`` is optional, for instance ``dpa_pow*`` (DP_DPA_POWER).
-
     :param msids: list of MSID names (case-insensitive)
-    :param start: start date of telemetry (Chandra.Time compatible)
-    :param stop: stop date of telemetry (current time if not supplied)
-    :param filter_bad: automatically filter out bad values
-    :param stat: return 5-minute or daily statistics ('5min' or 'daily')
+    :param start: start date of telemetry, formatted YYYY:DDD (optional, default is beginning of archive)
+    :param stop: stop date of telemetry, formatted YYYY:DDD (optional, default is current time)
+    :param filter_bad: automatically filter out bad values (optional)
+    :param stat: return statistics, '5min' or 'daily' (optional)
 
     :returns: Dict-like object containing MSID instances keyed by MSID name
     """
@@ -1714,7 +1696,7 @@ class MSIDset(collections.OrderedDict):
         """Write MSIDset to a zip file named ``filename``
 
         Within the zip archive the data for each MSID in the set will be stored
-        in csv format with the name <msid_name>.csv.
+        in csv format with the name <msid_name>.csv
 
         :param filename: output zipfile name
         """
@@ -1730,13 +1712,13 @@ class Msid(MSID):
     Same as MSID class but with filter_bad=True by default.
 
     :param msid: name of MSID (case-insensitive)
-    :param start: start date of telemetry (Chandra.Time compatible)
-    :param stop: stop date of telemetry (current time if not supplied)
-    :param filter_bad: automatically filter out bad values
-    :param stat: return 5-minute or daily statistics ('5min' or 'daily')
-    :param unit_system: Unit system (cxc|eng|sci, default=current units)
+    :param msid: a mnemonic (case-insensitive) as a string.
+    :param start: start date of telemetry, formatted YYYY:DDD (optional, default is beginning of archive)
+    :param stop: stop date of telemetry, formatted YYYY:DDD (optional, default is current time)
+    :param filter_bad: automatically filter out bad values (optional)
+    :param stat: return statistics, '5min' or 'daily' (optional)
 
-    :returns: MSID instance
+    :returns: MSID instance, ex. data = fetch.MSID(<MSID>, start='2021:293:12:00', stop='2021:293:14:00')
     """
     units = UNITS
 
@@ -1750,11 +1732,11 @@ class Msidset(MSIDset):
     Same as MSIDset class but with filter_bad=True by default.
 
     :param msids: list of MSID names (case-insensitive)
-    :param start: start date of telemetry (Chandra.Time compatible)
-    :param stop: stop date of telemetry (current time if not supplied)
-    :param filter_bad: automatically filter out bad values
-    :param stat: return 5-minute or daily statistics ('5min' or 'daily')
-    :param unit_system: Unit system (cxc|eng|sci, default=current units)
+    :param msids: list of MSID names (case-insensitive)
+    :param start: start date of telemetry, formatted YYYY:DDD (optional, default is beginning of archive)
+    :param stop: stop date of telemetry, formatted YYYY:DDD (optional, default is current time)
+    :param filter_bad: automatically filter out bad values (optional)
+    :param stat: return statistics, '5min' or 'daily' (optional)
 
     :returns: Dict-like object containing MSID instances keyed by MSID name
     """
@@ -1843,7 +1825,7 @@ def get_time_range(msid, format=None):
 
     :param msid: MSID name
     :param format: Output format (DateTime format, e.g. 'secs', 'date', 'greta')
-    :returns: (tstart, tstop) in CXC seconds
+    :returns: (tstart, tstop) in seconds
     """
 
     MSID = msid.upper()
@@ -1901,7 +1883,7 @@ def get_telem(msids, start=None, stop=None, sampling='full', unit_system='eng',
       - Filter out bad or missing data.
       - Interpolate (resample) all MSID values to a common uniformly-spaced time sequence.
       - Remove or select time intervals corresponding to specified Kadi event types.
-      - Change the time format from CXC seconds (seconds since 1998.0) to something more
+      - Change the time format from seconds (seconds since 1998.0) to something more
         convenient like GRETA time.
       - Write the MSID telemetry data to a zipfile.
 
@@ -1935,8 +1917,8 @@ def get_telem(msids, start=None, stop=None, sampling='full', unit_system='eng',
 #     ``tstop`` times for the ``content`` type.
 
 #     :param content: content type (e.g. 'pcad3eng', 'thm1eng')
-#     :param tstart: start time (CXC seconds)
-#     :param tstop: stop time (CXC seconds)
+#     :param tstart: start time (seconds)
+#     :param tstop: stop time (seconds)
 
 #     :returns: rowslice
 #     """

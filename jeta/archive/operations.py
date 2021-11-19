@@ -28,7 +28,10 @@ ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
 # )
 
 def _create_archive_database():
-    """ Make empty files archive.meta.info.db3 if it doesn't exist
+    """ Create an empty archive.meta.info.db3 database if it doesn't exist
+
+        This file is responsible for tracking the ingest history/progess 
+        as well as the individual files that have been ingested.
     """
     db_filepath = os.path.join(TELEMETRY_ARCHIVE,'archive.meta.info.db3')
     if not os.path.exists(db_filepath):
@@ -43,6 +46,9 @@ def _create_archive_database():
 
 def _create_root_content():
     """ Make empty files and directories for msids, msids.pickle
+
+        msid directories: hold the index.h5, times.h5, and values.h5 files
+        msid.pickle: a running list of msids encountered during the ingests.
     """
 
     empty = set()
@@ -63,6 +69,12 @@ def _create_root_content():
     
    
 def _create_msid_index(msid):
+    """Create and initialize the index file for an msid to hold a table of indices
+
+    :param msid: the msid for which an index.h5 file will be created and initialized
+    :type msid: str
+    
+    """
     with tables.open_file(
         f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/index.h5",
          driver="H5FD_CORE",
@@ -77,6 +89,16 @@ def _create_msid_index(msid):
 
 
 def _create_msid_dataset(msid, dtype, nrows, target, nbytes):
+    """Create either the values.h5 or times.h5 for the passed msid
+
+    :param msid: msid name as a string
+    :param dtype: string representation of a numpy datatype (i.e. np.int32)
+    :param nrows: the total number of rows estimated for the lifetime of the 
+    :param target: times.h5 or values.h5
+    :param nbytes: number of bytes for string values if dtype==str
+
+    :returns: int: 0 if successful
+    """
     
     h5shape = (0,)
 
@@ -101,34 +123,48 @@ def _create_msid_dataset(msid, dtype, nrows, target, nbytes):
 
 
 def _create_archive_files(msid):
-        values_files = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/values.h5"
-        times_files = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/times.h5"
-        try:
-            if not os.path.exists(values_files):
-                with tables.open_file(
-                        values_files,
-                        mode='w'
-                    ) as values:
-                    values.close()
-            if not os.path.exists(times_files):
-                with tables.open_file(
-                        times_files,
-                        mode='w'
-                    ) as times:
-                    times.close()  
-        except Exception as err:
-            print(err)
-            if not os.path.exists(values_files):
-                os.remove(values_files)
-            if not os.path.exists(times_files):
-                os.remove(times_files)
-            raise err
+    """Create the values.h5 and times.h5 for the lifetime of an msid
+
+    :param msid: the msid that for which archive files are being created.
+    :type msid: str
+    :raises err: a generic `catch all` exception.
+    """
+
+    values_files = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/values.h5"
+    times_files = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/times.h5"
+    try:
+        if not os.path.exists(values_files):
+            with tables.open_file(
+                    values_files,
+                    mode='w'
+                ) as values:
+                values.close()
+        if not os.path.exists(times_files):
+            with tables.open_file(
+                    times_files,
+                    mode='w'
+                ) as times:
+                times.close()  
+    except Exception as err:
+        # TODO: Capture exception better
+        print(err)
+        if not os.path.exists(values_files):
+            os.remove(values_files)
+        if not os.path.exists(times_files):
+            os.remove(times_files)
+        raise err
 
 
 def _create_msid_directory(msid):
-        msid_directory_path = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/"
-        if not os.path.exists(msid_directory_path):
-            os.makedirs(msid_directory_path)
+    """Create the msid directory which will store all files associated with that msid
+
+    :param msid: the msid for which a directory will be created
+    :type msid: str
+    """
+
+    msid_directory_path = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/"
+    if not os.path.exists(msid_directory_path):
+        os.makedirs(msid_directory_path)
 
 
 # def _reset_last_ingest_timestamp(msid, h5):
@@ -138,28 +174,49 @@ def _create_msid_directory(msid):
 
 
 def calculate_expected_rows(sampling_rate):
-    """ Calculate the number of rows expected during the archive lifetime.
+    """Calculate the number of rows expected during the archive lifetime.
 
-        sampling_rate: number of datapoints generated per second
+    :param sampling_rate: number of datapoints generated per second
+    :type sampling_rate: int
+    :return: the calculated description
+    :rtype: int
     """
+  
     ARCHIVE_LIFE = 10
   
     return sampling_rate * 60 * 60 * 24 * 365 * ARCHIVE_LIFE
 
 
-def backup():
-    pass
+def backup(msid='ALL', data_only=False):
+    """Create a snapshot of the archive to restore.
 
-
-def restore():
+    :param msid: msid archive to backup. Defaults to All msids, defaults to 'ALL'
+    :type msid: str, optional
+    :param data_only: only backup the index.h5, times.h5, and values.h5, defaults to False
+    :type data_only: bool, optional
+    """
     pass
+ 
+
+def restore(uuid):
+    """Restore the state of the archive to a particular point
+
+    :param uuid: the uuid of the snapshot to restore
+    :type uuid: uuid
+    """
 
 
 def truncate(filetype, date):
     """Truncate msid and statfiles for every archive file after date (to nearest
     year:doy)
+
+    :param filetype: TBD
+    :type filetype: null
+    :param date: threshold data to truncate
+    :type date: astropy.time.Time
     """
     pass
+
     # colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
 
     # date = DateTime(date).date
@@ -206,15 +263,36 @@ def truncate(filetype, date):
 
 
 def destory(data_only=True):
+    """Destory the archive by removing all data 
+
+    :param data_only: if True only remove the data from the files., defaults to True
+    :type data_only: bool, optional
+    :return: a message annoucing the outcome of the operation.
+    :rtype: str
+    """
+    # TODO: Add confirmation logic
     from shutil import rmtree
     if data_only:
         try:
             rmtree(ENG_ARCHIVE + '/archive/data/')
+            return "Archive was destoryed."
         except FileNotFoundError as err:
             return "Nothing to do. Archive does not exist."
 
 
 def add_msid_to_archive(msid, dtype, nrows, nbytes):
+    """Add a single msid to the archive by creating the required files and directory structure
+
+    :param msid: the msid to be added to the archive
+    :type msid: str
+    :param dtype: the numpy data type of the msid
+    :type dtype: np.dtype
+    :param nrows: the number of rows expected for the lifetime to the msid
+    :type nrows: int
+    :param nbytes: the number of bytes used in string representation (string msids only)
+    :type nbytes: int
+    """
+
     # Create the archive directory where the msid data will live
     _create_msid_directory(msid)
     
@@ -248,5 +326,5 @@ def initialize():
 
 if __name__ == "__main__":
     import jeta
-    print(f"Initializing archive using jeta version {jeta.__version__}")
+    print(f"Initializing archive using jeta version {jeta.__version__} via cli")
     initialize()
