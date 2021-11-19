@@ -384,15 +384,15 @@ def _get_start_stop_dates(times):
 
 content = collections.OrderedDict()
 
-# Function to load MSID names from the files
-def load_msid_names():
-    all_colnames = dict()
-    with h5py.File(ALL_KNOWN_MSID_SEMANTICS_H5, 'r') as f:
-        all_colnames = list(f.keys())
-    return all_colnames
+# # Function to load MSID names from the files
+# def load_msid_names():
+#     all_colnames = dict()
+#     with h5py.File(ALL_KNOWN_MSID_SEMANTICS_H5, 'r') as f:
+#         all_colnames = list(f.keys())
+#     return all_colnames
 
-# Load the MSID names
-all_colnames = load_msid_names()
+# # Load the MSID names
+# all_colnames = load_msid_names()
 
 # Save the names
 # for colnames in all_colnames:
@@ -1865,7 +1865,7 @@ def get_time_range(msid, format=None):
         if format == 'date':
             tstart = Time(tstart, format='jd').yday
             if tstop is not None:
-                tstop = Time(tstop, format='jd', out_subfmt='date_hms').yday
+                tstop = Time(tstop, format='jd').yday
 
         return tstart, tstop
 

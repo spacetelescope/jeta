@@ -10,6 +10,7 @@ from uuid import uuid1
 from functools import partial
 import pickle
 from random import seed
+import datetime
 import torch
 
 from collections import (
@@ -230,6 +231,9 @@ def sort_msid_data_by_time(mid, times=None, values=None, append=True):
     _values[mid] = _values[mid][idxs]
 
 def _sort_ingest_files_by_start_time(list_of_files=[]):
+    # TODO: Move epoch to system config
+    epoch = datetime.datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
+    
     ingest_list = []
 
     for file in list_of_files:
@@ -241,8 +245,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
                 df = pd.concat([df, dff])  
             tstart = df['observatoryTime'].min()/1000
             tstop = df['observatoryTime'].max()/1000
-                # tstart = f['samples']["data1"].attrs['dataStartTime'][0]/1000
-                # tstop = f['samples'][f"data{len(f['samples'])}"].attrs['dataStopTime'][0]/100
+            
             ingest_list.append(
                 {
                     'filename': f.filename,
@@ -251,15 +254,33 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
                     'numPoints': f.attrs['/numPoints']
                 }
             )
+
+            try:
+                dt_tstart = epoch + datetime.timedelta(seconds=int(tstart))
+                dt_tstop = epoch + datetime.timedelta(seconds=int(tstop))
+                # logger.info("{}, {}, {}".format(file, dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S')))
+            except Exception as e:
+                logger.info("{}, {}".format(file, e))
+                
     
     ingest_list = sorted(ingest_list, key=lambda k: k['tstart'])
+    
+    dt_tstart = epoch + datetime.timedelta(seconds=int(ingest_list[0]['tstart']))
+    dt_tstop = epoch + datetime.timedelta(seconds=int(ingest_list[-1]['tstop']))
 
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=INGEST FILE(S) COVERAGE REPORT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    for f in ingest_list: 
+        logger.info(("{}, {}, {}").format(
+            os.path.basename(f['filename']), 
+            (epoch + datetime.timedelta(seconds=int(f['tstart']))).strftime('%Y:%j:%H:%M:%S'), 
+            (epoch + datetime.timedelta(seconds=int(f['tstop']))).strftime('%Y:%j:%H:%M:%S'))
+        )
     logger.info(
         (
-            f"Data coverage for ALL ingest files discovered (tstart, tstop): "
-            f"({Time(ingest_list[0]['tstart'], format='unix').iso},"
-            f"{Time(ingest_list[-1]['tstop'], format='unix').iso})"
-        )
+            "Full Data Coverage for all files (tstart, tstop): "
+            "({},"
+            "{})"
+        ).format(dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S'))
     )
 
     return ingest_list
@@ -370,6 +391,7 @@ def _ingest_virtual_dataset(ref_data, mdmap):
 
         # Remove samples with apid <= 0 or id == 0
         df = df.loc[(df['id'] != 0) & (df['apid'] > 0)]
+        df = df.sort_values(by=['observatoryTime'])
         df['observatoryTime'] = Time(df['observatoryTime']/1000, format='unix').jd
         df = df.groupby(["id"])[['observatoryTime', 'engineeringNumericValue', 'apid']]
         
@@ -417,7 +439,7 @@ def _preprocess_hdf(ingest_files):
     return ingest_files, chunks
 
 
-def _start_ingest_pipeline(ingest_type="csv", source_type='', provided_ingest_files=None, mdmap=None):
+def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_files=None, mdmap=None):
     """ This is the function internal to the system that archives data.
 
     Parameters
@@ -429,7 +451,7 @@ def _start_ingest_pipeline(ingest_type="csv", source_type='', provided_ingest_fi
             this is an optional parameter to supply a list of specific files to ingest.
 
     """
-
+    logger.info(f"Ingest Parameters: ingest_type -> {ingest_type}, source_type -> {source_type}")
     # assign the list of files to ingest to `ingest_files` if no list is provided. 
     ingest_files = provided_ingest_files if provided_ingest_files is not None else _auto_file_discovery(ingest_type=ingest_type, source_type=source_type)
 
@@ -585,10 +607,11 @@ def _process_hdf(ingest_file_data, mdmap):
 
             # File seem indicies?
             # print(chunk_seams)
-
             # Create Virtual Dataset
             with h5py.File("VDS.hdf5", 'w', libver='latest') as vds:
                 vds.create_virtual_dataset('/data', layout)
+                logger.info("Created VDS containing: ")
+                logger.info([os.path.basename(f['filename']) for f in file_processing_chunk])
             
             _ingest_virtual_dataset(ref_data, mdmap)
             
@@ -599,8 +622,8 @@ def _process_hdf(ingest_file_data, mdmap):
     return processed_files
         
 
-def execute(ingest_type='CSV'):
-    """Perform one full update of the data archive based on parameters.
+def execute(ingest_type='h5', source_type='E'):
+    """ Perform one full update of the data archive based on parameters.
 
     This may be called in a loop by the program-level main().
     """
@@ -615,10 +638,10 @@ def execute(ingest_type='CSV'):
         i = [h5[msid].attrs['id'] for msid in h5.keys()]
         mdmap = {id:name for id, name in zip(i, h5.keys())}
 
-    _start_ingest_pipeline(mdmap=mdmap, ingest_type=ingest_type)
+    _start_ingest_pipeline(mdmap=mdmap, ingest_type=ingest_type, source_type=source_type)
 
     logger.info(f'INGEST COMPLETE <<<')
 
 
 if __name__ == "__main__":
-    execute()
+    execute(ingest_type='h5', source_type='E')

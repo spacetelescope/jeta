@@ -167,6 +167,12 @@ def _create_msid_directory(msid):
         os.makedirs(msid_directory_path)
 
 
+# def _reset_last_ingest_timestamp(msid, h5):
+#     """ Reset the last ingest timestamp in the msid reference db
+#     """
+#     h5[msid].attrs['last_ingested_timestamp'] = 0
+
+
 def calculate_expected_rows(sampling_rate):
     """Calculate the number of rows expected during the archive lifetime.
 
@@ -308,7 +314,7 @@ def initialize():
     _create_root_content()
     _create_archive_database()
 
-    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'a') as h5:
         for msid in h5.keys():
             add_msid_to_archive(
                 msid, 
@@ -316,6 +322,7 @@ def initialize():
                 nrows=calculate_expected_rows(4),
                 nbytes=h5[msid].attrs['nbytes']
             )
+            h5[msid].attrs['last_ingested_timestamp'] = 0
 
 if __name__ == "__main__":
     import jeta
