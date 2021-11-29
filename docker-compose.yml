@@ -34,6 +34,7 @@ services:
     ports:
       - "9232:9232"
       - "5050:5050"
+      - "9300:9300"
     environment:
       - "WORKERS=${WORKERS}"
 networks:

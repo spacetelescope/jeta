@@ -1,6 +1,6 @@
 FROM python:3.8-slim-buster
 
-LABEL version="1.2.0"
+LABEL version="1.3.0"
 LABEL maintainer="David Kauffman <dkauffman@stsci.edu>"
 LABEL "edu.stsci"="Space Telescope Science Institute"
 
@@ -97,6 +97,7 @@ RUN set -x \
 # Copy source code into container
 COPY jeta /srv/jeta/code/jeta
 COPY raven /srv/jeta/api
+COPY bokeh /srv/jeta/bokeh
 COPY requirements /srv/jeta/requirements
 COPY scripts ${JETA_SCRIPTS}
 
@@ -122,5 +123,8 @@ EXPOSE 9232
 
 # jupyterhub
 EXPOSE 5050
+
+# bokeh
+EXPOSE 9300
 
 ENTRYPOINT ["/entrypoint.sh"]
