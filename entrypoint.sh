@@ -26,10 +26,6 @@ set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id 
 #     && conda config --env --set always_yes true \
 #     && conda env create -n ${SKA_ENV} -f jeta-conda.yml
 
-
-
-
-
 # Install the API and Jupyterhub packages
 set -x /bin/bash && source activate jeta
 cd /srv/jeta/requirements
@@ -75,6 +71,14 @@ cat <<END >| /etc/supervisord.conf
 nodaemon=true
 logfile=/tmp/supervisord.log
 pidfile=/tmp/supervisord.pid
+
+[program:bokeh]
+directory=/srv/jeta/bokeh/server
+command=bokeh serve --port 9300 ./plot_msid.py
+stdout_logfile=/srv/jeta/log/bokeh.log
+stdout_logfile_maxbytes=0
+stderr_logfile=/srv/jeta/log/bokeh.err
+stderr_logfile_maxbytes=0
 
 [program:raven]
 directory=/srv/jeta/api
