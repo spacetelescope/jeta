@@ -53,7 +53,7 @@ def get_options(args=None):
                         help="Truncate archive after <date> (CAUTION!!)")
     parser.add_argument("--max-lookback-time",
                         type=float,
-                        default=60,
+                        default=120,
                         help="Maximum look back time for updating statistics (days)")
     parser.add_argument("--date-now",
                         default=Time(Time.now()).yday,
@@ -147,7 +147,11 @@ def main():
     logger.info('Update Module: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch Module: {}'.format(os.path.abspath(fetch.__file__)))
 
-    colnames = [] # [x for x in pickle.load('msids in the arhcive file', 'rb')) if x not in fetch.IGNORE_COLNAMES]
+    # TODO: Write a tests
+    # colnames = [x for x in pickle.load('msids in the arhcive file', 'rb')) if x not in fetch.IGNORE_COLNAMES]
+
+    from jeta.archive.status import get_msid_names
+    colnames = get_msid_names() 
 
     if opt.update_stats:
         for colname in colnames:
