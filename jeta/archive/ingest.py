@@ -414,11 +414,11 @@ def _ingest_virtual_dataset(ref_data, mdmap):
             ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = times[-1] # last timestamp in the ingest
 
             # Get this MSID numpy datatype
-            npt = ref_data[mdmap[msid_id]].attrs['numpy_datatype'].replace('np.', '')
+            # npt = ref_data[mdmap[msid_id]].attrs['numpy_datatype'].replace('np.', '')
 
             # Set datatypes for archive data
             times.dtype = np.float64
-            values = values.astype(npt)
+            # values = values.astype(npt)
 
             # Ensure data is sorted in time order
             # TODO: Verify this can be removed permanently
@@ -500,7 +500,7 @@ def _process_csv(ingest_files, ingest_id, single_msid=False):
             msid = fof['Telemetry Mnemonic'][0]
         
             with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
-                npt = h5[msid].attrs['numpy_datatype'].replace('np.', '')
+                npt = np.float64, # h5[msid].attrs['numpy_datatype'].replace('np.', '')
                 times = fof['Observatory Time'].str.replace('/', '-')
                 times = Time(times.to_list() , format='iso').jd
                 
@@ -523,7 +523,7 @@ def _process_csv(ingest_files, ingest_id, single_msid=False):
                 msids = fof['Telemetry Mnemonic'].unique().tolist()
                 print(msids)
                 for m in msids:
-                    npt = h5[m].attrs['numpy_datatype'].replace('np.', '')
+                    npt = np.float64, # h5[m].attrs['numpy_datatype'].replace('np.', '')
                     times = fof.loc[fof['Telemetry Mnemonic']==m, ['Observatory Time']]
                     times = times['Observatory Time'].str.replace('/', '-')
                     times = Time(times.tolist() , format='iso').jd
