@@ -318,7 +318,7 @@ def initialize():
         for msid in h5.keys():
             add_msid_to_archive(
                 msid, 
-                dtype=h5[msid].attrs['numpy_datatype'].replace('np.', ''), 
+                dtype=np.float64, # h5[msid].attrs['numpy_datatype'].replace('np.', ''), 
                 nrows=calculate_expected_rows(4),
                 nbytes=h5[msid].attrs['nbytes']
             )
