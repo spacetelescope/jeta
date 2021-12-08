@@ -66,6 +66,10 @@ RUN set -x \
         clang \
         openssl \
         git \
+        texlive-xetex \
+        texlive-fonts-recommended \
+        texlive-plain-generic \
+        pandoc \
     && apt-get clean \
     && apt autoclean \
     && apt autoremove
