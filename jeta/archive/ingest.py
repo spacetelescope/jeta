@@ -246,18 +246,17 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
             tstart = df['observatoryTime'].min()/1000
             tstop = df['observatoryTime'].max()/1000
             
-            ingest_list.append(
-                {
-                    'filename': f.filename,
-                    'tstart': tstart,
-                    'tstop': tstop,
-                    'numPoints': f.attrs['/numPoints']
-                }
-            )
-
             try:
                 dt_tstart = epoch + datetime.timedelta(seconds=int(tstart))
                 dt_tstop = epoch + datetime.timedelta(seconds=int(tstop))
+                ingest_list.append(
+                    {
+                        'filename': f.filename,
+                        'tstart': tstart,
+                        'tstop': tstop,
+                        'numPoints': f.attrs['/numPoints']
+                    }
+                )
                 # logger.info("{}, {}, {}".format(file, dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S')))
             except Exception as e:
                 logger.info("{}, {}".format(file, e))
