@@ -230,7 +230,7 @@ def truncate(rollback_date, msids=[]):
                 pivot = idx_table['index'][np.where(idx_table['epoch'] == rollback_date_jd)[0][0]]
             else:
                 epochs = idx_table['epoch'][...]
-                idx = (np.abs(np.array(epochs) - rollback_date_jd)).argmin()
+                idx = max(np.searchsorted(np.array(epochs), rollback_date_jd, side='right'), 0)
                 pivot = idx_table['index'][idx]
             with h5py.File(f'{msid}/times.h5', 'a') as times_file:
                 times = times_file['times'][...]
