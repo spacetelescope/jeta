@@ -206,61 +206,50 @@ def restore(uuid):
     """
 
 
-def truncate(filetype, date):
-    """Truncate msid and statfiles for every archive file after date (to nearest
-    year:doy)
+def truncate(rollback_date, msids=[]):
+    """ This function will remove archive data after the given rollback date for msids 
+        listed the `msids` parameter.
 
-    :param filetype: TBD
-    :type filetype: null
-    :param date: threshold data to truncate
-    :type date: astropy.time.Time
+        :param rollback_date (str): all data after this date will be removed.
+        :param msids (list): list of msids to truncate to the rollback date, default is all MSIDs
     """
-    pass
+    from astropy.time import Time
+    from jeta.archive.status import get_msid_names
+    # FIXME: create public interface to this function
+    from jeta.archive.ingest import _update_index_file
+  
+    if len(msids) == 0:
+        msids = get_msid_names()
 
-    # colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
-
-    # date = DateTime(date).date
-    # year, doy = date[0:4], date[5:8]
-
-    # # Setup db handle with autocommit=False so that error along the way aborts insert transactions
-    # db = Ska.DBI.DBI(
-    #     dbi='sqlite',
-    #     server=msid_files['archfiles'].abs,
-    #     autocommit=False
-    # )
-
-    # # Get the earliest row number from the archfiles table where year>=year and doy=>doy
-    # out = db.fetchall('SELECT rowstart FROM archfiles '
-    #                   'WHERE year>={0} AND doy>={1}'.format(year, doy))
-    # if len(out) == 0:
-    #     return
-    # rowstart = out['rowstart'].min()
-    # time0 = DateTime("{0}:{1}:00:00:00".format(year, doy)).secs
-
-    # for colname in colnames:
-    #     ft['msid'] = colname
-    #     filename = msid_files['mnemonic_value'].abs # msid_files['msid'].abs
-    #     if not os.path.exists(filename):
-    #         raise IOError('MSID file {} not found'.format(filename))
-    #     if not opt.dry_run:
-    #         h5 = tables.open_file(filename, mode='a')
-    #         h5.root.data.truncate(rowstart)
-    #         h5.root.quality.truncate(rowstart)
-    #         h5.close()
-    #     logger.verbose('Removed rows from {0} for filetype {1}:{2}'.format(
-    #         rowstart, filetype['content'], colname))
-
-    #     # Delete the 5min and daily stats, with a little extra margin
-    #     if colname not in fetch.IGNORE_COLNAMES:
-    #         del_stats(colname, time0, '5min')
-    #         del_stats(colname, time0, 'daily')
-
-    # cmd = 'DELETE FROM archfiles WHERE (year>={0} AND doy>={1}) OR year>{0}'.format(year, doy, year)
-    # if not opt.dry_run:
-    #     db.execute(cmd)
-    #     db.commit()
-    # logger.verbose(cmd)
-
+    rollback_date_jd = Time(rollback_date, format='yday').jd
+    
+    for msid in msids:
+        with h5py.File(f'{msid}/index.h5', 'a') as index_file:
+            idx_table = np.array(index_file['epoch'][...], dtype=[('epoch', '<f8'), ('index', '<u8')])
+            if rollback_date_jd in idx_table['epoch']:
+                pivot = idx_table['index'][np.where(idx_table['epoch'] == rollback_date_jd)[0][0]]
+            else:
+                epochs = idx_table['epoch'][...]
+                idx = (np.abs(np.array(epochs) - rollback_date_jd)).argmin()
+                pivot = idx_table['index'][idx]
+            with h5py.File(f'{msid}/times.h5', 'a') as times_file:
+                times = times_file['times'][...]
+                times = times[0:pivot]
+                times_file['times'].resize(times.shape)
+                last_ingested_timestamp = times_file['times'][...][-1]
+            with h5py.File(f'{msid}/values.h5', 'a') as values_file:
+                values = values_file['values'][...]
+                values = values[0:pivot]
+                values_file['values'].resize(values.shape)
+            
+            with h5py.File(ALL_KNOWN_MSID_METAFILE, 'a') as ref_data:
+                ref_data[msid].attrs['last_ingested_timestamp'] = last_ingested_timestamp
+            
+            # TODO: truncate stats
+            
+            idx_table.resize(idx_table['index'][0:idx].shape)
+            _update_index_file(msid, last_ingested_timestamp, pivot)
+    
 
 def destory(data_only=True):
     """Destory the archive by removing all data 
