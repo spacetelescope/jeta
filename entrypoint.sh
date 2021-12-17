@@ -72,9 +72,34 @@ nodaemon=true
 logfile=/tmp/supervisord.log
 pidfile=/tmp/supervisord.pid
 
+[program:redis]
+directory=/srv/redis 
+command=redis-server
+stdout_logfile=/srv/jeta/log/redis.log
+stdout_logfile_maxbytes=0
+stderr_logfile=/srv/jeta/log/redis.err
+stderr_logfile_maxbytes=0
+
+[program:celery]
+directory=/srv/jeta/code/jeta
+command=celery -A config worker --loglevel=INFO
+stdout_logfile=/srv/jeta/log/celery.log
+stdout_logfile_maxbytes=0
+stderr_logfile=/srv/jeta/log/celery.err
+stderr_logfile_maxbytes=0
+
+[program:celery-beat]
+directory=/srv/jeta/code/jeta
+command=celery -A config beat --loglevel=INFO
+stdout_logfile=/srv/jeta/log/celery-beat.log
+stdout_logfile_maxbytes=0
+stderr_logfile=/srv/jeta/log/celery-beat.err
+stderr_logfile_maxbytes=0
+
+
 [program:bokeh]
 directory=/srv/jeta/bokeh/server
-command=bokeh serve --port 9300 ./plot_msid.py
+command=bokeh serve --port 9300 --allow-websocket-origin=* ./plot_msid.py
 stdout_logfile=/srv/jeta/log/bokeh.log
 stdout_logfile_maxbytes=0
 stderr_logfile=/srv/jeta/log/bokeh.err
