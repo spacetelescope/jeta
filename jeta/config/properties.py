@@ -16,3 +16,5 @@ STAGING_DIRECTORY=get_env_variable('STAGING_DIRECTORY')
 NAME_COLUMN=get_env_variable('NAME_COLUMN')
 TIME_COLUMN=get_env_variable('TIME_COLUMN')
 VALUE_COLUMN=get_env_variable('VALUE_COLUMN')
+
+lock_file_path = f'{get_env_variable("TELEMETRY_ARCHIVE")}/ingest.lock'
