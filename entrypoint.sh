@@ -82,7 +82,7 @@ stderr_logfile_maxbytes=0
 
 [program:celery]
 directory=/srv/jeta/code/jeta
-command=celery -A config worker --loglevel=INFO
+command=celery -A jeta.config.celery worker --loglevel=INFO
 stdout_logfile=/srv/jeta/log/celery.log
 stdout_logfile_maxbytes=0
 stderr_logfile=/srv/jeta/log/celery.err
@@ -90,7 +90,7 @@ stderr_logfile_maxbytes=0
 
 [program:celery-beat]
 directory=/srv/jeta/code/jeta
-command=celery -A config beat --loglevel=INFO
+command=celery -A jeta.config.celery beat --loglevel=INFO
 stdout_logfile=/srv/jeta/log/celery-beat.log
 stdout_logfile_maxbytes=0
 stderr_logfile=/srv/jeta/log/celery-beat.err
