@@ -2,5 +2,8 @@
 
 export DISPLAY=$DISPLAY
 
-docker-compose down && docker-compose build;
-docker-compose up;
+# set -x \
+# && conda activate jeta_standalone
+
+docker-compose down && docker-compose build
+docker-compose up

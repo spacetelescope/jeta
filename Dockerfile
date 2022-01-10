@@ -89,6 +89,7 @@ RUN set -x \
     && mkdir -p /srv/jeta/code \
     && mkdir -p /srv/jeta/log \
     && mkdir -p /srv/jeta/api \
+    && mkdir -p /srv/telemetry/archive/processed_files \ 
     && mkdir -p /srv/telemetry/logs \
     && mkdir -p /srv/redis \
     && touch /srv/telemetry/logs/jeta.ingest.log
