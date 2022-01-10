@@ -43,7 +43,8 @@ numba==0.54.1
 h5py==3.5.0
 tables==3.6.1
 pyyaks==3.3.3
-celery==5.2.0
+celery==5.2.2
+redis
 
 jupyterlab==3.2.2
 configurable-http-proxy==0.2.3

@@ -339,27 +339,28 @@ def _get_ingest_chunk_sequence(ingest_files):
     return ingest_chunk_sequence
 
 
-def move_archive_files(filetype, processed_ingest_files):
+def move_archive_files(processed_files):
 
-    if processed_ingest_files is not None:
+    if processed_files is not None:
 
         import tarfile
         import shutil
 
-        os.chdir(STAGING_DIRECTORY)
+        os.chdir(os.environ['STAGING_DIRECTORY'])
 
-        tarfile_name = f"stage_{int(Time(Time.now()).unix)}.tar"
-        tar = tarfile.open(tarfile_name, mode='w')
-
-        for ingest_file in processed_ingest_files:
-            tar.add(ingest_file)
-            os.remove(ingest_file)
-
+        tarfile_name = f"processed_files_{Time(Time.now()).yday.replace(':','').replace('.','')}.tar.gz"
+        
+        tar = tarfile.open(tarfile_name, mode='x:gz')
+        for ingest_file in processed_files:
+            tar.add(ingest_file['filename'])
+            os.remove(ingest_file['filename'])
         tar.close()
-        shutil.move(
-            tarfile_name,
-            f"{msid_files['processed_files_directory'].abs}/{tarfile_name}"
+
+        shutil.copyfile(
+            f"{os.environ['STAGING_DIRECTORY']}{tarfile_name}",
+            f"{os.environ['TELEMETRY_ARCHIVE']}/{tarfile_name}"
         )
+        os.remove(tarfile_name)
 
 
 def _ingest_virtual_dataset(ref_data, mdmap):
@@ -480,9 +481,8 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
             logger.info('Completed HDF5 file data ingest ALL data sequence ...') 
         else:
             raise ValueError('Ingest type parameter is invalid. Valid options are csv or h5.')
-        logger.info(f'Moving {len(processed_files)} HDF5 ingest file(s) to tmp storage ... (DISABLED!!!)')
-
-        # move_archive_files(filetype, processed_files)
+        logger.info(f'Moving {len(processed_files)} HDF5 ingest file(s) to tmp storage ... ')
+        move_archive_files(processed_files)
     else:
         logger.info('No ingest files discovered in {STAGING_DIRECTORY}')
 
