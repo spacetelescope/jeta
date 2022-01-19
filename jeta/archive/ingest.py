@@ -230,7 +230,7 @@ def sort_msid_data_by_time(mid, times=None, values=None, append=True):
     _times[mid] = _times[mid][idxs]
     _values[mid] = _values[mid][idxs]
 
-def _sort_ingest_files_by_start_time(list_of_files=[]):
+def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'):
     # TODO: Move epoch to system config
     epoch = datetime.datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
     
@@ -238,6 +238,11 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
 
     for file in list_of_files:
         with h5py.File(file, 'r') as f:
+            # if the files data origin is not correct move on 
+            # to the next one.
+            if f.attrs['/dataOrigin'][0].decode('ascii') != data_origin:
+                continue
+
             df = None
             for dataset in f['samples'].keys():
                 dff = pd.DataFrame( np.array(f['samples'][dataset]).byteswap().newbyteorder() )            
