@@ -16,7 +16,7 @@ def debug_task():
 
 @app.task
 def automatic_ingest():
-    print("Automatic Initiated ...")
+    print(">>> automatic ingest task triggered <<<")
     if not os.path.exists(f'{os.environ["TELEMETRY_ARCHIVE"]}/ingest.lock'):
         staged_files = get_staged_files()
         if staged_files:
