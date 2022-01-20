@@ -391,11 +391,12 @@ def _ingest_virtual_dataset(ref_data, mdmap):
         ids = ids[ids != 0]
         ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
 
-        # Remove duplicate entries
-        df.drop_duplicates(subset=['id', 'observatoryTime', 'engineeringNumericValue', 'apid'], inplace=True)
-
         # Remove samples with apid <= 0 or id == 0
         df = df.loc[(df['id'] != 0) & (df['apid'] > 0)]
+
+        # Remove duplicate entries
+        df.drop_duplicates(subset=['id', 'observatoryTime', 'engineeringNumericValue'], inplace=True)
+
         df = df.sort_values(by=['observatoryTime'])
         df['observatoryTime'] = Time(df['observatoryTime']/1000, format='unix').jd
         df = df.groupby(["id"])[['observatoryTime', 'engineeringNumericValue', 'apid']]
