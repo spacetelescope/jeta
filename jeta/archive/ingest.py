@@ -230,7 +230,7 @@ def sort_msid_data_by_time(mid, times=None, values=None, append=True):
     _times[mid] = _times[mid][idxs]
     _values[mid] = _values[mid][idxs]
 
-def _sort_ingest_files_by_start_time(list_of_files=[]):
+def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'):
     # TODO: Move epoch to system config
     epoch = datetime.datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
     
@@ -238,6 +238,11 @@ def _sort_ingest_files_by_start_time(list_of_files=[]):
 
     for file in list_of_files:
         with h5py.File(file, 'r') as f:
+            # if the files data origin is not correct move on 
+            # to the next one.
+            if f.attrs['/dataOrigin'][0].decode('ascii') != data_origin:
+                continue
+
             df = None
             for dataset in f['samples'].keys():
                 dff = pd.DataFrame( np.array(f['samples'][dataset]).byteswap().newbyteorder() )            
@@ -386,11 +391,12 @@ def _ingest_virtual_dataset(ref_data, mdmap):
         ids = ids[ids != 0]
         ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
 
-        # Remove duplicate entries
-        df.drop_duplicates(subset=['id', 'observatoryTime', 'engineeringNumericValue', 'apid'], inplace=True)
-
         # Remove samples with apid <= 0 or id == 0
         df = df.loc[(df['id'] != 0) & (df['apid'] > 0)]
+
+        # Remove duplicate entries
+        df.drop_duplicates(subset=['id', 'observatoryTime', 'engineeringNumericValue'], inplace=True)
+
         df = df.sort_values(by=['observatoryTime'])
         df['observatoryTime'] = Time(df['observatoryTime']/1000, format='unix').jd
         df = df.groupby(["id"])[['observatoryTime', 'engineeringNumericValue', 'apid']]
