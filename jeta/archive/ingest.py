@@ -240,7 +240,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
         with h5py.File(file, 'r') as f:
             # if the files data origin is not correct move on 
             # to the next one.
-            if f.attrs['/dataOrigin'][0].decode('ascii') != data_origin:
+            if data_origin not in str(f.attrs['/dataOrigin'][0]):
                 continue
 
             df = None
