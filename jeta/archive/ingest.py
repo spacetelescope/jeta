@@ -407,7 +407,7 @@ def _ingest_virtual_dataset(ref_data, mdmap):
             if 'last_ingested_timestamp' not in list(ref_data[mdmap[msid_id]].attrs):
                 ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = 0
 
-            if tlm['observatoryTime'].min() < ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']:
+            if tlm['observatoryTime'].min() <= ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']:
                 if tlm['observatoryTime'].max() > ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']:
                     # remove overlap 
                     tlm = tlm.loc[tlm['observatoryTime'] > ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']]
