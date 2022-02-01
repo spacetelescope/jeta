@@ -322,7 +322,8 @@ def initialize():
                 nrows=calculate_expected_rows(4),
                 nbytes=h5[msid].attrs['nbytes']
             )
-            h5[msid].attrs['last_ingested_timestamp'] = 0
+            # Set the default value to DEC 24 2021, 00:00:00
+            h5[msid].attrs['last_ingested_timestamp'] = 2459572.5
 
 if __name__ == "__main__":
     import jeta
