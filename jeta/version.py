@@ -35,6 +35,7 @@ import os
 ############################
 # Major, Minor, Bugfix, Dev
 
+
 VERSION = (2, 18, 0, False)
 
 
