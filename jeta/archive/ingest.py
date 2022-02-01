@@ -5,6 +5,8 @@ from __future__ import print_function, division, absolute_import
 from io import FileIO
 
 import os
+import sys
+import getopt
 import glob
 from uuid import uuid1
 from functools import partial
@@ -247,7 +249,10 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             for dataset in f['samples'].keys():
                 dff = pd.DataFrame( np.array(f['samples'][dataset]).byteswap().newbyteorder() )            
                 dff = dff.loc[(dff['id'] != 0) & (dff['apid'] > 0)]
-                df = pd.concat([df, dff])  
+                df = pd.concat([df, dff])
+
+            # don't consider data before the mission epoch
+            df = df.loc[(df['observatoryTime'] > 1640304000000)]  
             tstart = df['observatoryTime'].min()/1000
             tstop = df['observatoryTime'].max()/1000
             
@@ -262,7 +267,6 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
                         'numPoints': f.attrs['/numPoints']
                     }
                 )
-                # logger.info("{}, {}, {}".format(file, dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S')))
             except Exception as e:
                 logger.info("{}, {}".format(file, e))
                 
@@ -405,7 +409,8 @@ def _ingest_virtual_dataset(ref_data, mdmap):
             tlm = df.get_group(msid_id)
 
             if 'last_ingested_timestamp' not in list(ref_data[mdmap[msid_id]].attrs):
-                ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = 0
+                # Set the default value to DEC 24 2021, 00:00:00
+                ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = 2459572.5
 
             if tlm['observatoryTime'].min() <= ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']:
                 if tlm['observatoryTime'].max() > ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']:
@@ -457,7 +462,8 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
             this is an optional parameter to supply a list of specific files to ingest.
 
     """
-    logger.info(f"Ingest Parameters: ingest_type -> {ingest_type}, source_type -> {source_type}")
+    f = lambda p: p if p is None else len(p)
+    logger.info(f"Ingest Parameters: ingest_type -> {ingest_type}, source_type -> {source_type}, provided_ingest_files-> {f(provided_ingest_files)}")
     # assign the list of files to ingest to `ingest_files` if no list is provided. 
     ingest_files = provided_ingest_files if provided_ingest_files is not None else _auto_file_discovery(ingest_type=ingest_type, source_type=source_type)
 
@@ -489,6 +495,9 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
             raise ValueError('Ingest type parameter is invalid. Valid options are csv or h5.')
         logger.info(f'Moving {len(processed_files)} HDF5 ingest file(s) to tmp storage ... ')
         move_archive_files(processed_files)
+        # Once data ingest is complete update the 5min and daily stats data
+        from jeta.archive import update
+        update.main()
     else:
         logger.info('No ingest files discovered in {STAGING_DIRECTORY}')
 
@@ -627,7 +636,7 @@ def _process_hdf(ingest_file_data, mdmap):
     return processed_files
         
 
-def execute(ingest_type='h5', source_type='E'):
+def execute(ingest_type='h5', source_type='E', provided_ingest_files=None):
     """ Perform one full update of the data archive based on parameters.
 
     This may be called in a loop by the program-level main().
@@ -643,10 +652,27 @@ def execute(ingest_type='h5', source_type='E'):
         i = [h5[msid].attrs['id'] for msid in h5.keys()]
         mdmap = {id:name for id, name in zip(i, h5.keys())}
 
-    _start_ingest_pipeline(mdmap=mdmap, ingest_type=ingest_type, source_type=source_type)
+    _start_ingest_pipeline(
+        mdmap=mdmap, # map between msids names as strings and their numerical id
+        ingest_type=ingest_type, # hdf5 or fof
+        provided_ingest_files=provided_ingest_files, # a list of ingest files or None
+        source_type=source_type # C, E, or R
+    )
 
     logger.info(f'INGEST COMPLETE <<<')
 
 
 if __name__ == "__main__":
-    execute(ingest_type='h5', source_type='E')
+    staging = os.environ['STAGING_DIRECTORY']
+    provided_ingest_files=None
+
+    if len(sys.argv) > 1:
+        opts, args = getopt.getopt(sys.argv, 'i', 'ingest_files=')
+        try:
+           if '-i' in args:
+                input_files = [file.replace('\n', '') for file in open(args[args.index('-i') + 1])]
+                provided_ingest_files = [f for f in filter(lambda s: s != '' and s[0] != '#', input_files)]
+                provided_ingest_files = ['{}{}{}'.format(staging,'/', f) for f in provided_ingest_files]
+        except IOError as err:
+            print(err.args[0])
+    execute(ingest_type='h5', source_type='E', provided_ingest_files=provided_ingest_files)
