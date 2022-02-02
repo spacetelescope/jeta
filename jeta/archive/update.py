@@ -150,8 +150,10 @@ def main():
     # TODO: Write a tests
     # colnames = [x for x in pickle.load('msids in the arhcive file', 'rb')) if x not in fetch.IGNORE_COLNAMES]
 
-    from jeta.archive.status import get_msid_names
-    colnames = get_msid_names() 
+    colnames = None
+    ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
+        colnames = len(h5.keys()) 
 
     if opt.update_stats:
         for colname in colnames:
