@@ -153,7 +153,7 @@ def main():
     colnames = None
     ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
     with h5py.File(ALL_KNOWN_MSID_METAFILE, 'r') as h5:
-        colnames = h5.keys()
+        colnames = list(h5.keys())
 
     if opt.update_stats:
         for colname in colnames:
