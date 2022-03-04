@@ -688,7 +688,9 @@ def _process_hdf(ingest_file_data, mdmap):
             # print(f"{layout.shape[0]} n_samples.")
             
             # store last timestamp from chunnk to ref_data, for gap checking
-            ref_data.attrs['last_ingested_timestamp'] = Time(file_processing_chunk[-1]['tstop'], format='unix').jd
+            # only update if last timestamp in chunck is greater than stored timestamp
+            if Time(file_processing_chunk[-1]['tstop'], format='unix').jd > ref_data.attrs['last_ingested_timestamp']:
+                ref_data.attrs['last_ingested_timestamp'] = Time(file_processing_chunk[-1]['tstop'], format='unix').jd
 
             processed_files.extend(file_processing_chunk)
 
