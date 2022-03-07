@@ -58,6 +58,8 @@ TELEMETRY_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 JETA_LOGS = get_env_variable('JETA_LOGS')
 ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
+BYPASS_GAP_CHECK = int(os.environ['JETA_BYPASS_GAP_CHECK'])
+
 
 # Calculate the number of files per year for archive space allocation prediction/allocation.
 FILES_IN_A_YEAR = (AVG_NUMBER_OF_FILES * INGEST_CADENCE) * 365
@@ -243,6 +245,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             # if the files data origin is not correct move on 
             # to the next one.
             if data_origin not in str(f.attrs['/dataOrigin'][0]):
+                logger.info("{} skipped due to incorrect data origin {}".format(file, str(f.attrs['/dataOrigin'][0]))) # LITA-181
                 continue
 
             df = None
@@ -270,8 +273,27 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             except Exception as e:
                 logger.info("{}, {}".format(file, e))
                 
+
+    if not ingest_list:
+        # cancel ingest, LITA-181
+        return []
     
-    ingest_list = sorted(ingest_list, key=lambda k: k['tstart'])
+    #sort by start time, and secondarily by stop time. 
+    ingest_list = sorted(ingest_list, key=lambda k: (k['tstart'], k['tstop']) )    
+    
+    if len(ingest_list) > 120:
+        # LITA-182
+        ingest_list = ingest_list[:120]
+
+    # perform gap checking per LITA-179
+    if BYPASS_GAP_CHECK:
+        logger.info("Gap check is bypassed. No check performed.")
+    
+    else:
+        ingest_list = _ingest_list_gap_check(ingest_list)
+    
+    if not ingest_list:
+        return []
     
     dt_tstart = epoch + datetime.timedelta(seconds=int(ingest_list[0]['tstart']))
     dt_tstop = epoch + datetime.timedelta(seconds=int(ingest_list[-1]['tstop']))
@@ -291,6 +313,30 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
         ).format(dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S'))
     )
 
+    return ingest_list
+
+
+def _ingest_list_gap_check(ingest_list):
+
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'a') as ref_data:
+        
+        if not 'last_ingested_timestamp' in list(ref_data.attrs):
+            # initialize attribute if not in archive
+            ref_data.attrs['last_ingested_timestamp'] = Time(ingest_list[0]['tstart'], format='unix').jd
+
+        last_ingested_timestamp = Time(ref_data.attrs['last_ingested_timestamp'], format='jd').unix   
+        if ( ingest_list[0]['tstart'] - last_ingested_timestamp ) > 1:
+            logger.info("Cancelling ingest. Gap since previous ingest.")
+            logger.info("Last ingested timestamp: {}".format(Time(last_ingested_timestamp, format='unix').yday) )
+            logger.info( "Fist timestamp in {}: {}".format( ingest_list[0]['filename'], Time(ingest_list[0]['tstart'], format='unix').yday ))
+            return []
+        
+        for i in range(1, len(ingest_list)):
+            if (ingest_list[i]['tstart'] - ingest_list[i-1]['tstop']) > 1:
+                logger.info("Truncating ingest list due to gap before {}".format(ingest_list[i]['filename']) ) 
+                ingest_list = ingest_list[:i]
+                break
+                
     return ingest_list
 
 
@@ -422,7 +468,7 @@ def _ingest_virtual_dataset(ref_data, mdmap):
                 
             times = tlm['observatoryTime'].to_numpy()
             values = tlm['engineeringNumericValue'].to_numpy()
-            ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = times[-1] # last timestamp in the ingest
+            last_ingested_timestamp = times[-1]
 
             # Get this MSID numpy datatype
             # npt = ref_data[mdmap[msid_id]].attrs['numpy_datatype'].replace('np.', '')
@@ -438,11 +484,17 @@ def _ingest_virtual_dataset(ref_data, mdmap):
 
             # Finally append the data to the archive.
             _append_h5_col_tlm(msid=mdmap[msid_id], epoch=times[0], times=times, values=values, apply_direct=True)
+            
+            # update the saved last_ingested_timestamp after successful ingest (LITA-184)
+            ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = last_ingested_timestamp # last timestamp in the ingest
 
 
 def _preprocess_hdf(ingest_files):
     ingest_files = _sort_ingest_files_by_start_time(ingest_files)
 
+    if not ingest_files:
+        return [], []
+    
     # HDF5 files have been given with multiple identical start times
     # with different end times. Those files are grouped together here. 
     chunks = _get_ingest_chunk_sequence(ingest_files)
@@ -483,6 +535,10 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
             logger.info('Starting HDF5 file pre-processing ...')
             ingest_file_data, chunks = _preprocess_hdf(ingest_files)
             logger.info('Completed HDF5 file pre-processing ...')
+
+            if not ingest_file_data:
+                logger.info('Empty ingest list.') # LITA-181
+                return
 
             logger.info('Starting HDF5 file data ingest ...')
             # out = db.fetchone('SELECT count(*) FROM ingest_history')
@@ -630,6 +686,11 @@ def _process_hdf(ingest_file_data, mdmap):
             _ingest_virtual_dataset(ref_data, mdmap)
             
             # print(f"{layout.shape[0]} n_samples.")
+            
+            # store last timestamp from chunnk to ref_data, for gap checking
+            # only update if last timestamp in chunck is greater than stored timestamp
+            if Time(file_processing_chunk[-1]['tstop'], format='unix').jd > ref_data.attrs['last_ingested_timestamp']:
+                ref_data.attrs['last_ingested_timestamp'] = Time(file_processing_chunk[-1]['tstop'], format='unix').jd
 
             processed_files.extend(file_processing_chunk)
 
