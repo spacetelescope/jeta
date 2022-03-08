@@ -255,7 +255,7 @@ def truncate(target_date):
             idx_file = tables.open_file(index_filepath, mode='a')
 
             # Do the actual work of truncating
-            values_h5.root.data.truncate(target_index)
+            values_h5.root.values.truncate(target_index)
             times_h5.root.times.truncate(target_index)
             idx_file.root.epoch.truncate(checkpoint_index)
 
