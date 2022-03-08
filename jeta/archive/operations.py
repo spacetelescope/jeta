@@ -243,8 +243,9 @@ def truncate(target_date):
                 idx_file.close()
                 print(f'Skipping {msid}, could not find checkpoint in index list {index_list}, reason:')
                 print(f'{err}')
-                continue         
-       
+                continue
+            
+            idx_file.close()
             values_filepath = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/values.h5" 
             times_filepath = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/times.h5"
             index_filepath = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/index.h5"
