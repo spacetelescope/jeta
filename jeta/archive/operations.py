@@ -240,11 +240,10 @@ def truncate(target_date):
                 # get the index in both the times and values files that corresponse to the checkpoint
                 target_index = idx_file['epoch'][...]['index'][checkpoint_index]
             except Exception as err:
+                idx_file.close()
                 print(f'Skipping {msid}, could not find checkpoint in index list {index_list}, reason:')
                 print(f'{err}')
-                continue
-            finally:
-                idx_file.close()
+                continue         
        
             values_filepath = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/values.h5" 
             times_filepath = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/times.h5"
