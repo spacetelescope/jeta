@@ -173,7 +173,7 @@ def del_stats(colname, time0, interval):
 
     ft['msid'] = colname
     ft['interval'] = interval
-    stats_file = f"{TELEMETRY_ARCHIVE}data/tlm/stats/{interval}/{str(colname).upper()}.h5'"
+    stats_file = f"{TELEMETRY_ARCHIVE}/data/tlm/stats/{interval}/{str(colname).upper()}.h5"
     if not os.path.exists(stats_file):
         raise IOError('Stats file {} not found'.format(stats_file))
 
