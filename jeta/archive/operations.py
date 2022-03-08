@@ -266,8 +266,12 @@ def truncate(target_date):
             # Truncate stats
             from jeta.archive.update import del_stats
             time0 = Time(target_date, format='jd').unix
-            del_stats(msid, time0, '5min')
-            del_stats(msid, time0, 'daily')
+            
+            try:
+                del_stats(msid, time0, '5min')
+                del_stats(msid, time0, 'daily')
+            except Exception as err:
+                print(f"Skipping stats truncation for msid {msid}, reason: {err}")
 
             try:
                 with h5py.File(times_filepath, 'r') as times:
