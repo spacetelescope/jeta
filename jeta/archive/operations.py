@@ -234,15 +234,15 @@ def truncate(target_date):
             # get the indices of a sub selected list thresholded on the target date 
             index_list = np.argwhere(index_times<target_date)
 
-            if index_list == []:
-                continue
-            else:
-                # get the index of the checkpoint in the index file as the last entry in the 
-                # sub select list
+            try:
+                # get the last index that meets the critiera
                 checkpoint_index = index_list[-1][0]
-
                 # get the index in both the times and values files that corresponse to the checkpoint
                 target_index = idx_file['epoch'][...]['index'][checkpoint_index]
+            except Exception as err:
+                print(f'Skipping {msid}, could not find checkpoint in index list {index_list}, reason:')
+                print(f'{err}')
+                continue
 
             idx_file.close()
             
