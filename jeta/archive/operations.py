@@ -258,6 +258,14 @@ def truncate(target_date):
             values_h5.root.values.truncate(target_index)
             times_h5.root.times.truncate(target_index)
             idx_file.root.epoch.truncate(checkpoint_index)
+            
+            try:
+                stats_target_time = idx_file.root.epoch[-1][0]
+            except Exception as err:
+                print('INFO: Defaulting to mission epoch for stats truncate.')
+                stats_target_time = 2459572.5
+               
+            time0 = Time(stats_target_time, format='jd').unix
 
             values_h5.close()
             times_h5.close()
@@ -265,7 +273,6 @@ def truncate(target_date):
 
             # Truncate stats
             from jeta.archive.update import del_stats
-            time0 = Time(target_date, format='jd').unix
             
             try:
                 del_stats(msid, time0, '5min')
