@@ -24,230 +24,168 @@ from jeta.archive import fetch
 from astropy.time import Time
 from numpy import empty
 
-args = curdoc().session_context.request.arguments
-
-# User supplied parameters
-MSID = args.get('msid')[0].decode('utf-8')
-tstart = args.get('tstart')[0].decode('utf-8')
-tstop = args.get('tstop')[0].decode('utf-8').replace('/', '')
-
-print('=-=-=-=-=-=CLIENT-=-=-=-=--=-=-')
-print(tstart)
-print(tstop)
-
-earliest_tstart, latest_tstop = fetch.get_time_range(MSID, 'date')
-
-print('=-=-=-=-=JETA=-=-=-=--=-=-')
-print(earliest_tstart)
-print(latest_tstop)
-
-if tstart == '':
-    tstart = earliest_tstart
-
-if tstop == '':
-    tstop = latest_tstop
-
-_tstart = Time(tstart, format='yday').datetime
-_tstop = Time(tstop, format='yday').datetime
-
-print('=-=-=-=-=-=BoKeh-=-=-=-=--=-=-')
-print(tstart)
-print(tstop)
-
 from bokeh.models.widgets import RadioButtonGroup
 
+class PlotServer:
 
-def display_event(div, attributes=[], style = 'float:left;clear:left;font_size=13px'):
-    "Build a suitable CustomJS to display the current event in the div model."
-    return CustomJS(args=dict(div=div), code="""
-        const attrs = %s;
-        const args = [];
-        for (let i = 0; i<attrs.length; i++) {
-            args.push(attrs[i] + '=' + Number(cb_obj[attrs[i]]).toFixed(2));
-        }
-        const line = "<span style=%r><b>" + cb_obj.event_name + "</b>(" + args.join(", ") + ")</span>\\n";
-        console.log(line);
-        const text = div.text.concat(line);
-        console.log(text);
-        const lines = text.split("\\n")
-        if (lines.length > 35)
-            lines.shift();
-        div.text = lines.join("\\n");
-    """ % (attributes, style))
+    def generate_full_res_plot(self):
+       
+        data = fetch.MSID(
+            msid=self.msid, 
+            start=Time(self.tstart, format='datetime').yday, 
+            stop=Time(self.tstop, format='datetime').yday, 
+            stat='5min'
+        )
 
+        x_axis = Time(data.times, format='unix').datetime
+        y_axis = data.vals
 
-def selection_resolution_interval(_tstart=_tstart, _tstop=_tstop):
-    diff_interval = _tstop - _tstart
+        source = ColumnDataSource(dict(x=x_axis, y=y_axis))
 
-    if abs(diff_interval).days > 365 * 10:
-        interval = 'daily'
-    elif abs(diff_interval).days > 1:
-        interval = '5min'
-    else:
-        interval = 'full'
-    return interval
+        main_line = self.plot.step(
+            x_axis, 
+            y_axis, 
+            mode='after', 
+            color='royalblue', 
+            width=2, name=self.msid, 
+            legend_label='raw telemetry'
+        )
+        self.plot.circle(
+            x_axis, 
+            y_axis, 
+            fill_color='white', 
+            line_color='royalblue', 
+            size=5, 
+            legend_label='raw telemetry'
+        )
 
-def generate_5min_stats_plot(msid=MSID, tstart=tstart, tstop=tstop):
-    # prepare some data
-    p = figure(
-        title=f"MSID: {str(MSID).upper()} | Plot Resolution: {selection_resolution_interval(_tstart, _tstop)}", 
-        x_axis_label='observatory time', 
-        y_axis_label=f'{MSID}', 
-        x_axis_type='datetime',
-        sizing_mode='stretch_width',
-        plot_height=400,
-        output_backend='webgl'
-    )
+        hover_tool = HoverTool(tooltips=[
+                    ('value', "$y"),
+                    ("obs. time", "@x{%Y:%j:%H:%M:%S.%3N}"),
+                ],
+                formatters={
+                    '@x': 'datetime',
+                    '$y' : 'printf',
+                },
+        )
+        self.plot.tools.append(hover_tool)
+        self.plot.legend.click_policy="hide"
 
-    # create a new plot with a title and axis labels
-    p.xaxis.formatter = DatetimeTickFormatter(  microseconds = ['%H:%M:%S.%3N'],
-                                                milliseconds = ['%H:%M:%S.%3N'],
-                                                seconds = ['%H:%M:%S'],
-                                                minsec = ['%Y:%j:%H:%M:%S'],
-                                                minutes = ['%Y:%j:%H:%M'],
-                                                hourmin = ['%Y:%j:%H:%M'],
-                                                hours = ['%Y:%j:%H:%M'],
-                                                days = ['%Y:%j:%H:%M'],
-                                                months = ['%Y:%j'],
-                                                years = ['%Y'])
+        return self.plot
 
-    # Min/Mean/Max (5min)
-    msid = fetch.MSID(MSID, tstart, tstop, stat='5min')
-  
-    x = Time(msid.times, format='unix').datetime
+    def generate_5min_stats_plot(self):
 
-    mins = msid.mins
-    maxes = msid.maxes
-    means = msid.means
+        # Fetch 5min telemetry 
+        data = fetch.MSID(
+            msid=self.msid, 
+            start=Time(self.tstart, format='datetime').yday, 
+            stop=Time(self.tstop, format='datetime').yday, 
+            stat='5min'
+        )
+    
+        x_axis = Time(data.times, format='unix').datetime
 
-    y = msid.means
+        source = ColumnDataSource(data=dict(
+            x=x_axis, 
+            y=data.means, 
+            mins=data.mins, 
+            maxes=data.maxes, 
+            means=data.means
+        ))
 
-    source = ColumnDataSource(data=dict(x=x, y=y, mins=mins, maxes=maxes, means=means))
+        min_line = self.plot.line(
+            x_axis, 
+            data.mins, 
+            color="green", 
+            line_dash='dotdash', 
+            line_width=1, 
+            name='min',
+            legend_label='min'
+        )
+        max_line = self.plot.line(
+            x_axis, 
+            data.maxes, 
+            color="blue", 
+            line_dash='dotdash', 
+            line_width=1, 
+            name='max',
+            legend_label='max'
+        )
+        main_line = self.plot.line(
+            x_axis, 
+            data.means, 
+            color='black', 
+            width=2, 
+            name=self.msid, 
+            legend_label='mean'
+        )
+       
+        hover_tool = HoverTool(tooltips=[
+                    ('value', "$y"),
+                    ("obs. time", "@x{%Y:%j:%H:%M:%S.%3N}"),
+                ],
+                formatters={
+                    '@x': 'datetime',
+                    '$y' : 'printf',
+                },
+        )
+        self.plot.tools.append(hover_tool)
+        self.plot.legend.click_policy="hide"
 
-    min_line = p.line(
-        x, 
-        mins, 
-        color="green", 
-        line_dash='dotdash', 
-        line_width=1, 
-        name='min',
-        legend_label='min'
-    )
-    # p.circle(
-    #     x, 
-    #     mins, 
-    #     fill_color='green', 
-    #     size=5,
-    #     legend_label='min'
-    # )
-    max_line = p.line(
-        x, 
-        maxes, 
-        color="blue", 
-        line_dash='dotdash', 
-        line_width=1, 
-        name='max',
-        legend_label='max'
-    )
-    # p.circle(
-    #     x, 
-    #     maxes, 
-    #     fill_color='blue', 
-    #     size=5,
-    #     legend_label='max'
-    # )
-    main_line = p.line(x, y, color='black', width=2, name=MSID, legend_label='mean')
-    # p.circle(x, y, fill_color='white', line_color='black', size=5, legend_label='mean')
+        return self.plot
 
-    hover_tool = HoverTool(tooltips=[
-                ('value', "$y"),
-                ("obs. time", "@x{%Y:%j:%H:%M:%S.%3N}"),
-            ],
-            formatters={
-                '@x': 'datetime',
-                '$y' : 'printf',
-            },
-    )
-    p.tools.append(hover_tool)
-    p.legend.click_policy="hide"
+    def selection_resolution_interval(self):
+        assert self.tstop > self.tstart, 'tstop must come after tstart'
+        diff_interval = self.tstop - self.tstart
+        if abs(diff_interval).days > 365 * 5:
+            interval = 'daily'
+        elif abs(diff_interval).days > 1:
+            interval = '5min'
+        else:
+            interval = 'full'
+        return interval
 
-    def five_update(attr, old, new):
-        # callback
-        # min_line.visible = False #0 in checkbox.active
-        print(MSID)
-        msid = fetch.MSID(MSID, tstart, tstop, stat='5min')
+    def serve_plot(self):
+        {
+            'full': self.generate_full_res_plot, 
+            'daily': self.generate_full_res_plot, 
+            '5min': self.generate_5min_stats_plot
+        }[self.interval]()
+        curdoc().add_root(self.plot)
         
-        x = Time(msid.times, format='unix').datetime
+    def __init__(self, args=curdoc().session_context.request.arguments):
+        self.msid = args.get('msid')[0].decode('utf-8')
 
-        mins = msid.mins
-        maxes = msid.maxes
-        means = msid.means
-        import numpy as np
-        y = np.linspace(0, 4*np.pi, len(means))
+        self.msid_time_range = fetch.get_time_range(self.msid, 'iso')
+        self.msid_min_time = Time(self.msid_time_range[0], format='iso').yday
+        self.msid_max_time = Time(self.msid_time_range[1], format='iso').yday
+        
+        self.tstart = args.get('tstart')[0].decode('utf-8')
+        self.tstart = Time(self.tstart if self.tstart else self.msid_min_time, format='yday').datetime
+        self.tstop = args.get('tstop')[0].decode('utf-8').replace('/', '')
+        self.tstop = Time(self.tstop if self.tstop else self.msid_max_time, format='yday').datetime
 
-        source.data = dict(x=x, y=y, mins=mins, maxes=maxes, means=means)
+        self.interval = self.selection_resolution_interval()
+        self.xaxis_formatter = DatetimeTickFormatter(  microseconds = ['%H:%M:%S.%3N'],
+                                                    milliseconds = ['%H:%M:%S.%3N'],
+                                                    seconds = ['%H:%M:%S'],
+                                                    minsec = ['%Y:%j:%H:%M:%S'],
+                                                    minutes = ['%Y:%j:%H:%M'],
+                                                    hourmin = ['%Y:%j:%H:%M'],
+                                                    hours = ['%Y:%j:%H:%M'],
+                                                    days = ['%Y:%j:%H:%M'],
+                                                    months = ['%Y:%j'],
+                                                    years = ['%Y'])
+        self.plot = figure(
+            title=f"Telemetry Trending Using {self.interval.capitalize()} Interval Selection", 
+            x_axis_label='Observatory Time', 
+            y_axis_label=f'{self.msid}', 
+            x_axis_type='datetime',
+            sizing_mode='stretch_width',
+            plot_height=400,
+            output_backend='webgl'
+        )
+        self.plot.xaxis.formatter = self.xaxis_formatter
+        self.serve_plot()
 
-    # max_line.visible = False #2 in checkbox.active
-    # p.legend.items = [legend_items[i] for i in checkbox.active]
-    data_selection = RadioButtonGroup(
-        labels = ["mean", "midval", "value"],
-    active = 0)
-    data_selection.on_change('active', five_update)
-    layout = row(data_selection, p)
-    p = layout
-    return p
-
-
-def generate_full_res_plot(msid=MSID, tstart=tstart, tstop=tstop):
-    # prepare some data
-    p = figure(
-        title=f"MSID: {str(MSID).upper()} | Plot Resolution: {selection_resolution_interval(_tstart, _tstop)}", 
-        x_axis_label='observatory time', 
-        y_axis_label=f'{MSID}', 
-        x_axis_type='datetime',
-        sizing_mode='stretch_width',
-        plot_height=400,
-        output_backend='webgl'
-    )
-
-    # create a new plot with a title and axis labels
-    p.xaxis.formatter = DatetimeTickFormatter(  microseconds = ['%H:%M:%S.%3N'],
-                                                milliseconds = ['%H:%M:%S.%3N'],
-                                                seconds = ['%H:%M:%S'],
-                                                minsec = ['%Y:%j:%H:%M:%S'],
-                                                minutes = ['%Y:%j:%H:%M'],
-                                                hourmin = ['%Y:%j:%H:%M'],
-                                                hours = ['%Y:%j:%H:%M'],
-                                                days = ['%Y:%j:%H:%M'],
-                                                months = ['%Y:%j'],
-                                                years = ['%Y'])
-
-    msid = fetch.MSID(MSID, tstart, tstop)
-
-    x = Time(msid.times, format='unix').datetime
-    y = msid.vals
-
-    source = ColumnDataSource(dict(x=x, y=y))
-
-    main_line = p.step(x, y, mode='after', color='royalblue', width=2, name=MSID, legend_label=f'{MSID}')
-    p.circle(x, y, fill_color='white', line_color='royalblue', size=5, legend_label=f'{MSID}')
-
-    hover_tool = HoverTool(tooltips=[
-                ('value', "$y"),
-                ("obs. time", "@x{%Y:%j:%H:%M:%S.%3N}"),
-            ],
-            formatters={
-                '@x': 'datetime',
-                '$y' : 'printf',
-            },
-    )
-    p.tools.append(hover_tool)
-    p.legend.click_policy="hide"
-
-    return p
-
-if selection_resolution_interval() == '5min':
-    p = generate_5min_stats_plot()
-if selection_resolution_interval() == 'full':
-    p = generate_full_res_plot()
-curdoc().add_root(p)
+PlotServer()
