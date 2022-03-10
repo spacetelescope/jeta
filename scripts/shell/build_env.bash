@@ -17,10 +17,10 @@ export VERSION_PATCH=0
 export RELEASE=dev
 
 # Project Root Directory
-export PROJECT_PATH=${HOME}/System/Engineering/projects/fot/platform
+export PROJECT_PATH=${HOME}/Projects/repos/jeta
 
 # Archive Root Directory
-export ENG_ARCHIVE=${PROJECT_PATH}/development_archive
+export ENG_ARCHIVE=${HOME}/local_archive
 
 # Archive Data Root Directory (i.e. telemetery and archive metadata goes here)
 export TELEMETRY_ARCHIVE=${ENG_ARCHIVE}/archive 
@@ -29,13 +29,13 @@ export TELEMETRY_ARCHIVE=${ENG_ARCHIVE}/archive
 export STAGING_DIRECTORY=${ENG_ARCHIVE}/staging
 
 # MSID Data Reference File
-export ALL_KNOWN_MSID_METAFILE=${TELEMETRY_ARCHIVE}/all_known_msid_sematics.h5
+export ALL_KNOWN_MSID_METAFILE=${ENG_ARCHIVE}/all_known_msid_sematics.h5
 
 # Root Directory for System Logs
 export JETA_LOGS=${ENG_ARCHIVE}/logs
 
 # Root Directory for System Support Scripts
-export JETA_SCRIPTS=${PROJECT_PATH}/jeta/scripts
+export JETA_SCRIPTS=${PROJECT_PATH}/scripts
 
 # Path to Meta Database Definition File
 export JETA_ARCHIVE_DEFINITION_SOURCE=${JETA_SCRIPTS}/sql/create.archive.meta.sql  
