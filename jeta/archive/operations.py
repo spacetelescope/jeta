@@ -11,6 +11,8 @@ import tables
 # import pyyaks.logger
 # import pyyaks.context
 
+from astropy.time import Time
+
 import jeta.archive.file_defs as file_defs
 from jeta.archive.utils import get_env_variable
 
@@ -206,61 +208,90 @@ def restore(uuid):
     """
 
 
-def truncate(filetype, date):
+def truncate(target_date):
     """Truncate msid and statfiles for every archive file after date (to nearest
     year:doy)
 
-    :param filetype: TBD
-    :type filetype: null
-    :param date: threshold data to truncate
-    :type date: astropy.time.Time
+    :param date: threshold data to truncate as a doy object or string inyday format
+    :type date: astropy.time.Time or string date
     """
-    pass
 
-    # colnames = pickle.load(open(msid_files['colnames'].abs, 'rb'))
+    target_date = Time(target_date, format='yday').jd
+    
+    with h5py.File(ALL_KNOWN_MSID_METAFILE, 'a') as ref_data:
 
-    # date = DateTime(date).date
-    # year, doy = date[0:4], date[5:8]
+        all_msid_last_timestamps = []
 
-    # # Setup db handle with autocommit=False so that error along the way aborts insert transactions
-    # db = Ska.DBI.DBI(
-    #     dbi='sqlite',
-    #     server=msid_files['archfiles'].abs,
-    #     autocommit=False
-    # )
+        for msid in ref_data.keys():
 
-    # # Get the earliest row number from the archfiles table where year>=year and doy=>doy
-    # out = db.fetchall('SELECT rowstart FROM archfiles '
-    #                   'WHERE year>={0} AND doy>={1}'.format(year, doy))
-    # if len(out) == 0:
-    #     return
-    # rowstart = out['rowstart'].min()
-    # time0 = DateTime("{0}:{1}:00:00:00".format(year, doy)).secs
+            last_msid_ingest_time = 2459572.5 # default timestamp last timestamp
 
-    # for colname in colnames:
-    #     ft['msid'] = colname
-    #     filename = msid_files['mnemonic_value'].abs # msid_files['msid'].abs
-    #     if not os.path.exists(filename):
-    #         raise IOError('MSID file {} not found'.format(filename))
-    #     if not opt.dry_run:
-    #         h5 = tables.open_file(filename, mode='a')
-    #         h5.root.data.truncate(rowstart)
-    #         h5.root.quality.truncate(rowstart)
-    #         h5.close()
-    #     logger.verbose('Removed rows from {0} for filetype {1}:{2}'.format(
-    #         rowstart, filetype['content'], colname))
+            idx_file = h5py.File(f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/index.h5", mode='a')
+            
+            # get a list of all times in the index file
+            index_times = idx_file['epoch'][...]['epoch']
 
-    #     # Delete the 5min and daily stats, with a little extra margin
-    #     if colname not in fetch.IGNORE_COLNAMES:
-    #         del_stats(colname, time0, '5min')
-    #         del_stats(colname, time0, 'daily')
+            # get the indices of a sub selected list thresholded on the target date 
+            index_list = np.argwhere(index_times<target_date)
 
-    # cmd = 'DELETE FROM archfiles WHERE (year>={0} AND doy>={1}) OR year>{0}'.format(year, doy, year)
-    # if not opt.dry_run:
-    #     db.execute(cmd)
-    #     db.commit()
-    # logger.verbose(cmd)
+            try:
+                # get the last index that meets the critiera
+                checkpoint_index = index_list[-1][0]
+                # get the index in both the times and values files that corresponse to the checkpoint
+                target_index = idx_file['epoch'][...]['index'][checkpoint_index]
+            except Exception as err:
+                idx_file.close()
+                print(f'Skipping {msid}, could not find checkpoint in index list {index_list}, reason:')
+                print(f'{err}')
+                continue
+            
+            idx_file.close()
+            values_filepath = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/values.h5" 
+            times_filepath = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/times.h5"
+            index_filepath = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/index.h5"
 
+            values_h5 = tables.open_file(values_filepath, mode='a')
+            times_h5 = tables.open_file(times_filepath, mode='a')
+            idx_file = tables.open_file(index_filepath, mode='a')
+
+            # Do the actual work of truncating
+            values_h5.root.values.truncate(target_index)
+            times_h5.root.times.truncate(target_index)
+            idx_file.root.epoch.truncate(checkpoint_index)
+            
+            try:
+                stats_target_time = idx_file.root.epoch[-1][0]
+            except Exception as err:
+                print('INFO: Defaulting to mission epoch for stats truncate.')
+                stats_target_time = 2459572.5
+               
+            time0 = Time(stats_target_time, format='jd').unix
+
+            values_h5.close()
+            times_h5.close()
+            idx_file.close()
+
+            # Truncate stats
+            from jeta.archive.update import del_stats
+            
+            try:
+                del_stats(msid, time0, '5min')
+                del_stats(msid, time0, 'daily')
+            except Exception as err:
+                print(f"Skipping stats truncation for msid {msid}, reason: {err}")
+
+            try:
+                with h5py.File(times_filepath, 'r') as times:
+                    last_msid_ingest_time = times['times'][...][-1]
+            except Exception as err:
+                print(f"Skipping msid {msid}, reason {err}")
+
+            ref_data[msid].attrs['last_ingested_timestamp'] = last_msid_ingest_time
+            all_msid_last_timestamps.append(last_msid_ingest_time)
+
+        ref_data.attrs['last_ingested_timestamp'] = max(all_msid_last_timestamps)
+        print(f"Global LastIngested Timestamp: {ref_data.attrs['last_ingested_timestamp']}")
+        return 0
 
 def destory(data_only=True):
     """Destory the archive by removing all data 
