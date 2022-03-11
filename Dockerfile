@@ -41,7 +41,8 @@ ENV JETA_SCRIPTS=/srv/jeta/code/scripts
 ENV JETA_ARCHIVE_DEFINITION_SOURCE="${JETA_SCRIPTS}/sql/create.archive.meta.sql"
 # set JETA_BYPASS_GAP_CHECK to 1 to bypass gap check. Set to 0 to perform check.
 ENV JETA_BYPASS_GAP_CHECK=0
-
+# set JETA_BYPASS_GAP_CHECK to 0 to disable stats updates.
+ENV JETA_UPDATE_STATS=1
 
 # Install core system packages
 RUN set -x \

@@ -59,6 +59,7 @@ STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 JETA_LOGS = get_env_variable('JETA_LOGS')
 ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
 BYPASS_GAP_CHECK = int(os.environ['JETA_BYPASS_GAP_CHECK'])
+UPDATE_STATS = int(os.environ['JETA_UPDATE_STATS'])
 
 
 # Calculate the number of files per year for archive space allocation prediction/allocation.
@@ -553,7 +554,10 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
         move_archive_files(processed_files)
         # Once data ingest is complete update the 5min and daily stats data
         from jeta.archive import update
-        update.main()
+        if UPDATE_STATS:
+            update.main()
+        else:
+            logger.info(f'Skipping stats update.') # LITA-191
     else:
         logger.info('No ingest files discovered in {STAGING_DIRECTORY}')
 
