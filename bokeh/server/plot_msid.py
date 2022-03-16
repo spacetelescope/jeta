@@ -33,8 +33,7 @@ class PlotServer:
         data = fetch.MSID(
             msid=self.msid, 
             start=Time(self.tstart, format='datetime').yday, 
-            stop=Time(self.tstop, format='datetime').yday, 
-            stat='5min'
+            stop=Time(self.tstop, format='datetime').yday
         )
 
         x_axis = Time(data.times, format='unix').datetime
