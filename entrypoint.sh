@@ -107,7 +107,7 @@ stderr_logfile_maxbytes=0
 
 [program:raven]
 directory=/srv/jeta/api
-command=gunicorn --pid /srv/jeta/raven.pid --bind 0.0.0.0:9232 -w 2 -e DJANGO_SETTINGS_MODULE="config.settings.base" --access-logfile - --error-logfile - --log-level trace config.wsgi:application
+command=gunicorn --pid /srv/jeta/raven.pid --bind 0.0.0.0:9232 -w 25 -e DJANGO_SETTINGS_MODULE="config.settings.base" --access-logfile - --error-logfile - --log-level trace config.wsgi:application
 stdout_logfile=/srv/jeta/log/raven.log
 stdout_logfile_maxbytes=0
 stderr_logfile=/srv/jeta/log/raven.err
