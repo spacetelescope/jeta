@@ -1162,8 +1162,14 @@ class MSID(object):
         if 'EventQuery' in (cls.__name__ for cls in intervals.__class__.__mro__):
             intervals = intervals.intervals(self.datestart, self.datestop)
 
-        intervals = [(Time(start).unix, Time(stop).unix)
-                     for start, stop in intervals]
+        for fmt in ('unix', 'yday', 'datetime'):
+            try:
+                intervals = [(Time(start, format=fmt).unix, Time(stop, format=fmt).unix)
+                             for start, stop in intervals]
+            except:
+                pass
+            else:
+                break
 
         for tstart, tstop in intervals:
             if tstart > tstop:
