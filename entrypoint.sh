@@ -19,7 +19,7 @@ trap cleanup HUP INT QUIT TERM
 
 # Sync Docker home directories with Jupyterhub user spaces.
 cd /home/
-set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id -u $dir &>/dev/null || useradd $dir; chown $dir:$dir $dir; done
+set -x && array=(*) && for dir in "${array[@]}"; do echo "Syncing for $dir"; id -u $dir &>/dev/null || useradd $dir; chown -R $dir:$dir $dir; done
 
 # set -x \
 #     && cd /srv/jeta/requirements \
