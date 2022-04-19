@@ -187,7 +187,12 @@ def del_stats(colname, time0, interval):
     if opt.dry_run:
         n_del = len(stats.root.data) - row0
     else:
-        n_del = stats.root.data.remove_rows(row0, len(stats.root.data))
+        if row0 > 0:
+            n_del = stats.root.data.remove_rows(row0, len(stats.root.data))
+        else:
+            n_del = len(stats.root.data)  
+            stats.remove_node(stats.root.data)  #LITA-190
+        
     logger.info('Deleted %d rows from row %s (%s) to end', n_del, row0,
                 Time(indexes[row0] * dt, format='unix').yday)
     stats.close()
