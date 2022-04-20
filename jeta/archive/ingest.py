@@ -280,7 +280,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
         return []
     
     #sort by start time, and secondarily by stop time. 
-    ingest_list = sorted(ingest_list, key=lambda k: (k['tstart'], k['tstop']) )    
+    ingest_list = sorted(ingest_list, key=lambda k: k['tstop'] )    
     
     if len(ingest_list) > 120:
         # LITA-182
