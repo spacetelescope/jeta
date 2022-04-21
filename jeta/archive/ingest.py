@@ -61,6 +61,8 @@ ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
 BYPASS_GAP_CHECK = int(os.environ['JETA_BYPASS_GAP_CHECK'])
 UPDATE_STATS = int(os.environ['JETA_UPDATE_STATS'])
 
+BAD_APID_LIST = [712]
+
 
 # Calculate the number of files per year for archive space allocation prediction/allocation.
 FILES_IN_A_YEAR = (AVG_NUMBER_OF_FILES * INGEST_CADENCE) * 365
@@ -252,7 +254,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             df = None
             for dataset in f['samples'].keys():
                 dff = pd.DataFrame( np.array(f['samples'][dataset]).byteswap().newbyteorder() )            
-                dff = dff.loc[(dff['id'] != 0) & (dff['apid'] > 0)]
+                dff = dff.loc[(dff['id'] != 0) & (dff['apid'] > 0) & (dff['apid'] not in BAD_APID_LIST)]
                 df = pd.concat([df, dff])
 
             # don't consider data before the mission epoch
@@ -419,7 +421,7 @@ def move_archive_files(processed_files):
         os.remove(tarfile_name)
 
 
-def _ingest_virtual_dataset(ref_data, mdmap):
+def _ingest_virtual_dataset(ref_data, mdmap, vds_tstart=None, vds_tstop=None):
     """ Do the actual work of extracting data from the files
         and appending it to the archive.
 
@@ -442,14 +444,20 @@ def _ingest_virtual_dataset(ref_data, mdmap):
         ids = ids[ids != 0]
         ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
 
-        # Remove samples with apid <= 0 or id == 0
-        df = df.loc[(df['id'] != 0) & (df['apid'] > 0)]
+        # Remove samples with id == 0
+        df = df.loc[(df['id'] != 0)]
 
         # Remove duplicate entries
         df.drop_duplicates(subset=['id', 'observatoryTime', 'engineeringNumericValue'], inplace=True)
 
         df = df.sort_values(by=['observatoryTime'])
         df['observatoryTime'] = Time(df['observatoryTime']/1000, format='unix').jd
+        
+        if vds_tstart and vds_tstop:
+            vds_tstart = Time(vds_tstart, format='unix').jd
+            vds_tstop = Time(vds_tstop, format='unix').jd
+            df = df.loc[(df['observatoryTime'] >= vds_tstart) & (df['observatoryTime'] <= vds_tstop)]
+        
         df = df.groupby(["id"])[['observatoryTime', 'engineeringNumericValue', 'apid']]
         
         for msid_id in ids:
@@ -687,7 +695,7 @@ def _process_hdf(ingest_file_data, mdmap):
                 logger.info("Created VDS containing: ")
                 logger.info([os.path.basename(f['filename']) for f in file_processing_chunk])
             
-            _ingest_virtual_dataset(ref_data, mdmap)
+            _ingest_virtual_dataset(ref_data, mdmap, vds_tstart=file_data[0]['tstart'], vds_tstop=file_data[-1]['tstop'])
             
             # print(f"{layout.shape[0]} n_samples.")
             
