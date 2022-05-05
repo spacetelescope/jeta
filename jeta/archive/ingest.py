@@ -254,7 +254,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             df = None
             for dataset in f['samples'].keys():
                 dff = pd.DataFrame( np.array(f['samples'][dataset]).byteswap().newbyteorder() )            
-                dff = dff.loc[(dff['id'] != 0) & (dff['apid'] > 0) & (dff['apid'] not in BAD_APID_LIST)]
+                dff = dff.loc[(dff['id'] != 0) & (dff['apid'] > 0) & (~dff['apid'].isin(BAD_APID_LIST))]
                 df = pd.concat([df, dff])
 
             # don't consider data before the mission epoch
