@@ -695,7 +695,7 @@ def _process_hdf(ingest_file_data, mdmap):
                 logger.info("Created VDS containing: ")
                 logger.info([os.path.basename(f['filename']) for f in file_processing_chunk])
             
-            _ingest_virtual_dataset(ref_data, mdmap, vds_tstart=file_data[0]['tstart'], vds_tstop=file_data[-1]['tstop'])
+            _ingest_virtual_dataset(ref_data, mdmap, vds_tstart=min([f['tstart'] for f in file_processing_chunk]), vds_tstop=max([f['tstop'] for f in file_processing_chunk]))
             
             # print(f"{layout.shape[0]} n_samples.")
             
