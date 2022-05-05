@@ -621,7 +621,7 @@ def _process_hdf(ingest_file_data, mdmap):
     """ Function for handling the ingest of HDF5 files deliveried to the staging area.
     """
     
-    MAX_FILE_PROCESSING_CHUNK = 6
+    MAX_FILE_PROCESSING_CHUNK = 12
 
     # global _times
     # global _values
