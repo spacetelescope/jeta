@@ -44,7 +44,7 @@ setup(
     install_requires=[
         'markdown',
         'six==1.16.0',
-        'notebook==6.4.5',
+        'notebook==6.4.10',
         'nbconvert==6.4.4',
         'MarkupSafe==2.0.1',
         'ipympl==0.8.2',
