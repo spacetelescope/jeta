@@ -927,6 +927,7 @@ class MSID(object):
         import Ska.tdb
         return Ska.tdb.msids[self.MSID]
 
+
     def interpolate(self, dt=None, start=None, stop=None, times=None):
         """Perform nearest-neighbor interpolation of the MSID to the specified
         time sequence.
@@ -1391,21 +1392,6 @@ class MSID(object):
         }
 
         return json.dumps(telemetry)
-
-
-    # def statistics_as_json(self, msid, interval):
-
-    #     import tables
-
-    #     ft['msid'] = msid
-    #     ft['interval'] = interval
-
-    #     filename = msid_files['stats'].abs
-
-    #     h5 = tables.open_file(filename)
-    #     table = h5.root.data
-
-    #     return table
 
 
     def plot(self, *args, **kwargs):
