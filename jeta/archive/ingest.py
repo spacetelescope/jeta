@@ -58,7 +58,6 @@ TELEMETRY_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 JETA_LOGS = get_env_variable('JETA_LOGS')
 ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
-BYPASS_GAP_CHECK = int(os.environ['JETA_BYPASS_GAP_CHECK'])
 UPDATE_STATS = int(os.environ['JETA_UPDATE_STATS'])
 
 BAD_APID_LIST = [712]
@@ -238,6 +237,11 @@ def sort_msid_data_by_time(mid, times=None, values=None, append=True):
     _values[mid] = _values[mid][idxs]
 
 def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'):
+    
+    # retrieve environment variables
+    BYPASS_GAP_CHECK = int(os.environ['JETA_BYPASS_GAP_CHECK'])
+    BYPASS_DURATION_CHECK = int(os.environ['JETA_BYPASS_DURATION_CHECK'])
+    
     # TODO: Move epoch to system config
     epoch = datetime.datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
     
@@ -265,14 +269,20 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             try:
                 dt_tstart = epoch + datetime.timedelta(seconds=int(tstart))
                 dt_tstop = epoch + datetime.timedelta(seconds=int(tstop))
-                ingest_list.append(
-                    {
-                        'filename': f.filename,
-                        'tstart': tstart,
-                        'tstop': tstop,
-                        'numPoints': f.attrs['/numPoints']
-                    }
-                )
+                
+                # perform time check, LITA-213
+                if BYPASS_DURATION_CHECK or ((dt_tstop < datetime.datetime.now()) and ((dt_tstop - dt_tstart) < datetime.timedelta(hours=4))):
+                    ingest_list.append(
+                        {
+                            'filename': f.filename,
+                            'tstart': tstart,
+                            'tstop': tstop,
+                            'numPoints': f.attrs['/numPoints']
+                        }
+                    )
+                else:
+                    logger.info( f"{file}: time check violated. Duration {dt_tstop - dt_tstart}, stop time {dt_tstop}" )
+                    
             except Exception as e:
                 logger.info("{}, {}".format(file, e))
                 
