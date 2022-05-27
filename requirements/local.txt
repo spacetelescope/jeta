@@ -50,6 +50,7 @@ redis==4.1.0
 
 jupyterlab==3.2.2
 configurable-http-proxy==0.2.3
+jupyterhub-idle-culler
 
 # Documentation
 sphinx_rtd_theme
