@@ -39,7 +39,10 @@ def set_config_parameter(subsystem=None, param=None, value=None):
     if None in [subsystem, param, value]:
         raise ValueError('Subsystem, param, and value are required.')
     with h5py.File('../config/parameters.hdf5', 'a') as config:
-        config[subsystem].attrs[param.lower()] = value
+        if param.lower() in list(config[subsystem].attrs):
+            config[subsystem].attrs[param.lower()] = value
+        else:
+            raise ValueError(f'{param} is not a valid system parameter.')
 
 
 def get_config_parameter(subsystem=None, param=None):
