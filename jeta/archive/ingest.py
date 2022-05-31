@@ -631,7 +631,7 @@ def _process_hdf(ingest_file_data, mdmap):
     """ Function for handling the ingest of HDF5 files deliveried to the staging area.
     """
     
-    MAX_FILE_PROCESSING_CHUNK = 6
+    MAX_FILE_PROCESSING_CHUNK = int(get_env_variable('JETA_INGEST_CHUNK_SIZE'))
 
     # global _times
     # global _values
@@ -727,6 +727,11 @@ def execute(ingest_type='h5', source_type='E', provided_ingest_files=None):
     logger.info('INGEST BEGIN >>>')
     logger.info('Ingest Module: {}'.format(os.path.abspath(__file__)))
     logger.info('Fetch Module: {}'.format(os.path.abspath(fetch.__file__)))
+    logger.info('Loading system configuration ... ')
+
+    from jeta.archive.operations import load_config
+    current_settings = load_config()
+    logger.info(f'System configuration loaded: \n{current_settings}')
 
     # processed_msids = [x for x in pickle.load(open(msid_files['colnames'].abs, 'rb'))
     #             if x not in fetch.IGNORE_COLNAMES]

@@ -5,8 +5,11 @@ import pickle
 import sqlite3
 
 import numpy as np
+import json
 import h5py
 import tables
+
+from collections import defaultdict
 
 # import pyyaks.logger
 # import pyyaks.context
@@ -28,6 +31,41 @@ ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
 #     level='INFO',
 #     format="%(asctime)s %(message)s"
 # )
+
+
+def set_config_parameter(subsystem=None, param=None, value=None):
+    """
+    """
+    if None in [subsystem, param, value]:
+        raise ValueError('Subsystem, param, and value are required.')
+    with h5py.File('../config/parameters.hdf5', 'a') as config:
+        config[subsystem].attrs[param.lower()] = value
+
+
+def get_config_parameter(subsystem=None, param=None):
+    """
+    """
+    if None in [subsystem, param]:
+        raise ValueError('Both subsystem and param are required.')
+    with h5py.File('../config/parameters.hdf5', 'r') as config:
+        return config[subsystem].attrs[param.lower()]
+
+
+def load_config():
+    """
+    """
+    current_settings = defaultdict(list)
+
+    with h5py.File('../config/parameters.hdf5', 'r') as config:
+        for k in config.keys():
+            for a in config[k].attrs:
+                current_settings[k].append({a.upper():str(config[k].attrs[a])})
+                os.environ[a.upper()] = str(config[k].attrs[a])
+
+    print('>>> New System Configuration Loaded <<< ')
+
+    return json.dumps(current_settings)
+
 
 def _create_archive_database():
     """ Create an empty archive.meta.info.db3 database if it doesn't exist
