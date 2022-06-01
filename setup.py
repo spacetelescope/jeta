@@ -3,20 +3,18 @@ from distutils.extension import Extension
 import subprocess
 import sys
 
-subprocess.check_call([sys.executable, "-m", "pip", "install", 'Cython==0.29.24', 'numpy==1.20.3'])
 from Cython.Build import cythonize
 import numpy
-from jeta.version import __version__
 
 # with open("README.md") as f:
 #     long_description = f.read()
 
 setup(
     name='jeta',
-    version=__version__,
     description='Modules supporting JWST engineering telemetry archiving.',
     license='BSD 3-Clause',
     long_description='',
+    long_description_content_type='text/markdown',
     author='David Kauffman',
     author_email='dkauffman@stsci.edu',
     url='https://github.com/spacetelescope/jeta',
@@ -40,7 +38,6 @@ setup(
         ],
         compiler_directives={'language_level' : "3"}
     ),
-    py_modules=['jeta.version'],
     install_requires=[
         'markdown',
         'six==1.16.0',
@@ -90,7 +87,6 @@ setup(
         'scripts/sql/create.archive.meta.sql'
     ],
     classifiers=[
-        f'Development Status :: v{__version__}',
         'License :: BSD 3-Clause',
     ]
 )
