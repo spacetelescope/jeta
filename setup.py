@@ -14,6 +14,7 @@ setup(
     description='Modules supporting JWST engineering telemetry archiving.',
     license='BSD 3-Clause',
     long_description='',
+    long_description_content_type='text/markdown',
     author='David Kauffman',
     author_email='dkauffman@stsci.edu',
     url='https://github.com/spacetelescope/jeta',
