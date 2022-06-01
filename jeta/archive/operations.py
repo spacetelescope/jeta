@@ -223,7 +223,14 @@ def truncate(target_date):
         all_msid_last_timestamps = []
 
         for msid in ref_data.keys():
-
+            
+            try:
+                if ref_data[msid].attrs['last_ingested_timestamp'] < target_date:
+                    continue
+            except Exception as err:
+                print(f"Skipping {msid}, could not read last_ingested_timestamp, reason: {err}")
+                continue
+            
             last_msid_ingest_time = 2459572.5 # default timestamp last timestamp
 
             idx_file = h5py.File(f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/index.h5", mode='a')
