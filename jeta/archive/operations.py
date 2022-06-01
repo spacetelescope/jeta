@@ -225,6 +225,7 @@ def truncate(target_date):
         for msid in ref_data.keys():
             
             try:
+                #LITA-215: do not truncate if last_ingested_timestamp < target_date
                 if ref_data[msid].attrs['last_ingested_timestamp'] < target_date:
                     continue
             except Exception as err:
