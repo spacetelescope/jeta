@@ -86,7 +86,7 @@ setup(
     scripts=[
         'scripts/sql/create.archive.meta.sql'
     ],
-    classifiers=[
-        'License :: BSD 3-Clause',
-    ]
+    # classifiers=[
+    #     'License :: BSD 3-Clause',
+    # ]
 )
