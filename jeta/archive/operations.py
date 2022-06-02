@@ -33,33 +33,50 @@ ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
 # )
 
 
-def set_config_parameter(subsystem=None, param=None, value=None):
-    """
+def set_config_parameter(subsystem: str=None, param: str=None, value: str=None) -> None:
+    """ Set the subsystem-level configuration in a persisted config file
+        Parameters
+        ----------
+        :param subsystem: the target subsystem of the configuration parameter (i.e. ingest, fetch, staging, archive)
+        :param param: the name of the parameter value to set
+        :param value: the value to set the parameter to
+
+        :returns: config as str
     """
     if None in [subsystem, param, value]:
         raise ValueError('Subsystem, param, and value are required.')
-    with h5py.File('../config/parameters.hdf5', 'a') as config:
+    with h5py.File(f'..{TELEMETRY_ARCHIVE}/config/parameters.hdf5', 'a') as config:
         if param.lower() in list(config[subsystem].attrs):
             config[subsystem].attrs[param.lower()] = value
         else:
             raise ValueError(f'{param} is not a valid system parameter.')
 
 
-def get_config_parameter(subsystem=None, param=None):
-    """
+def get_config_parameter(subsystem: str=None, param: str=None) -> str:
+    """ Get the subsystem-level configuration from persisted config file
+
+        Parameters
+        ----------
+        :param subsystem: the target subsystem of the configuration parameter (i.e. ingest, fetch, staging, archive)
+        :param param: the name of the parameter value sought
+
+        :returns: config as str
     """
     if None in [subsystem, param]:
         raise ValueError('Both subsystem and param are required.')
-    with h5py.File('../config/parameters.hdf5', 'r') as config:
+    with h5py.File(f'..{TELEMETRY_ARCHIVE}/config/parameters.hdf5', 'r') as config:
         return config[subsystem].attrs[param.lower()]
 
 
-def load_config():
-    """
+def load_config() -> str:
+    """ Load the current config into memory by setting as environment variables
+        Parameters
+        ----------
+        :return: serialized json str of the current system configuration
     """
     current_settings = defaultdict(list)
 
-    with h5py.File('../config/parameters.hdf5', 'r') as config:
+    with h5py.File(f'..{TELEMETRY_ARCHIVE}/config/parameters.hdf5', 'r') as config:
         for k in config.keys():
             for a in config[k].attrs:
                 current_settings[k].append({a.upper():str(config[k].attrs[a])})

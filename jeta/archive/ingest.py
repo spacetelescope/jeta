@@ -58,7 +58,6 @@ TELEMETRY_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 STAGING_DIRECTORY = get_env_variable('STAGING_DIRECTORY')
 JETA_LOGS = get_env_variable('JETA_LOGS')
 ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
-UPDATE_STATS = int(os.environ['JETA_UPDATE_STATS'])
 
 BAD_APID_LIST = [712]
 
@@ -239,8 +238,8 @@ def sort_msid_data_by_time(mid, times=None, values=None, append=True):
 def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'):
     
     # retrieve environment variables
-    BYPASS_GAP_CHECK = int(os.environ['JETA_BYPASS_GAP_CHECK'])
-    BYPASS_DURATION_CHECK = int(os.environ['JETA_BYPASS_DURATION_CHECK'])
+    BYPASS_GAP_CHECK = int(os.environ.get('JETA_BYPASS_GAP_CHECK', False))
+    BYPASS_DURATION_CHECK = int(os.environ.get('JETA_BYPASS_DURATION_CHECK', False))
     
     # TODO: Move epoch to system config
     epoch = datetime.datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
@@ -533,6 +532,7 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
             this is an optional parameter to supply a list of specific files to ingest.
 
     """
+    
     f = lambda p: p if p is None else len(p)
     logger.info(f"Ingest Parameters: ingest_type -> {ingest_type}, source_type -> {source_type}, provided_ingest_files-> {f(provided_ingest_files)}")
     # assign the list of files to ingest to `ingest_files` if no list is provided. 
@@ -570,9 +570,11 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
             raise ValueError('Ingest type parameter is invalid. Valid options are csv or h5.')
         logger.info(f'Moving {len(processed_files)} HDF5 ingest file(s) to tmp storage ... ')
         move_archive_files(processed_files)
-        # Once data ingest is complete update the 5min and daily stats data
-        from jeta.archive import update
-        if UPDATE_STATS:
+        
+        
+        if int(os.environ.get('JETA_UPDATE_STATS', True)):
+            # Once data ingest is complete update the 5min and daily stats data
+            from jeta.archive import update
             update.main()
         else:
             logger.info(f'Skipping stats update.') # LITA-191
