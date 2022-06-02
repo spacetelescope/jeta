@@ -44,7 +44,7 @@ from jeta.archive.units import Units
 
 
 from jeta.archive.utils import get_env_variable
-from jeta.version import __version__, __git_version__
+# from jeta.version import __version__, __git_version__
 
 try:
     import fastss
