@@ -35,6 +35,7 @@ jeta.egg-info
 linux_deploy.sh
 VDS.hdf5
 fastss.c
+jeta/version.py
 
 # Python
 *.pyc

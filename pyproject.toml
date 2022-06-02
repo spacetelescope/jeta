@@ -1,0 +1,14 @@
+[build-system]
+requires = [
+    "setuptools>=45",
+    "setuptools_scm>=6.2",
+    "wheel",
+    "Cython==0.29.24",
+    "numpy==1.20.3"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+
+[tool.cibuildwheel]
+build = ["cp38-*", "cp39-*"]
