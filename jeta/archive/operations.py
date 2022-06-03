@@ -45,7 +45,7 @@ def set_config_parameter(subsystem: str=None, param: str=None, value: str=None) 
     """
     if None in [subsystem, param, value]:
         raise ValueError('Subsystem, param, and value are required.')
-    with h5py.File(f'..{TELEMETRY_ARCHIVE}/config/parameters.hdf5', 'a') as config:
+    with h5py.File(f'{TELEMETRY_ARCHIVE}/config/parameters.hdf5', 'a') as config:
         if param.lower() in list(config[subsystem].attrs):
             config[subsystem].attrs[param.lower()] = value
         else:
@@ -64,7 +64,7 @@ def get_config_parameter(subsystem: str=None, param: str=None) -> str:
     """
     if None in [subsystem, param]:
         raise ValueError('Both subsystem and param are required.')
-    with h5py.File(f'..{TELEMETRY_ARCHIVE}/config/parameters.hdf5', 'r') as config:
+    with h5py.File(f'{TELEMETRY_ARCHIVE}/config/parameters.hdf5', 'r') as config:
         return config[subsystem].attrs[param.lower()]
 
 
@@ -76,7 +76,7 @@ def load_config() -> str:
     """
     current_settings = defaultdict(list)
 
-    with h5py.File(f'..{TELEMETRY_ARCHIVE}/config/parameters.hdf5', 'r') as config:
+    with h5py.File(f'{TELEMETRY_ARCHIVE}/config/parameters.hdf5', 'r') as config:
         for k in config.keys():
             for a in config[k].attrs:
                 current_settings[k].append({a.upper():str(config[k].attrs[a])})
