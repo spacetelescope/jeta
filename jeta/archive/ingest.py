@@ -448,11 +448,6 @@ def _ingest_virtual_dataset(ref_data, mdmap, vds_tstart=None, vds_tstop=None):
         # and use it to create a Pandas Dataframe
         df = pd.DataFrame(vds['/data'][...].byteswap().newbyteorder())
         
-        # Entries with ID 0 are padding and can be ignored
-        ids = df['id'].unique()
-        ids = ids[ids != 0]
-        ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
-
         # Remove samples with id == 0
         df = df.loc[(df['id'] != 0)]
 
@@ -467,6 +462,11 @@ def _ingest_virtual_dataset(ref_data, mdmap, vds_tstart=None, vds_tstop=None):
             vds_tstop = Time(vds_tstop, format='unix').jd
             df = df.loc[(df['observatoryTime'] >= vds_tstart) & (df['observatoryTime'] <= vds_tstop)]
         
+        # Entries with ID 0 are padding and can be ignored
+        ids = df['id'].unique()
+        ids = ids[ids != 0]
+        ids = np.intersect1d(ids, np.array(list(mdmap.keys()),dtype=int))
+
         df = df.groupby(["id"])[['observatoryTime', 'engineeringNumericValue', 'apid']]
         
         for msid_id in ids:
