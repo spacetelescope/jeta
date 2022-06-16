@@ -284,7 +284,7 @@ def truncate(target_date):
                 continue
 
             # default timestamp last timestamp
-            last_ingest_time = 2459572.5
+            last_ingest_time = get_env_variable('EPOCH')
 
             idx_path = f"{ENG_ARCHIVE}/archive/data/tlm/{msid}/index.h5"
 
@@ -328,7 +328,7 @@ def truncate(target_date):
             except Exception as err:
                 print('INFO: Defaulting to mission epoch for stats truncate.')
                 print(err)
-                stats_target_time = 2459572.5
+                stats_target_time = get_env_variable('EPOCH')
 
             time0 = Time(stats_target_time, format='jd').unix
 
@@ -411,7 +411,7 @@ def initialize():
     """
     _create_root_content()
     _create_archive_database()
-
+    system_epoch = get_env_variable('EPOCH')
     with h5py.File(ALL_KNOWN_MSID_METAFILE, 'a') as h5:
         for msid in h5.keys():
             add_msid_to_archive(
@@ -421,8 +421,8 @@ def initialize():
                 nbytes=h5[msid].attrs['nbytes']
             )
             # Set the default value to DEC 24 2021, 00:00:00
-            h5[msid].attrs['last_ingested_timestamp'] = 2459572.5
-        h5.attrs['last_ingested_timestamp'] = 2459572.5
+            h5[msid].attrs['last_ingested_timestamp'] = system_epoch
+        h5.attrs['last_ingested_timestamp'] = system_epoch
 
 
 if __name__ == "__main__":

@@ -474,7 +474,7 @@ def _ingest_virtual_dataset(ref_data, mdmap, vds_tstart=None, vds_tstop=None):
 
             if 'last_ingested_timestamp' not in list(ref_data[mdmap[msid_id]].attrs):
                 # Set the default value to DEC 24 2021, 00:00:00
-                ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = 2459572.5
+                ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp'] = get_env_variable('EPOCH')
 
             if tlm['observatoryTime'].min() <= ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']:
                 if tlm['observatoryTime'].max() > ref_data[mdmap[msid_id]].attrs['last_ingested_timestamp']:

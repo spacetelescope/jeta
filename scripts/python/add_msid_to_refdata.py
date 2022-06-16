@@ -12,7 +12,7 @@ import numpy as np
 from jeta.archive import operations
 from jeta.archive.utils import get_env_variable
 
-epoch = 2459572.5
+epoch = get_env_variable('EPOCH')
 np_dtype = 'np.float64'
 
 ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
