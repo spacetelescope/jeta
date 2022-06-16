@@ -21,6 +21,24 @@ ENG_ARCHIVE = get_env_variable('ENG_ARCHIVE')
 TELEMETRY_ARCHIVE = get_env_variable('TELEMETRY_ARCHIVE')
 ALL_KNOWN_MSID_METAFILE = get_env_variable('ALL_KNOWN_MSID_METAFILE')
 
+DEFAULT_CONFIG_PATH = '/srv/jeta/jeta/config/parameters.hdf5'
+
+
+def get_default_config(config_path=DEFAULT_CONFIG_PATH) -> str:
+    """ Get the default current config as json
+        Parameters
+        ----------
+        :return: serialized json str of the current system configuration
+    """
+    default_settings = defaultdict(list)
+
+    with h5py.File(config_path, 'r') as c:
+        for k in c.keys():
+            for a in c[k].attrs:
+                default_settings[k].append({a.upper(): str(c[k].attrs[a])})
+                os.environ[a.upper()] = str(c[k].attrs[a])
+    return json.dumps(default_settings)
+
 
 def set_config_parameter(
     subsystem: str = None,
