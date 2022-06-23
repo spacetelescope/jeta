@@ -717,17 +717,16 @@ class MSID(object):
             """
             # TODO: switch to use Astropy.Time
             logger.info(f"FETCH: Telemetry data range {tstart} to {tstop} from {filename}")
-            print(filename)
             
-            h5 = tables.open_file(filename)
-            table = h5.root.data
-            times = (table.col('index') + 0.5) * dt
-            times = Time(times, format="unix").unix
+            with tables.open_file(filename) as h5:
+                table = h5.root.data
+                times = (table.col('index') + 0.5) * dt
+                times = Time(times, format="unix").unix
 
-            row0, row1 = np.searchsorted(times, [tstart, tstop])
-            table_rows = table[row0:row1]  # returns np.ndarray (structured array)
-            h5.close()
-            return (times[row0:row1], table_rows, row0, row1)
+                row0, row1 = np.searchsorted(times, [tstart, tstop])
+                table_rows = table[row0:row1]  # returns np.ndarray (structured array)
+                return (times[row0:row1], table_rows, row0, row1)
+            
         times, table_rows, row0, row1 = \
             get_stat_data_from_server(filename,
                                       self.dt, self.tstart, self.tstop)
