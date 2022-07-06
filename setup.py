@@ -40,7 +40,7 @@ setup(
     ),
     install_requires=[
         'Cython==0.29.24',
-        'numpy==1.20.3',
+        'numpy==1.22.0',
         'pandas==1.3.4',
         'astropy==4.3.1',
         'torch==1.10.0',
