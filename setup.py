@@ -77,7 +77,7 @@ setup(
         'pyyaks==3.3.3',
         'celery==5.2.2',
         'redis==4.1.0',
-        'jupyterlab==3.2.2',
+        'jupyterlab==3.4.3',
         'configurable-http-proxy==0.2.3',
         'jupyterhub-idle-culler',
         'sphinx_rtd_theme',
