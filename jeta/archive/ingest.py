@@ -241,13 +241,45 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
     BYPASS_GAP_CHECK = int(os.environ.get('JETA_BYPASS_GAP_CHECK', False))
     BYPASS_DURATION_CHECK = int(os.environ.get('JETA_BYPASS_DURATION_CHECK', False))
     
+    MAX_FILE_PROCESSING_CHUNK = int(get_env_variable('JETA_INGEST_CHUNK_SIZE'))
+    
     # TODO: Move epoch to system config
     epoch = datetime.datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
+
+    try:
+        # TODO: Use redis cache instead of pickle file?
+        with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'rb') as f:
+            ingest_list = pickle.load(f)
+
+    except Exception as e:
+        logger.info(f"Could not load ingest list. {e}")
+        ingest_list = []
     
-    ingest_list = []
+    
+    # remove stale entries from the saved ingest list
+    ingest_list = [f for f in ingest_list if f['filename'] in list_of_files]
+    
+    #remove entries from list_of_files that are already in the ingest list (already preprocessed)
+    ingest_list_filenames = [f['filename'] for f in ingest_list]
+    list_of_files = [f for f in list_of_files if f not in ingest_list_filenames]
+    
 
     for file in list_of_files:
+            
+        file_modified_time = os.path.getmtime(file) 
+        
+        # do not preprocess files if they are less than 5 minutes old.
+        # prevents preprocessing file that is still being transfered to server
+        # TODO: is this needed?
+        if (Time(Time.now()).unix - file_modified_time) < 5*60:
+            logger.info("skipped new file {}".format(file))
+            continue
+        
+        
         with h5py.File(file, 'r') as f:
+            
+            logger.info( f"Preprocessing {file}" )
+            
             # if the files data origin is not correct move on 
             # to the next one.
             if data_origin not in str(f.attrs['/dataOrigin'][0]):
@@ -276,7 +308,8 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
                             'filename': f.filename,
                             'tstart': tstart,
                             'tstop': tstop,
-                            'numPoints': f.attrs['/numPoints']
+                            'numPoints': f.attrs['/numPoints'],
+                            'filetime' : file_modified_time,
                         }
                     )
                 else:
@@ -290,12 +323,29 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
         # cancel ingest, LITA-181
         return []
     
-    #sort by start time, and secondarily by stop time. 
+    #sort by stop time. 
     ingest_list = sorted(ingest_list, key=lambda k: k['tstop'] )    
     
+    logger.info("=-=-=-=-=-=-=-=-=-=-=-=INGEST FILE(S) COVERAGE REPORT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
+    for f in ingest_list: 
+        logger.info(("{}, {}, {}").format(
+            os.path.basename(f['filename']), 
+            (epoch + datetime.timedelta(seconds=int(f['tstart']))).strftime('%Y:%j:%H:%M:%S'), 
+            (epoch + datetime.timedelta(seconds=int(f['tstop']))).strftime('%Y:%j:%H:%M:%S'))
+        )    
+    
+    try:
+        # TODO: Use redis cache instead of pickle file?
+        with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'wb') as f: 
+            pickle.dump(ingest_list, f)   
+            
+    except Exception as e:
+        logger.info(f"Could not save ingest list. {e}")
+ 
     if len(ingest_list) > 120:
         # LITA-182
-        ingest_list = ingest_list[:120]
+        logger.info("Truncating ingest list to 120 files")
+        ingest_list = ingest_list[:120]    
 
     # perform gap checking per LITA-179
     if BYPASS_GAP_CHECK:
@@ -304,25 +354,35 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
     else:
         ingest_list = _ingest_list_gap_check(ingest_list)
     
+    # get full chunks to ingest (LITA-233)
+    num_files = len(ingest_list) -  (len(ingest_list) % MAX_FILE_PROCESSING_CHUNK)
+    logger.info(f"Found {num_files / MAX_FILE_PROCESSING_CHUNK :0.0f} full chunks ready to ingest")
+    
+    # add files that are older than one hour (LITA-233)
+    for f in ingest_list[num_files:]:
+        if ( Time(Time.now()).unix - f['filetime'] ) > 60*60:
+            num_files += 1
+            logger.info(f"Adding file due to age: {f['filename']}")
+        else:
+            break
+    
+    ingest_list = ingest_list[:num_files]
+
     if not ingest_list:
         return []
-    
+        
     dt_tstart = epoch + datetime.timedelta(seconds=int(ingest_list[0]['tstart']))
     dt_tstop = epoch + datetime.timedelta(seconds=int(ingest_list[-1]['tstop']))
 
-    logger.info("=-=-=-=-=-=-=-=-=-=-=-=INGEST FILE(S) COVERAGE REPORT-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=")
-    for f in ingest_list: 
-        logger.info(("{}, {}, {}").format(
-            os.path.basename(f['filename']), 
-            (epoch + datetime.timedelta(seconds=int(f['tstart']))).strftime('%Y:%j:%H:%M:%S'), 
-            (epoch + datetime.timedelta(seconds=int(f['tstop']))).strftime('%Y:%j:%H:%M:%S'))
-        )
+
+    # print time range of files to be ingested
     logger.info(
         (
-            "Full Data Coverage for all files (tstart, tstop): "
+            "Ingesting {} files\n"
+            "Full Data Coverage for ingest (tstart, tstop): "
             "({},"
             "{})"
-        ).format(dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S'))
+        ).format(num_files, dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S'))
     )
 
     return ingest_list
@@ -572,6 +632,8 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
         move_archive_files(processed_files)
         
         
+        #TODO: call stats separately, direct from Celery task if staging is empty
+        
         if int(os.environ.get('JETA_UPDATE_STATS', True)):
             # Once data ingest is complete update the 5min and daily stats data
             from jeta.archive import update
@@ -579,7 +641,7 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
         else:
             logger.info(f'Skipping stats update.') # LITA-191
     else:
-        logger.info('No ingest files discovered in {STAGING_DIRECTORY}')
+        logger.info(f'No ingest files discovered in {STAGING_DIRECTORY}')
 
 
 def _process_csv(ingest_files, ingest_id, single_msid=False):
