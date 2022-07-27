@@ -14,6 +14,8 @@ import pickle
 from random import seed
 import datetime
 import torch
+import shutil
+
 
 from collections import (
     Counter,
@@ -263,6 +265,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
     ingest_list_filenames = [f['filename'] for f in ingest_list]
     list_of_files = [f for f in list_of_files if f not in ingest_list_filenames]
     
+    bad_origin_list = []
 
     for file in list_of_files:
             
@@ -283,6 +286,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             # if the files data origin is not correct move on 
             # to the next one.
             if data_origin not in str(f.attrs['/dataOrigin'][0]):
+                bad_origin_list.append(file)
                 logger.info("{} skipped due to incorrect data origin {}".format(file, str(f.attrs['/dataOrigin'][0]))) # LITA-181
                 continue
 
@@ -318,6 +322,15 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             except Exception as e:
                 logger.info("{}, {}".format(file, e))
                 
+
+    # move files with bad origins out of staging
+    for f in bad_origin_list:   
+        try:
+            shutil.copyfile(f, f"{STAGING_DIRECTORY}/bad_origin/{f.split('/')[-1]}" )
+            os.remove(f)
+        except Exception as e:
+            logger.info(f"Could not move file with bad origin {f}, {e}")
+        
 
     if not ingest_list:
         # cancel ingest, LITA-181
@@ -471,7 +484,6 @@ def move_archive_files(processed_files):
     if processed_files is not None:
 
         import tarfile
-        import shutil
 
         os.chdir(os.environ['STAGING_DIRECTORY'])
 
