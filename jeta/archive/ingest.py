@@ -252,7 +252,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
 
 
     try:
-        r = redis.StrictRedis(host='redis://redis-server', port=6379, db=0)
+        r = redis.StrictRedis(host='redis-server', port=6379, db=0)
         ingest_list = pickle.loads(r.get('ingest_list'))
         #with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'rb') as f:
         #    ingest_list = pickle.load(f)
@@ -352,7 +352,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
         )    
     
     try:
-        r = redis.StrictRedis(host='redis://redis-server', port=6379, db=0)
+        r = redis.StrictRedis(host='redis-server', port=6379, db=0)
         r.set('ingest_list', pickle.dumps(ingest_list))
         #with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'wb') as f: 
         #    pickle.dump(ingest_list, f)        
