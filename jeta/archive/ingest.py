@@ -15,6 +15,7 @@ from random import seed
 import datetime
 import torch
 import shutil
+import redis
 
 
 from collections import (
@@ -248,10 +249,13 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
     # TODO: Move epoch to system config
     epoch = datetime.datetime.strptime('1970-01-01 00:00:00', '%Y-%m-%d %H:%M:%S')
 
+
+
     try:
-        # TODO: Use redis cache instead of pickle file?
-        with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'rb') as f:
-            ingest_list = pickle.load(f)
+        r = redis.StrictRedis(host='redis://redis-server', port=6379, db=0)
+        ingest_list = pickle.loads(r.get('ingest_list'))
+        #with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'rb') as f:
+        #    ingest_list = pickle.load(f)
 
     except Exception as e:
         logger.info(f"Could not load ingest list. {e}")
@@ -274,7 +278,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
         # do not preprocess files if they are less than 5 minutes old.
         # prevents preprocessing file that is still being transfered to server
         # TODO: is this needed?
-        if (Time(Time.now()).unix - file_modified_time) < 5*60:
+        if (Time(Time.now()).unix - file_modified_time) < 2*60:
             logger.info("skipped new file {}".format(file))
             continue
         
@@ -348,10 +352,10 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
         )    
     
     try:
-        # TODO: Use redis cache instead of pickle file?
-        with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'wb') as f: 
-            pickle.dump(ingest_list, f)   
-            
+        r = redis.StrictRedis(host='redis://redis-server', port=6379, db=0)
+        r.set('ingest_list', pickle.dumps(ingest_list))
+        #with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'wb') as f: 
+        #    pickle.dump(ingest_list, f)        
     except Exception as e:
         logger.info(f"Could not save ingest list. {e}")
  
@@ -644,14 +648,16 @@ def _start_ingest_pipeline(ingest_type="h5", source_type='E', provided_ingest_fi
         move_archive_files(processed_files)
         
         
-        #TODO: call stats separately, direct from Celery task if staging is empty
-        
+        #LITA-233: call stats separately, direct from Celery task 
+        '''
         if int(os.environ.get('JETA_UPDATE_STATS', True)):
             # Once data ingest is complete update the 5min and daily stats data
             from jeta.archive import update
             update.main()
         else:
             logger.info(f'Skipping stats update.') # LITA-191
+        '''
+            
     else:
         logger.info(f'No ingest files discovered in {STAGING_DIRECTORY}')
 
