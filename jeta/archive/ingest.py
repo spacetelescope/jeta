@@ -374,14 +374,17 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
     # get full chunks to ingest (LITA-233)
     num_files = len(ingest_list) -  (len(ingest_list) % MAX_FILE_PROCESSING_CHUNK)
     logger.info(f"Found {num_files / MAX_FILE_PROCESSING_CHUNK :0.0f} full chunks ready to ingest")
-    
-    # add files that are older than one hour (LITA-233)
+            
+    # add partial chunk if all files are older than 40 minutes (LITA-233)
+    ingest_partial_chunk = True
     for f in ingest_list[num_files:]:
-        if ( Time(Time.now()).unix - f['filetime'] ) > 60*60:
-            num_files += 1
-            logger.info(f"Adding file due to age: {f['filename']}")
-        else:
+        if ( Time(Time.now()).unix - f['filetime'] ) < 40*60:
+            ingest_partial_chunk = False
             break
+    
+    if ingest_partial_chunk:
+        logger.info(f"Adding partial chunk ({len(ingest_list[num_files:])} files) due to age of files.")
+        num_files = len(ingest_list)
     
     ingest_list = ingest_list[:num_files]
 
