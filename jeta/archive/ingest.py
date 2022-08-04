@@ -254,15 +254,13 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
     try:
         r = redis.StrictRedis(host='redis-server', port=6379, db=0)
         ingest_list = pickle.loads(r.get('ingest_list'))
-        #with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'rb') as f:
-        #    ingest_list = pickle.load(f)
 
     except Exception as e:
         logger.info(f"Could not load ingest list. {e}")
         ingest_list = []
     
     
-    # remove stale entries from the saved ingest list
+    # remove stale entries from the saved ingest list (file no longer in staging directory)
     ingest_list = [f for f in ingest_list if f['filename'] in list_of_files]
     
     #remove entries from list_of_files that are already in the ingest list (already preprocessed)
@@ -275,9 +273,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             
         file_modified_time = os.path.getmtime(file) 
         
-        # do not preprocess files if they are less than 5 minutes old.
-        # prevents preprocessing file that is still being transfered to server
-        # TODO: is this needed?
+        # do not preprocess files if they are less than 2 minutes old.
         if (Time(Time.now()).unix - file_modified_time) < 2*60:
             logger.info("skipped new file {}".format(file))
             continue
@@ -287,7 +283,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             
             logger.info( f"Preprocessing {file}" )
             
-            # if the files data origin is not correct move on 
+            # if the file data origin is not correct move on 
             # to the next one.
             if data_origin not in str(f.attrs['/dataOrigin'][0]):
                 bad_origin_list.append(file)
@@ -353,9 +349,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
     
     try:
         r = redis.StrictRedis(host='redis-server', port=6379, db=0)
-        r.set('ingest_list', pickle.dumps(ingest_list))
-        #with open(f'{STAGING_DIRECTORY}/ingest_list.pkl', 'wb') as f: 
-        #    pickle.dump(ingest_list, f)        
+        r.set('ingest_list', pickle.dumps(ingest_list))      
     except Exception as e:
         logger.info(f"Could not save ingest list. {e}")
  
@@ -383,10 +377,10 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             break
     
     if ingest_partial_chunk:
-        logger.info(f"Adding partial chunk ({len(ingest_list[num_files:])} files) due to age of files.")
-        num_files = len(ingest_list)
-    
-    ingest_list = ingest_list[:num_files]
+        logger.info(f"Ingesting partial chunk ({len(ingest_list[num_files:])} files).")
+    else:
+        #only ingest complete chunks
+        ingest_list = ingest_list[:num_files]
 
     if not ingest_list:
         return []
@@ -402,7 +396,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
             "Full Data Coverage for ingest (tstart, tstop): "
             "({},"
             "{})"
-        ).format(num_files, dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S'))
+        ).format(len(ingest_list), dt_tstart.strftime('%Y:%j:%H:%M:%S'), dt_tstop.strftime('%Y:%j:%H:%M:%S'))
     )
 
     return ingest_list
