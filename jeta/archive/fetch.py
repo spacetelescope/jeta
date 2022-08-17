@@ -719,14 +719,14 @@ class MSID(object):
             logger.info(f"FETCH: Telemetry data range {tstart} to {tstop} from {filename}")
             print(filename)
             
-            h5 = tables.open_file(filename)
-            table = h5.root.data
-            times = (table.col('index') + 0.5) * dt
-            times = Time(times, format="unix").unix
+            with tables.open_file(filename) as h5:
+                table = h5.root.data
+                times = (table.col('index') + 0.5) * dt
+                times = Time(times, format="unix").unix
 
-            row0, row1 = np.searchsorted(times, [tstart, tstop])
-            table_rows = table[row0:row1]  # returns np.ndarray (structured array)
-            h5.close()
+                row0, row1 = np.searchsorted(times, [tstart, tstop])
+                table_rows = table[row0:row1]  # returns np.ndarray (structured array)
+
             return (times[row0:row1], table_rows, row0, row1)
         times, table_rows, row0, row1 = \
             get_stat_data_from_server(filename,
@@ -804,9 +804,8 @@ class MSID(object):
         stop_jd = Time(tstop, format='unix', scale="utc").jd
 
         # Assume the index.h5 file is a table (named epoch) with 'epoch' and 'index' columns
-        h5 = tables.open_file(index_filepath, 'r')
-        index = h5.root.epoch[:]  # read the whole thing into a numpy structured array
-        h5.close()
+        with tables.open_file(index_filepath, 'r') as h5:
+            index = h5.root.epoch[:]  # read the whole thing into a numpy structured array
 
         # Interval that starts *before* start_jd, making sure to not go below 0
         idx0 = max(np.searchsorted(index['epoch'], start_jd, side='right') - 1, 0)
@@ -815,11 +814,10 @@ class MSID(object):
         idx1 = np.searchsorted(index['epoch'], stop_jd, side='right')
 
         if len(index) == idx1:
-            h5 = tables.open_file(values_filepath, 'r')
-            dt = np.dtype([ ('epoch','<f8'), ('index', '<u8')])
-            last_idx = np.array([(0, len(h5.root.values[0:-1]) )], dtype=dt)
-            index = np.append(index, last_idx)
-            h5.close()
+            with tables.open_file(values_filepath, 'r') as h5:
+                dt = np.dtype([ ('epoch','<f8'), ('index', '<u8')])
+                last_idx = np.array([(0, len(h5.root.values[0:-1]) )], dtype=dt)
+                index = np.append(index, last_idx)
 
         else:
             index = index[idx0:idx1 + 1]  # The +1 is so that the idx1 record is included
@@ -829,14 +827,12 @@ class MSID(object):
         row1 = index['index'][-1]
 
         # Get the values
-        h5 = tables.open_file(values_filepath, 'r')
-        vals = h5.root.values[row0:row1]
-        h5.close()
+        with tables.open_file(values_filepath, 'r') as h5:
+            vals = h5.root.values[row0:row1]
 
         # Get the times (still an array of delta times now)
-        h5 = tables.open_file(times_filepath, 'r')
-        jds = h5.root.times[row0:row1]
-        h5.close()
+        with tables.open_file(times_filepath, 'r') as h5:
+            jds = h5.root.times[row0:row1]
 
         # Make the final time array now
         # jds = np.zeros_like(dts)
@@ -1833,21 +1829,20 @@ def get_time_range(msid, format=None):
 
         logger.info('Reading %s', times_filepath)
        
-        times_h5 = tables.open_file(times_filepath)
-        # index_h5 = tables.open_file(index_filepath)
+        with tables.open_file(times_filepath) as times_h5:
+            # index_h5 = tables.open_file(index_filepath)
 
-        # sp_idx = int(index_h5.root.epoch[-1][1]) - 1
+            # sp_idx = int(index_h5.root.epoch[-1][1]) - 1
 
-        tstart = times_h5.root.times[0] # index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.times[0])[0]
+            tstart = times_h5.root.times[0] # index_h5.root.epoch[0][0] + np.cumsum(times_h5.root.times[0])[0]
 
-        try:
-            tstop = times_h5.root.times[-1] # index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.times[sp_idx:-1])[-1]
-        except Exception as err:
-            tstop = tstart
-            #raise
+            try:
+                tstop = times_h5.root.times[-1] # index_h5.root.epoch[-1][0] + np.cumsum(times_h5.root.times[sp_idx:-1])[-1]
+            except Exception as err:
+                tstop = tstart
+                #raise
 
-        # index_h5.close()
-        times_h5.close()
+            # index_h5.close()
 
         if format == 'iso':
             tstart = Time(tstart, format='jd').iso

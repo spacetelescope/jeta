@@ -315,66 +315,65 @@ def statistics(colname, interval, msid=None):
         logger.info('Making stats dir {}'.format(f'{TELEMETRY_ARCHIVE}/data/tlm/stats/{interval}/'))
         os.makedirs(f'{TELEMETRY_ARCHIVE}/data/tlm/stats/{interval}/')
 
-    stats = tables.open_file(
+    with tables.open_file(
         stats_file,
         mode='a',
         filters=tables.Filters(complevel=5, complib='zlib')
-    )
+    ) as stats:
 
-    # INDEX0 is somewhat before any CXC archive data (which starts around 1999:205)
-    INDEX0 = Time('1999:200:00:00:00', format='yday').unix // dt
-    try:
-        index0 = stats.root.data.cols.index[-1] + 1
-    except tables.NoSuchNodeError:
-        index0 = INDEX0
-
-    # Get all new data. time0 is the fetch start time which nominally starts at
-    # 500 sec before the last available record.  However some MSIDs may not
-    # be sampled for years at a time so once the archive is built and kept
-    # up to date then do not look back beyond a certain point.
-    if msid is None:
-        # fetch telemetry plus a little extra
-
-        time0 = max(Time(Time(Time.now()).yday, format="yday").unix - opt.max_lookback_time * 86400,
-                    index0 * dt - 500)
-        time1 = Time(Time.now()).yday
-
-        msid = fetch.MSID(colname, Time(time0, format="unix").yday, time1, filter_bad=False)
-
-    if len(msid.times) > 0:
-        if index0 == INDEX0:
-            # Must be creating the file, so back up a bit from earliest MSID data
-            index0 = msid.times[0] // dt - 2
-
-        indexes = np.arange(index0, msid.times[-1] / dt, dtype=np.int32)
-        times = indexes * dt
-
-        if len(times) > 2:
-            rows = np.searchsorted(msid.times, times)
-            vals_stats = calc_stats_vals(msid, rows, indexes, interval)
-            if len(vals_stats) > 0:
-                # Don't change the following logic in order to add stats data
-                # on the same pass as creating the table.  Tried it and
-                # something got broken so that there was a single bad record
-                # after the first bunch.
-                if not opt.dry_run:
-                    try:
-                        stats.root.data.append(vals_stats)
-                        logger.info('  Adding %d records', len(vals_stats))
-                    except tables.NoSuchNodeError:
-                        logger.info('  Creating table with %d records ...', len(vals_stats))
-                        stats.create_table(stats.root, 'data', vals_stats,
-                                          "{} sampling".format(interval), expectedrows=2e7)
-                    stats.root.data.flush()
+        # INDEX0 is somewhat before any CXC archive data (which starts around 1999:205)
+        INDEX0 = Time('1999:200:00:00:00', format='yday').unix // dt
+        try:
+            index0 = stats.root.data.cols.index[-1] + 1
+        except tables.NoSuchNodeError:
+            index0 = INDEX0
+    
+        # Get all new data. time0 is the fetch start time which nominally starts at
+        # 500 sec before the last available record.  However some MSIDs may not
+        # be sampled for years at a time so once the archive is built and kept
+        # up to date then do not look back beyond a certain point.
+        if msid is None:
+            # fetch telemetry plus a little extra
+    
+            time0 = max(Time(Time(Time.now()).yday, format="yday").unix - opt.max_lookback_time * 86400,
+                        index0 * dt - 500)
+            time1 = Time(Time.now()).yday
+    
+            msid = fetch.MSID(colname, Time(time0, format="unix").yday, time1, filter_bad=False)
+    
+        if len(msid.times) > 0:
+            if index0 == INDEX0:
+                # Must be creating the file, so back up a bit from earliest MSID data
+                index0 = msid.times[0] // dt - 2
+    
+            indexes = np.arange(index0, msid.times[-1] / dt, dtype=np.int32)
+            times = indexes * dt
+    
+            if len(times) > 2:
+                rows = np.searchsorted(msid.times, times)
+                vals_stats = calc_stats_vals(msid, rows, indexes, interval)
+                if len(vals_stats) > 0:
+                    # Don't change the following logic in order to add stats data
+                    # on the same pass as creating the table.  Tried it and
+                    # something got broken so that there was a single bad record
+                    # after the first bunch.
+                    if not opt.dry_run:
+                        try:
+                            stats.root.data.append(vals_stats)
+                            logger.info('  Adding %d records', len(vals_stats))
+                        except tables.NoSuchNodeError:
+                            logger.info('  Creating table with %d records ...', len(vals_stats))
+                            stats.create_table(stats.root, 'data', vals_stats,
+                                              "{} sampling".format(interval), expectedrows=2e7)
+                        stats.root.data.flush()
+                else:
+                    logger.info('  No stat records within available fetched values')
             else:
-                logger.info('  No stat records within available fetched values')
+                logger.info('  No full stat intervals within fetched values')
         else:
-            logger.info('  No full stat intervals within fetched values')
-    else:
-        logger.info('  No MSID data found within {} to {}'
-                    .format(msid.datestart, msid.datestop))
+            logger.info('  No MSID data found within {} to {}'
+                        .format(msid.datestart, msid.datestop))
 
-    stats.close()
 
     return msid
 
