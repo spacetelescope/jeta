@@ -349,7 +349,7 @@ def statistics(colname, interval, msid=None):
             indexes = np.arange(index0, msid.times[-1] / dt, dtype=np.int32)
             times = indexes * dt
     
-            if len(times) > 2:
+            if len(times) >= 2:
                 rows = np.searchsorted(msid.times, times)
                 vals_stats = calc_stats_vals(msid, rows, indexes, interval)
                 if len(vals_stats) > 0:
