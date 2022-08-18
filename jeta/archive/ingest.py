@@ -254,6 +254,7 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
     try:
         r = redis.StrictRedis(host='redis-server', port=6379, db=0)
         ingest_list = pickle.loads(r.get('ingest_list'))
+        assert(type(ingest_list[0]) is dict)
 
     except Exception as e:
         logger.info(f"Could not load ingest list. {e}")
