@@ -365,6 +365,9 @@ def _sort_ingest_files_by_start_time(list_of_files=[], data_origin='OBSERVATORY'
     
     else:
         ingest_list = _ingest_list_gap_check(ingest_list)
+
+    if not ingest_list:
+        return []
     
     # get full chunks to ingest (LITA-233)
     num_files = len(ingest_list) -  (len(ingest_list) % MAX_FILE_PROCESSING_CHUNK)
@@ -412,13 +415,22 @@ def _ingest_list_gap_check(ingest_list):
             ref_data.attrs['last_ingested_timestamp'] = Time(ingest_list[0]['tstart'], format='unix').jd
 
         last_ingested_timestamp = Time(ref_data.attrs['last_ingested_timestamp'], format='jd').unix   
-        if ( ingest_list[0]['tstart'] - last_ingested_timestamp ) > 1:
-            logger.info("Cancelling ingest. Gap since previous ingest.")
-            logger.info("Last ingested timestamp: {}".format(Time(last_ingested_timestamp, format='unix').yday) )
-            logger.info( "Fist timestamp in {}: {}".format( ingest_list[0]['filename'], Time(ingest_list[0]['tstart'], format='unix').yday ))
-            return []
         
-        for i in range(1, len(ingest_list)):
+        for file_idx in range(len(ingest_list)):
+            #skip over old files by finding the first file that ends after the last_ingested_timestamp
+            if ingest_list[file_idx]['tstop'] > last_ingested_timestamp:
+                if file_idx > 0:
+                    logger.info(f"gap check skipped over {file_idx} old files.")
+                break
+        
+        if ( ingest_list[file_idx]['tstart'] - last_ingested_timestamp ) > 1:
+            logger.info("Gap since previous ingest.")
+            logger.info("Last ingested timestamp: {}".format(Time(last_ingested_timestamp, format='unix').yday) )
+            logger.info( "Fist timestamp in {}: {}".format( ingest_list[file_idx]['filename'], Time(ingest_list[file_idx]['tstart'], format='unix').yday ))
+            ingest_list = ingest_list[:file_idx]
+            return ingest_list
+        
+        for i in range(file_idx+1, len(ingest_list)):
             if (ingest_list[i]['tstart'] - ingest_list[i-1]['tstop']) > 1:
                 logger.info("Truncating ingest list due to gap before {}".format(ingest_list[i]['filename']) ) 
                 ingest_list = ingest_list[:i]
