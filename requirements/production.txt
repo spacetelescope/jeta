@@ -45,7 +45,7 @@ tables==3.6.1
 pyyaks==3.3.3
 celery==5.2.2
 
-redis==4.1.0
+redis==4.4.4
 
 
 jupyterlab==3.2.2
